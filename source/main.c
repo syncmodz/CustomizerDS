@@ -24,10 +24,10 @@ int main() {
     topTarget = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
     botTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
-    // Inicializar sistemas
-    themeInit();
-    animInit();
-    themeLoadFromAnemone();
+    // Inicializar sistemas (ordem correta)
+    animInit();       // lookup tables
+    themeInit();      // tema padrão
+    themeLoadFromAnemone(); // sobrescreve com wallpaper se disponível
 
     int currentScreen = SCREEN_MAIN_MENU;
     menuInit();
