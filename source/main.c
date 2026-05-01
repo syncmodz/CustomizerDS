@@ -24,10 +24,9 @@ int main() {
     topTarget = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
     botTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
-    // Inicializar sistemas (ordem correta)
-    animInit();       // lookup tables
-    themeInit();      // tema padrão
-    themeLoadFromAnemone(); // sobrescreve com wallpaper se disponível
+    animInit();
+    themeInit();
+    themeLoadFromAnemone();
 
     int currentScreen = SCREEN_MAIN_MENU;
     menuInit();
@@ -70,9 +69,6 @@ int main() {
         }
 
         C3D_FrameEnd(0);
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        gspWaitForVBlank();
     }
 
     C2D_Fini();

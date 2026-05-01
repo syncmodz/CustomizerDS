@@ -26,16 +26,16 @@ void UI_Card(float x, float y, float w, float h,
         UI_Glow(x, y, w, h, g_theme.accent, 3);
     }
 
-    // Extração correta de canais RGBA8888
-    u8 sr = (g_theme.surface >> 24) & 0xFF;  // R de surface
-    u8 sg = (g_theme.surface >> 16) & 0xFF;  // G de surface
-    u8 sb = (g_theme.surface >> 8)  & 0xFF;  // B de surface
-    u8 sa = g_theme.surface & 0xFF;           // A de surface
+    // Extração correta de canais RGBA8888 (formato AABBGGRR)
+    u8 sr = g_theme.surface & 0xFF;           // R de surface (bits 7-0)
+    u8 sg = (g_theme.surface >> 8) & 0xFF;   // G de surface (bits 15-8)
+    u8 sb = (g_theme.surface >> 16) & 0xFF;  // B de surface (bits 23-16)
+    u8 sa = (g_theme.surface >> 24) & 0xFF;  // A de surface (bits 31-24)
 
-    u8 pr = (g_theme.primary >> 24) & 0xFF;  // R de primary
-    u8 pg = (g_theme.primary >> 16) & 0xFF;  // G de primary
-    u8 pb = (g_theme.primary >> 8)  & 0xFF;  // B de primary
-    u8 pa = g_theme.primary & 0xFF;           // A de primary
+    u8 pr = g_theme.primary & 0xFF;           // R de primary (bits 7-0)
+    u8 pg = (g_theme.primary >> 8) & 0xFF;   // G de primary (bits 15-8)
+    u8 pb = (g_theme.primary >> 16) & 0xFF;  // B de primary (bits 23-16)
+    u8 pa = (g_theme.primary >> 24) & 0xFF;  // A de primary (bits 31-24)
 
     // Interpolação com LERP
     u8 r = (u8)LERP(sr, pr, selectAnim);
@@ -189,16 +189,16 @@ void uiSwitchStep(UISwitch* s) {
     animStep(&s->colorAnim);
 }
 void uiSwitchDraw(UISwitch* s, float x, float y) {
-    // Extração correta de canais RGBA8888 para textHint e primary
-    u8 thr = (g_theme.textHint >> 24) & 0xFF;
-    u8 thg = (g_theme.textHint >> 16) & 0xFF;
-    u8 thb = (g_theme.textHint >> 8)  & 0xFF;
-    u8 tha = g_theme.textHint & 0xFF;
+    // Extração correta de canais RGBA8888 (formato AABBGGRR) para textHint e primary
+    u8 thr = g_theme.textHint & 0xFF;           // R de textHint (bits 7-0)
+    u8 thg = (g_theme.textHint >> 8) & 0xFF;   // G de textHint (bits 15-8)
+    u8 thb = (g_theme.textHint >> 16) & 0xFF;  // B de textHint (bits 23-16)
+    u8 tha = (g_theme.textHint >> 24) & 0xFF;  // A de textHint (bits 31-24)
 
-    u8 pr = (g_theme.primary >> 24) & 0xFF;
-    u8 pg = (g_theme.primary >> 16) & 0xFF;
-    u8 pb = (g_theme.primary >> 8)  & 0xFF;
-    u8 pa = g_theme.primary & 0xFF;
+    u8 pr = g_theme.primary & 0xFF;           // R de primary (bits 7-0)
+    u8 pg = (g_theme.primary >> 8) & 0xFF;   // G de primary (bits 15-8)
+    u8 pb = (g_theme.primary >> 16) & 0xFF;  // B de primary (bits 23-16)
+    u8 pa = (g_theme.primary >> 24) & 0xFF;  // A de primary (bits 31-24)
 
     u8 r = (u8)LERP(thr, pr, s->colorAnim.value);
     u8 g = (u8)LERP(thg, pg, s->colorAnim.value);
