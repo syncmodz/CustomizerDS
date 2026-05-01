@@ -1,0 +1,6 @@
+build/
+*.o
+*.elf
+*.3dsx
+*.smdh
+.DS_Store
