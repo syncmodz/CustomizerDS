@@ -1,5 +1,8 @@
 #include "fonts.h"
 #include "common.h"
+#include "theme.h"
+#include "anim.h"
+#include "ui.h"
 #include <string.h>
 
 static int selectedFont = 0;
@@ -11,9 +14,11 @@ static const char* fonts[] = {
     "Voltar"
 };
 static const int FONT_COUNT = 5;
+static Anim selectedAnim;
 
 void fontsInit(void) {
     selectedFont = 0;
+    animSet(&selectedAnim, 0.0f, 0.12f);
 }
 
 void fontsRender(u32 kDown, u32 kHeld, int* currentScreen) {
@@ -37,20 +42,29 @@ void fontsRender(u32 kDown, u32 kHeld, int* currentScreen) {
     if (!buf) {
         return;
     }
-    C2D_Text text;
-    C2D_TextParse(&text, buf, "Modulo Fontes");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, 0.4f, 10.0f, 10.0f, 0.4f, 0.4f, C2D_Color32(200, 200, 50, 255));
 
+    // Header
+    UI_Header(buf, "Fontes do Sistema", "Escolha uma fonte");
+
+    // Animar selected
+    animTo(&selectedAnim, selectedFont * 1.0f);
+    animStep(&selectedAnim);
+    float selectAnim = animEasedOut(&selectedAnim);
+
+    // Fontes
     for (int i = 0; i < FONT_COUNT; i++) {
-        u32 color = (i == selectedFont) ? C2D_Color32(60, 100, 150, 255) : C2D_Color32(40, 40, 50, 255);
-        C2D_DrawRectSolid(10, 50 + i*30, 0, 300, 25, color);
-
-        C2D_TextParse(&text, buf, fonts[i]);
-        C2D_TextOptimize(&text);
-        C2D_DrawText(&text, 0.3f, 20.0f, 53 + i*30, 0.3f, 0.3f,
-            (i == selectedFont) ? C2D_Color32(255, 255, 255, 255) : C2D_Color32(200, 200, 200, 255));
+        bool selected = (i == selectedFont);
+        float itemAnim = selected ? 1.0f : 0.0f;
+        if (selected) {
+            itemAnim = selectAnim - (int)selectAnim;
+            if (itemAnim < 0) itemAnim += 1.0f;
+        }
+        UI_ListItem(buf, 10, 55 + i*35, 300, 30, fonts[i],
+                    NULL, selected, itemAnim, selected ? ">" : NULL);
     }
+
+    // Footer
+    UI_Footer(buf, "Selecionar", "Voltar", NULL);
 
     C2D_TextBufDelete(buf);
 }

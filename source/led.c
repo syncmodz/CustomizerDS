@@ -1,5 +1,8 @@
 #include "led.h"
 #include "common.h"
+#include "theme.h"
+#include "anim.h"
+#include "ui.h"
 #include <math.h>
 #include <string.h>
 
@@ -16,11 +19,15 @@ static const char* modes[] = {
     "Voltar"
 };
 static const int MODE_COUNT = 7;
+static Anim selectedAnim;
+static Ripple ledRipple;
 
 void ledInit(void) {
     ledR = 255; ledG = 0; ledB = 0;
     hue = 0.0f;
     selectedMode = 0;
+    animSet(&selectedAnim, 0.0f, 0.12f);
+    ledRipple.active = false;
 }
 
 void updateLEDColor(void) {
@@ -72,23 +79,47 @@ void ledRender(u32 kDown, u32 kHeld, int* currentScreen) {
     updateLEDColor();
 
     C2D_TextBuf buf = C2D_TextBufNew(1024);
-    C2D_Text text;
-    C2D_TextParse(&text, buf, "Modulo LED RGB");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, 0.4f, 10.0f, 10.0f, 0.4f, 0.4f, C2D_Color32(200, 200, 50, 255));
-
-    C2D_DrawRectSolid(50, 40, 0, 100, 100, C2D_Color32(ledR, ledG, ledB, 255));
-    C2D_DrawRectSolid(160, 40, 0, 50, 100, C2D_Color32(ledR, ledG, ledB, 255));
-
-    for (int i = 0; i < MODE_COUNT; i++) {
-        u32 color = (i == selectedMode) ? C2D_Color32(60, 100, 150, 255) : C2D_Color32(40, 40, 50, 255);
-        C2D_DrawRectSolid(10, 150 + i*20, 0, 300, 18, color);
-
-        C2D_TextParse(&text, buf, modes[i]);
-        C2D_TextOptimize(&text);
-        C2D_DrawText(&text, 0.3f, 20.0f, 152 + i*20, 0.25f, 0.25f,
-            (i == selectedMode) ? C2D_Color32(255, 255, 255, 255) : C2D_Color32(200, 200, 200, 255));
+    if (!buf) {
+        return;
     }
+
+    // Header
+    UI_Header(buf, "LED RGB", "Personalizar cor do LED");
+
+    // Preview do LED com ripple
+    rippleStep(&ledRipple);
+    u32 ledColor = C2D_Color32(ledR, ledG, ledB, 255);
+    UI_Card(50, 50, 100, 100, true, 0.0f);
+    C2D_DrawRectSolid(60, 60, 0, 80, 80, ledColor);
+    rippleDraw(&ledRipple, ledColor);
+
+    // Paleta de cores (mini retângulos)
+    C2D_DrawRectSolid(170, 60, 0, 20, 20, C2D_Color32(255,0,0,255));
+    C2D_DrawRectSolid(195, 60, 0, 20, 20, C2D_Color32(0,255,0,255));
+    C2D_DrawRectSolid(220, 60, 0, 20, 20, C2D_Color32(0,0,255,255));
+    C2D_DrawRectSolid(170, 85, 0, 20, 20, C2D_Color32(255,255,0,255));
+    C2D_DrawRectSolid(195, 85, 0, 20, 20, C2D_Color32(128,0,128,255));
+    C2D_DrawRectSolid(220, 85, 0, 20, 20, ledColor);
+
+    // Animar selected
+    animTo(&selectedAnim, selectedMode * 1.0f);
+    animStep(&selectedAnim);
+    float selectAnim = animEasedOut(&selectedAnim);
+
+    // Modos
+    for (int i = 0; i < MODE_COUNT; i++) {
+        bool selected = (i == selectedMode);
+        float itemAnim = selected ? 1.0f : 0.0f;
+        if (selected) {
+            itemAnim = selectAnim - (int)selectAnim;
+            if (itemAnim < 0) itemAnim += 1.0f;
+        }
+        UI_ListItem(buf, 10, 160 + i*28, 300, 25, modes[i],
+                    NULL, selected, itemAnim, NULL);
+    }
+
+    // Footer
+    UI_Footer(buf, "Selecionar", "Voltar", NULL);
 
     C2D_TextBufDelete(buf);
 }

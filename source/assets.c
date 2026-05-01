@@ -1,5 +1,8 @@
 #include "assets.h"
 #include "common.h"
+#include "theme.h"
+#include "anim.h"
+#include "ui.h"
 #include <string.h>
 
 static int selectedAsset = 0;
@@ -10,9 +13,11 @@ static const char* assets[] = {
     "Voltar"
 };
 static const int ASSET_COUNT = 4;
+static Anim selectedAnim;
 
 void assetsInit(void) {
     selectedAsset = 0;
+    animSet(&selectedAnim, 0.0f, 0.12f);
 }
 
 void assetsRender(u32 kDown, u32 kHeld, int* currentScreen) {
@@ -36,20 +41,29 @@ void assetsRender(u32 kDown, u32 kHeld, int* currentScreen) {
     if (!buf) {
         return;
     }
-    C2D_Text text;
-    C2D_TextParse(&text, buf, "Modulo Assets/Icones");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, 0.4f, 10.0f, 10.0f, 0.4f, 0.4f, C2D_Color32(200, 200, 50, 255));
 
+    // Header
+    UI_Header(buf, "Assets/Icones", "Escolha um pacote de icones");
+
+    // Animar selected
+    animTo(&selectedAnim, selectedAsset * 1.0f);
+    animStep(&selectedAnim);
+    float selectAnim = animEasedOut(&selectedAnim);
+
+    // Assets
     for (int i = 0; i < ASSET_COUNT; i++) {
-        u32 color = (i == selectedAsset) ? C2D_Color32(60, 100, 150, 255) : C2D_Color32(40, 40, 50, 255);
-        C2D_DrawRectSolid(10, 50 + i*30, 0, 300, 25, color);
-
-        C2D_TextParse(&text, buf, assets[i]);
-        C2D_TextOptimize(&text);
-        C2D_DrawText(&text, 0.3f, 20.0f, 53 + i*30, 0.3f, 0.3f,
-            (i == selectedAsset) ? C2D_Color32(255, 255, 255, 255) : C2D_Color32(200, 200, 200, 255));
+        bool selected = (i == selectedAsset);
+        float itemAnim = selected ? 1.0f : 0.0f;
+        if (selected) {
+            itemAnim = selectAnim - (int)selectAnim;
+            if (itemAnim < 0) itemAnim += 1.0f;
+        }
+        UI_ListItem(buf, 10, 55 + i*35, 300, 30, assets[i],
+                    NULL, selected, itemAnim, selected ? ">" : NULL);
     }
+
+    // Footer
+    UI_Footer(buf, "Selecionar", "Voltar", NULL);
 
     C2D_TextBufDelete(buf);
 }

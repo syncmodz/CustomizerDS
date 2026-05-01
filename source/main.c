@@ -9,6 +9,9 @@
 #include "darkmode.h"
 #include "led.h"
 #include "config.h"
+#include "theme.h"
+#include "anim.h"
+#include "ui.h"
 
 C3D_RenderTarget *topTarget, *botTarget;
 
@@ -21,6 +24,11 @@ int main() {
     topTarget = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
     botTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
+    // Inicializar sistemas
+    themeInit();
+    animInit();
+    themeLoadFromAnemone();
+
     int currentScreen = SCREEN_MAIN_MENU;
     menuInit();
 
@@ -32,8 +40,8 @@ int main() {
         if (kDown & KEY_START) break;
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-        C2D_TargetClear(topTarget, C2D_Color32(20, 20, 30, 255));
-        C2D_TargetClear(botTarget, C2D_Color32(20, 20, 30, 255));
+        C2D_TargetClear(topTarget, g_theme.backgroundTop);
+        C2D_TargetClear(botTarget, g_theme.background);
 
         C2D_SceneBegin(topTarget);
         switch (currentScreen) {
@@ -56,14 +64,8 @@ int main() {
 
         C2D_SceneBegin(botTarget);
         C2D_TextBuf buf = C2D_TextBufNew(1024);
-        if (!buf) {
-            // Apenas pular a renderização da tela inferior
-            // C3D_FrameEnd será chamado normalmente abaixo
-        } else {
-            C2D_Text info;
-            C2D_TextParse(&info, buf, "Pressione START para sair");
-            C2D_TextOptimize(&info);
-            C2D_DrawText(&info, 0.3f, 10.0f, 200.0f, 0.3f, 0.3f, C2D_Color32(200, 200, 200, 255));
+        if (buf) {
+            UI_Footer(buf, NULL, "START para sair", NULL);
             C2D_TextBufDelete(buf);
         }
 

@@ -11,8 +11,10 @@ AppTheme g_theme;
 static void rgbToHsv(u8 r, u8 g, u8 b, float* h, float* s, float* v) {
     float rf = r / 255.0f, gf = g / 255.0f, bf = b / 255.0f;
     float max = rf, min = rf;
-    if (gf > max) max = gf; if (bf > max) max = bf;
-    if (gf < min) min = gf; if (bf < min) min = bf;
+    if (gf > max) max = gf;
+    if (bf > max) max = bf;
+    if (gf < min) min = gf;
+    if (bf < min) min = bf;
     *v = max;
     float delta = max - min;
     *s = (max == 0.0f) ? 0.0f : delta / max;
@@ -25,15 +27,19 @@ static void rgbToHsv(u8 r, u8 g, u8 b, float* h, float* s, float* v) {
 
 // Conversão HSV -> RGB
 static void hsvToRgb(float h, float s, float v, u8* r, u8* g, u8* b) {
-    float c = v * s, x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f);
+    float c = v * s;
+    float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
     float m = v - c;
     float r1 = 0, g1 = 0, b1 = 0;
-    if (h < 60) { r1 = c; g1 = x; b1 = 0; }
-    else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
-    else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
-    else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
-    else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
-    else { r1 = c; g1 = 0; b1 = x; }
+    int i = ((int)(h / 60.0f)) % 6;
+    switch (i) {
+        case 0: r1 = c; g1 = x; b1 = 0; break;
+        case 1: r1 = x; g1 = c; b1 = 0; break;
+        case 2: r1 = 0; g1 = c; b1 = x; break;
+        case 3: r1 = 0; g1 = x; b1 = c; break;
+        case 4: r1 = x; g1 = 0; b1 = c; break;
+        case 5: r1 = c; g1 = 0; b1 = x; break;
+    }
     *r = (u8)((r1 + m) * 255); *g = (u8)((g1 + m) * 255); *b = (u8)((b1 + m) * 255);
 }
 

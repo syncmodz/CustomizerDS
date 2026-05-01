@@ -48,7 +48,7 @@ all: $(3DSX) $(CIA)
 $(3DSX): $(ELF) $(SMDH)
 	$(3DSXTOOL) $< $@ --smdh=$(SMDH)
 
-$(ELF): $(BUILD)/main.o $(BUILD)/menu.o $(BUILD)/assets.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/config.o
+$(ELF): $(BUILD)/main.o $(BUILD)/menu.o $(BUILD)/assets.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/config.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 $(BUILD)/%.o: $(SOURCES)/%.c
