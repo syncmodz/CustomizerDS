@@ -2,6 +2,7 @@
 #include <citro2d.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <3ds/services/mcuhwc.h>
 #include "common.h"
 #include "menu.h"
 #include "assets.h"
@@ -83,6 +84,7 @@ int main() {
     }
 
     fontsSystemCleanup();
+    mcuHwcExit();
     C2D_Fini();
     C3D_Fini();
     gfxExit();

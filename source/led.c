@@ -5,6 +5,7 @@
 #include "ui.h"
 #include <math.h>
 #include <string.h>
+#include <3ds/services/mcuhwc.h>
 
 static uint8_t ledR = 255, ledG = 0, ledB = 0;
 static float hue = 0.0f;
@@ -22,12 +23,62 @@ static const int MODE_COUNT = 7;
 static Anim selectedAnim;
 static Ripple ledRipple;
 
+// Inicialização do MCUHWC
 void ledInit(void) {
+    mcuHwcInit();
     ledR = 255; ledG = 0; ledB = 0;
     hue = 0.0f;
     selectedMode = 0;
     animSet(&selectedAnim, 0.0f, 0.12f);
     ledRipple.active = false;
+}
+
+// Define cor sólida no LED físico (32 steps iguais)
+static void setLEDColor(u8 r, u8 g, u8 b) {
+    InfoLedPattern pattern;
+    memset(&pattern, 0, sizeof(pattern));
+    pattern.delay = 0x10;      // 1 segundo por ciclo
+    pattern.smoothing = 0x00;   // sem suavização
+    pattern.loopDelay = 0xFF;    // toca apenas uma vez
+    pattern.blinkSpeed = 0x00;
+    
+    memset(pattern.redPattern, r, 32);
+    memset(pattern.greenPattern, g, 32);
+    memset(pattern.bluePattern, b, 32);
+    
+    MCUHWC_SetInfoLedPattern(&pattern);
+}
+
+// Define arco-íris no LED físico (32 steps HSV→RGB)
+static void setLEDRainbow() {
+    InfoLedPattern pattern;
+    memset(&pattern, 0, sizeof(pattern));
+    pattern.delay = 0x10;      // 1 segundo por ciclo
+    pattern.smoothing = 0x00;
+    pattern.loopDelay = 0x00;   // loop infinito
+    pattern.blinkSpeed = 0x00;
+    
+    for (int i = 0; i < 32; i++) {
+        float h = (i / 32.0f) * 360.0f;
+        float s = 1.0f, v = 1.0f;
+        float c = v * s;
+        float x = c * (1.0f - fabs(fmod(h / 60.0f, 2.0f) - 1.0f));
+        float m = v - c;
+        float r1, g1, b1;
+        
+        if (h < 60)       { r1 = c; g1 = x; b1 = 0; }
+        else if (h < 120)  { r1 = x; g1 = c; b1 = 0; }
+        else if (h < 180)  { r1 = 0; g1 = c; b1 = x; }
+        else if (h < 240)  { r1 = 0; g1 = x; b1 = c; }
+        else if (h < 300)  { r1 = x; g1 = 0; b1 = c; }
+        else                { r1 = c; g1 = 0; b1 = x; }
+        
+        pattern.redPattern[i]   = (u8)((r1 + m) * 255);
+        pattern.greenPattern[i] = (u8)((g1 + m) * 255);
+        pattern.bluePattern[i]  = (u8)((b1 + m) * 255);
+    }
+    
+    MCUHWC_SetInfoLedPattern(&pattern);
 }
 
 void updateLEDColor(void) {
@@ -61,6 +112,8 @@ void updateLEDColor(void) {
 
 void ledRender(u32 kDown, u32 kHeld, int* currentScreen) {
     if (kDown & KEY_B) {
+        // Restaurar LED para branco ao sair
+        setLEDColor(255, 255, 255);
         *currentScreen = SCREEN_MAIN_MENU;
         return;
     }
@@ -76,7 +129,16 @@ void ledRender(u32 kDown, u32 kHeld, int* currentScreen) {
         return;
     }
 
-    updateLEDColor();
+    updateLEDColor();  // Atualiza ledR/G/B antes de aplicar
+
+    if (kDown & KEY_A && selectedMode < MODE_COUNT - 1) {
+        // Aplicar cor no LED físico ao pressionar A
+        if (selectedMode == 0) {
+            setLEDRainbow();
+        } else {
+            setLEDColor(ledR, ledG, ledB);  // agora ledR/G/B já foram atualizados
+        }
+    }
 
     C2D_TextBuf buf = C2D_TextBufNew(1024);
     if (!buf) {
@@ -99,7 +161,7 @@ void ledRender(u32 kDown, u32 kHeld, int* currentScreen) {
     C2D_DrawRectSolid(220, 60, 0, 20, 20, C2D_Color32(0,0,255,255));
     C2D_DrawRectSolid(170, 85, 0, 20, 20, C2D_Color32(255,255,0,255));
     C2D_DrawRectSolid(195, 85, 0, 20, 20, C2D_Color32(128,0,128,255));
-    C2D_DrawRectSolid(220, 85, 0, 20, 20, ledColor);
+    C2D_DrawRectSolid(220, 85, 0, 20, 20, C2D_Color32(ledR,ledG,ledB,255));
 
     // Animar selected
     animTo(&selectedAnim, selectedMode * 1.0f);
