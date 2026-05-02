@@ -34,9 +34,10 @@ LDFLAGS := -specs=$(DEVKITARM)/arm-none-eabi/lib/3dsx.specs \
 LIBS := -lcitro2d -lcitro3d -lctru -lm
 
 APP_TITLE := CustomizerDS
-APP_AUTHOR := Dev
+APP_AUTHOR := Syncmaker
 APP_ICON := $(DATA)/icon.png
 APP_RSF := $(BUILD)/app.rsf
+BANNER := $(BUILD)/banner.bin
 
 ELF := $(BUILD)/$(TARGET).elf
 3DSX := $(BUILD)/$(TARGET).3dsx
@@ -55,8 +56,11 @@ $(BUILD)/%.o: $(SOURCES)/%.c
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(SMDH):
-	$(BANNERTOOL) makesmdh -s "$(APP_TITLE)" -l "$(APP_TITLE)" -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $@
+$(SMDH): $(APP_ICON)
+	$(BANNERTOOL) makesmdh -s "$(APP_TITLE)" -l "Personalize seu Nintendo 3DS" -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $@
+
+$(BANNER): banner_source.png audio.wav
+	$(BANNERTOOL) makebanner -i $< -a audio.wav -o $@
 
 $(APP_RSF):
 	@mkdir -p $(BUILD)
@@ -149,9 +153,9 @@ $(APP_RSF):
 	@echo 'SystemControlInfo:' >> $@
 	@echo '  StackSize: 0x40000' >> $@
 
-$(CIA): $(ELF) $(SMDH) $(APP_RSF)
+$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
-	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH)
+	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER)
 
 clean:
 	rm -rf $(BUILD)

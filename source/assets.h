@@ -5,5 +5,6 @@
 
 void assetsInit(void);
 void assetsRender(u32 kDown, u32 kHeld, int* currentScreen);
+bool assetsShowFixMessage(void);
 
 #endif

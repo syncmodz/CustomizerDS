@@ -27,6 +27,7 @@ int main() {
     animInit();
     themeInit();
     themeLoadFromAnemone();
+    fontsSystemInit();
 
     int currentScreen = SCREEN_MAIN_MENU;
     menuInit();
@@ -64,13 +65,24 @@ int main() {
         C2D_SceneBegin(botTarget);
         C2D_TextBuf buf = C2D_TextBufNew(1024);
         if (buf) {
-            UI_Footer(buf, NULL, "START para sair", NULL);
+            if (currentScreen == SCREEN_ASSETS && assetsShowFixMessage()) {
+                C2D_Text text;
+                C2D_TextParse(&text, buf, "Instrucoes salvas em /FIX_ANEMONE.txt no SD");
+                C2D_TextOptimize(&text);
+                float tw = 0.0f, th = 0.0f;
+                C2D_TextGetDimensions(&text, 0.28f, 0.28f, &tw, &th);
+                float tx = (320.0f - tw) / 2.0f;
+                C2D_DrawText(&text, tx, 110.0f, 0.0f, 0.28f, 0.28f, g_theme.textPrimary);
+            } else {
+                UI_Footer(buf, NULL, "START para sair", NULL);
+            }
             C2D_TextBufDelete(buf);
         }
 
         C3D_FrameEnd(0);
     }
 
+    fontsSystemCleanup();
     C2D_Fini();
     C3D_Fini();
     gfxExit();
