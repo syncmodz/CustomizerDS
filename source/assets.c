@@ -5,16 +5,20 @@
 #include "ui.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <3ds/services/cfgu.h>
 
 static int selectedAsset = 0;
 static const char* assets[] = {
     "Reva UI - Icon Pack 1",
     "Reva UI - Icon Pack 2",
     "Reva UI - Icon Pack 3",
+    "Aplicar RevaUI (LayeredFS)",
     "Corrigir Anemone",
     "Voltar"
 };
-static const int ASSET_COUNT = 5;
+static const int ASSET_COUNT = 6;
 static Anim selectedAnim;
 
 // Variáveis para mensagem de fix Anemone
@@ -38,6 +42,84 @@ static void fixAnemone() {
 
 bool assetsShowFixMessage(void) {
     return showFixMessage;
+}
+
+static bool createDir(const char* path) {
+    struct stat st;
+    if (stat(path, &st) == 0) return true;
+    return mkdir(path, 0777) == 0;
+}
+
+static void applyRevaUILayeredFS() {
+    // PASSO 1 e 2: Detectar região e definir TitleID
+    cfguInit();
+    u8 region;
+    Result res = CFGU_SecureInfoGetRegion(&region);
+    cfguExit();
+    
+    if (R_FAILED(res)) {
+        region = 2; // Fallback EUR
+    }
+    
+    const char* titleID;
+    switch(region) {
+        case 0: titleID = "0004003000008202"; break; // JPN
+        case 1: titleID = "0004003000008F02"; break; // USA
+        default: titleID = "0004003000009802"; break; // EUR
+    }
+    
+    // PASSO 3 e 4: Criar estrutura de pastas no SD
+    char basePath[256];
+    snprintf(basePath, sizeof(basePath), "sdmc:/luma/titles/%s/romfs/timg", titleID);
+    
+    // Criar pastas recursivamente
+    char tempPath[256];
+    snprintf(tempPath, sizeof(tempPath), "sdmc:/luma");
+    createDir(tempPath);
+    snprintf(tempPath, sizeof(tempPath), "sdmc:/luma/titles");
+    createDir(tempPath);
+    snprintf(tempPath, sizeof(tempPath), "sdmc:/luma/titles/%s", titleID);
+    createDir(tempPath);
+    snprintf(tempPath, sizeof(tempPath), "sdmc:/luma/titles/%s/romfs", titleID);
+    createDir(tempPath);
+    snprintf(tempPath, sizeof(tempPath), "sdmc:/luma/titles/%s/romfs/timg", titleID);
+    createDir(tempPath);
+    
+    // PASSO 6: Copiar .bclim do romfs para o SD
+    const char* bclimFiles[] = {
+        "wifi_0.bclim",
+        "bt_0.bclim",
+        "airplane_0.bclim",
+        "alarm_0.bclim",
+        "mute_0.bclim",
+        "orientation_0.bclim"
+    };
+    
+    for (int i = 0; i < 6; i++) {
+        char srcPath[256], dstPath[256];
+        snprintf(srcPath, sizeof(srcPath), "romfs:/revaui/%s", bclimFiles[i]);
+        snprintf(dstPath, sizeof(dstPath), "%s/%s", basePath, bclimFiles[i]);
+        
+        FILE* src = fopen(srcPath, "rb");
+        if (!src) continue;
+        
+        FILE* dst = fopen(dstPath, "wb");
+        if (!dst) { fclose(src); continue; }
+        
+        fseek(src, 0, SEEK_END);
+        long size = ftell(src);
+        fseek(src, 0, SEEK_SET);
+        
+        void* buf = malloc(size);
+        if (buf) {
+            fread(buf, 1, size, src);
+            fwrite(buf, 1, size, dst);
+            free(buf);
+        }
+        
+        fclose(src);
+        fclose(dst);
+    }
 }
 
 void assetsInit(void) {
@@ -64,6 +146,8 @@ void assetsRender(u32 kDown, u32 kHeld, int* currentScreen) {
             *currentScreen = SCREEN_MAIN_MENU;
             return;
         } else if (selectedAsset == 3) {
+            applyRevaUILayeredFS();
+        } else if (selectedAsset == 4) {
             fixAnemone();
             showFixMessage = true;
             fixMessageTimer = FIX_MESSAGE_DURATION;
@@ -93,6 +177,14 @@ void assetsRender(u32 kDown, u32 kHeld, int* currentScreen) {
         }
         UI_ListItem(buf, 10, 55 + i*35, 300, 30, assets[i],
                     NULL, selected, itemAnim, selected ? ">" : NULL);
+    }
+
+    // Aviso de segurança para RevaUI (após desenhar os cards)
+    if (selectedAsset == 3) {
+        C2D_Text warn;
+        C2D_TextParse(&warn, buf, "Requer Luma: Enable game patching ativo");
+        C2D_TextOptimize(&warn);
+        C2D_DrawText(&warn, 10.0f, 220.0f, 0.0f, 0.22f, 0.22f, g_theme.accent);
     }
 
     UI_Footer(buf, "Selecionar", "Voltar", NULL);
