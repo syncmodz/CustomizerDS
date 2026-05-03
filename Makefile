@@ -9,6 +9,7 @@ DEVKITARM := $(DEVKITPRO)/devkitARM
 BANNERTOOL := /home/chicharito/bin/bannertool
 MAKEROM := /home/chicharito/bin/makerom
 3DSXTOOL := /opt/devkitpro/tools/bin/3dsxtool
+MKROMFS := /opt/devkitpro/tools/bin/mkromfs3ds
 
 CCPREFIX := $(DEVKITARM)/bin/arm-none-eabi-
 CC := $(CCPREFIX)gcc
@@ -43,6 +44,7 @@ ELF := $(BUILD)/$(TARGET).elf
 3DSX := $(BUILD)/$(TARGET).3dsx
 CIA := $(BUILD)/$(TARGET).cia
 SMDH := $(BUILD)/$(TARGET).smdh
+ROMFS_BIN := $(BUILD)/romfs.bin
 
 all: $(3DSX) $(CIA)
 
@@ -153,9 +155,14 @@ $(APP_RSF):
 	@echo 'SystemControlInfo:' >> $@
 	@echo '  StackSize: 0x40000' >> $@
 
-$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER)
+$(ROMFS_BIN): $(DATA)
+	@mkdir -p $(BUILD)
+	$(MKROMFS) $(DATA) $(BUILD)/romfs_raw.bin
+	python3 scripts/mk_ivfc_romfs.py $(BUILD)/romfs_raw.bin $@
+
+$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(ROMFS_BIN)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
-	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER)
+	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER) -romfs $(ROMFS_BIN)
 
 clean:
 	rm -rf $(BUILD)

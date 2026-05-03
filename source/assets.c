@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <unistd.h>
 #include <3ds/services/cfgu.h>
 
 static int selectedAsset = 0;
@@ -21,22 +23,58 @@ static const char* assets[] = {
 static const int ASSET_COUNT = 6;
 static Anim selectedAnim;
 
-// Variáveis para mensagem de fix Anemone
 static bool showFixMessage = false;
 static float fixMessageTimer = 0.0f;
 static const float FIX_MESSAGE_DURATION = 3.0f;
 
+// Remove recursivamente um diretório, profundidade máxima 8 níveis
+static void removeDir(const char* path, int depth) {
+    if (depth > 8) return;
+    DIR* d = opendir(path);
+    if (!d) return;
+    struct dirent* ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (ent->d_name[0] == '.') continue;
+        char child[512];
+        snprintf(child, sizeof(child), "%s/%s", path, ent->d_name);
+        struct stat st;
+        if (stat(child, &st) != 0) continue;
+        if (S_ISDIR(st.st_mode)) {
+            removeDir(child, depth + 1);
+            rmdir(child);
+        } else {
+            unlink(child);
+        }
+    }
+    closedir(d);
+    rmdir(path);
+}
+
 static void fixAnemone() {
-    FILE* f = fopen("/mnt/sd/FIX_ANEMONE.txt", "w");
+    const char* anemoneDir = "sdmc:/3ds/Anemone3DS";
+    struct stat st;
+
+    // Tenta deletar a pasta corrompida (nunca toca em /Themes/)
+    if (stat(anemoneDir, &st) == 0 && S_ISDIR(st.st_mode)) {
+        removeDir(anemoneDir, 0);
+    }
+
+    // Se a deleção funcionou, retorna sem criar o arquivo de instrução
+    if (stat(anemoneDir, &st) != 0) {
+        return;
+    }
+
+    // Fallback: criar arquivo de instrução no SD para o usuário fazer no PC
+    FILE* f = fopen("sdmc:/FIX_ANEMONE.txt", "w");
     if (!f) return;
     fprintf(f, "Para corrigir o Anemone sem perder seus temas:\n");
     fprintf(f, "1. No computador, acesse o SD card\n");
-    fprintf(f, "2. DELETE a pasta: /3ds/Anemone3DS/ (só essa pasta, não /Themes/)\n");
+    fprintf(f, "2. DELETE a pasta: /3ds/Anemone3DS/ (so essa pasta, nao /Themes/)\n");
     fprintf(f, "3. Baixe o Anemone3DS.cia mais recente do GitHub:\n");
     fprintf(f, "   https://github.com/astronautlevel2/Anemone3DS/releases\n");
     fprintf(f, "4. Coloque o .cia na pasta /cias/ do SD\n");
     fprintf(f, "5. Instale via FBI\n");
-    fprintf(f, "Seus temas em /Themes/ estão seguros e intactos.\n");
+    fprintf(f, "Seus temas em /Themes/ estao seguros e intactos.\n");
     fclose(f);
 }
 
@@ -51,28 +89,25 @@ static bool createDir(const char* path) {
 }
 
 static void applyRevaUILayeredFS() {
-    // PASSO 1 e 2: Detectar região e definir TitleID
     cfguInit();
     u8 region;
     Result res = CFGU_SecureInfoGetRegion(&region);
     cfguExit();
-    
+
     if (R_FAILED(res)) {
         region = 2; // Fallback EUR
     }
-    
+
     const char* titleID;
     switch(region) {
         case 0: titleID = "0004003000008202"; break; // JPN
         case 1: titleID = "0004003000008F02"; break; // USA
         default: titleID = "0004003000009802"; break; // EUR
     }
-    
-    // PASSO 3 e 4: Criar estrutura de pastas no SD
+
     char basePath[256];
     snprintf(basePath, sizeof(basePath), "sdmc:/luma/titles/%s/romfs/timg", titleID);
-    
-    // Criar pastas recursivamente
+
     char tempPath[256];
     snprintf(tempPath, sizeof(tempPath), "sdmc:/luma");
     createDir(tempPath);
@@ -84,8 +119,7 @@ static void applyRevaUILayeredFS() {
     createDir(tempPath);
     snprintf(tempPath, sizeof(tempPath), "sdmc:/luma/titles/%s/romfs/timg", titleID);
     createDir(tempPath);
-    
-    // PASSO 6: Copiar .bclim do romfs para o SD
+
     const char* bclimFiles[] = {
         "wifi_0.bclim",
         "bt_0.bclim",
@@ -94,29 +128,29 @@ static void applyRevaUILayeredFS() {
         "mute_0.bclim",
         "orientation_0.bclim"
     };
-    
+
     for (int i = 0; i < 6; i++) {
         char srcPath[256], dstPath[256];
         snprintf(srcPath, sizeof(srcPath), "romfs:/revaui/%s", bclimFiles[i]);
         snprintf(dstPath, sizeof(dstPath), "%s/%s", basePath, bclimFiles[i]);
-        
+
         FILE* src = fopen(srcPath, "rb");
         if (!src) continue;
-        
+
         FILE* dst = fopen(dstPath, "wb");
         if (!dst) { fclose(src); continue; }
-        
+
         fseek(src, 0, SEEK_END);
         long size = ftell(src);
         fseek(src, 0, SEEK_SET);
-        
+
         void* buf = malloc(size);
         if (buf) {
             fread(buf, 1, size, src);
             fwrite(buf, 1, size, dst);
             free(buf);
         }
-        
+
         fclose(src);
         fclose(dst);
     }
@@ -179,7 +213,6 @@ void assetsRender(u32 kDown, u32 kHeld, int* currentScreen) {
                     NULL, selected, itemAnim, selected ? ">" : NULL);
     }
 
-    // Aviso de segurança para RevaUI (após desenhar os cards)
     if (selectedAsset == 3) {
         C2D_Text warn;
         C2D_TextParse(&warn, buf, "Requer Luma: Enable game patching ativo");

@@ -225,14 +225,14 @@ void uiLoaderDraw(UILoader* l, float x, float y, float w) {
         float segX = x + (i * segW) + (l->phase * segW * 3.0f);
         if (segX > x + w) segX -= w;
 
-        // Extração correta de canais RGBA8888
-        u8 sr = (g_theme.surface >> 24) & 0xFF;
-        u8 sg = (g_theme.surface >> 16) & 0xFF;
-        u8 sb = (g_theme.surface >> 8)  & 0xFF;
+        // Extração correta de canais RGBA8888 (formato AABBGGRR)
+        u8 sr  = g_theme.surface & 0xFF;
+        u8 sg  = (g_theme.surface >> 8)  & 0xFF;
+        u8 sb  = (g_theme.surface >> 16) & 0xFF;
 
-        u8 plr = (g_theme.primaryLight >> 24) & 0xFF;
-        u8 plg = (g_theme.primaryLight >> 16) & 0xFF;
-        u8 plb = (g_theme.primaryLight >> 8)  & 0xFF;
+        u8 plr = g_theme.primaryLight & 0xFF;
+        u8 plg = (g_theme.primaryLight >> 8)  & 0xFF;
+        u8 plb = (g_theme.primaryLight >> 16) & 0xFF;
 
         u8 r = (u8)LERP(sr, plr, l->phase);
         u8 g = (u8)LERP(sg, plg, l->phase);

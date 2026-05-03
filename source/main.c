@@ -19,11 +19,14 @@ C3D_RenderTarget *topTarget, *botTarget;
 int main() {
     gfxInitDefault();
     hidInit();
+    Result romfsRc = romfsInit();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
 
     topTarget = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+    if (!topTarget) { C2D_Fini(); C3D_Fini(); if (!romfsRc) romfsExit(); gfxExit(); return 1; }
     botTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    if (!botTarget) { C2D_Fini(); C3D_Fini(); if (!romfsRc) romfsExit(); gfxExit(); return 1; }
 
     animInit();
     themeInit();
@@ -85,6 +88,7 @@ int main() {
 
     fontsSystemCleanup();
     mcuHwcExit();
+    if (!romfsRc) romfsExit();
     C2D_Fini();
     C3D_Fini();
     gfxExit();
