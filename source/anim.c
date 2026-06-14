@@ -12,16 +12,10 @@ void animInit(void) {
         // ease-out-cubic: f(t) = 1-(1-t)³
         EASE_OUT[i] = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);
         
-        // ease-in-out: f(t) = t<0.5 ? 4t³ : 1-(-2t+2)³/2
         if (t < 0.5f) {
-            float t2 = t * 2.0f;
-            EASE_IN_OUT[i] = 4.0f * t2 * t2 * t2 / 2.0f; // 4t³ (t já é 2t)
-            // Correção: a fórmula real é 4t³ para t<0.5, onde t é 0..0.5
-            // Como t é 0..1, usamos t*2 para normalizar
-            float tn = t * 2.0f;
-            EASE_IN_OUT[i] = 4.0f * tn * tn * tn;
+            EASE_IN_OUT[i] = 4.0f * t * t * t;
         } else {
-            float tn = (-2.0f * t + 2.0f);
+            float tn = -2.0f * t + 2.0f;
             EASE_IN_OUT[i] = 1.0f - (tn * tn * tn) / 2.0f;
         }
     }

@@ -1,21 +1,42 @@
 #include "config.h"
-#include "common.h"
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
 
-static uint8_t configLedR = 255, configLedG = 0, configLedB = 0;
+static const ConfigData DEFAULT_CONFIG = {
+    .magic = CONFIG_MAGIC,
+    .darkMode = 1,
+    .fontIndex = 0,
+    .ledMode = 2,
+    .ledSpeed = 1,
+    .ledR = 255,
+    .ledG = 100,
+    .ledB = 50,
+    .reserved = {0, 0},
+};
 
-Result configLoad(void) {
-    // Carregar configuracoes do SD card
+Result configLoad(ConfigData* out) {
+    FILE* f = fopen(CONFIG_PATH, "rb");
+    if (!f) {
+        *out = DEFAULT_CONFIG;
+        return 0;
+    }
+    size_t n = fread(out, 1, sizeof(ConfigData), f);
+    fclose(f);
+    if (n != sizeof(ConfigData) || out->magic != CONFIG_MAGIC) {
+        *out = DEFAULT_CONFIG;
+        return 0;
+    }
     return 0;
 }
 
-void configGetLedColor(uint8_t* r, uint8_t* g, uint8_t* b) {
-    *r = configLedR;
-    *g = configLedG;
-    *b = configLedB;
-}
-
-void configSetLedColor(uint8_t r, uint8_t g, uint8_t b) {
-    configLedR = r;
-    configLedG = g;
-    configLedB = b;
+Result configSave(const ConfigData* in) {
+    mkdir("sdmc:/3ds", 0777);
+    mkdir("sdmc:/3ds/CustomizerDS", 0777);
+    FILE* f = fopen(CONFIG_PATH, "wb");
+    if (!f) return -1;
+    size_t n = fwrite(in, 1, sizeof(ConfigData), f);
+    fclose(f);
+    return (n == sizeof(ConfigData)) ? 0 : -1;
 }

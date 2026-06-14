@@ -1,24 +1,21 @@
 #include "darkmode.h"
 #include "common.h"
 #include "theme.h"
-#include "anim.h"
+#include "config.h"
 #include "ui.h"
 #include <string.h>
 
-static int darkModeEnabled = 0;
 static int selectedOption = 0;
 static const char* options[] = {
-    "Ativar Modo Escuro",
-    "Desativar Modo Escuro",
+    "Tema Claro",
+    "Tema Escuro",
     "Voltar"
 };
 static const int OPTION_COUNT = 3;
-static UISwitch darkSwitch;
 static Anim selectedAnim;
 
 void darkmodeInit(void) {
-    selectedOption = 0;
-    uiSwitchInit(&darkSwitch, darkModeEnabled);
+    selectedOption = themeIsDark() ? 1 : 0;
     animSet(&selectedAnim, 0.0f, 0.12f);
 }
 
@@ -36,11 +33,17 @@ void darkmodeRender(u32 kDown, u32 kHeld, int* currentScreen) {
     }
     if (kDown & KEY_A) {
         if (selectedOption == 0) {
-            darkModeEnabled = 1;
-            uiSwitchToggle(&darkSwitch);
+            themeSetDark(false);
+            ConfigData cfg;
+            configLoad(&cfg);
+            cfg.darkMode = 0;
+            configSave(&cfg);
         } else if (selectedOption == 1) {
-            darkModeEnabled = 0;
-            uiSwitchToggle(&darkSwitch);
+            themeSetDark(true);
+            ConfigData cfg;
+            configLoad(&cfg);
+            cfg.darkMode = 1;
+            configSave(&cfg);
         } else {
             *currentScreen = SCREEN_MAIN_MENU;
             return;
@@ -48,27 +51,14 @@ void darkmodeRender(u32 kDown, u32 kHeld, int* currentScreen) {
     }
 
     C2D_TextBuf buf = C2D_TextBufNew(1024);
-    if (!buf) {
-        return;
-    }
+    if (!buf) return;
 
-    // Header
-    UI_Header(buf, "Modo Escuro", "Alternar tema escuro");
+    UI_Header(buf, "Tema", themeIsDark() ? "Modo Escuro" : "Modo Claro");
 
-    // Status com UISwitch
-    uiSwitchStep(&darkSwitch);
-    C2D_Text text;
-    C2D_TextParse(&text, buf, "Status:");
-    C2D_TextOptimize(&text);
-    C2D_DrawText(&text, 0.3f, 20.0f, 55.0f, 0.3f, 0.3f, g_theme.textPrimary);
-    uiSwitchDraw(&darkSwitch, 120, 50);
-
-    // Animar selected
     animTo(&selectedAnim, selectedOption * 1.0f);
     animStep(&selectedAnim);
     float selectAnim = animEasedOut(&selectedAnim);
 
-    // Opções
     for (int i = 0; i < OPTION_COUNT; i++) {
         bool selected = (i == selectedOption);
         float itemAnim = selected ? 1.0f : 0.0f;
@@ -76,12 +66,13 @@ void darkmodeRender(u32 kDown, u32 kHeld, int* currentScreen) {
             itemAnim = selectAnim - (int)selectAnim;
             if (itemAnim < 0) itemAnim += 1.0f;
         }
-        UI_ListItem(buf, 10, 90 + i*40, 300, 35, options[i],
-                    NULL, selected, itemAnim, NULL);
+        const char* indicator = NULL;
+        if (i == 0 && !themeIsDark()) indicator = "OK";
+        if (i == 1 && themeIsDark()) indicator = "OK";
+        UI_ListItem(buf, 10, 90 + i * 40, 300, 35, options[i],
+                    NULL, selected, itemAnim, indicator);
     }
 
-    // Footer
     UI_Footer(buf, "Selecionar", "Voltar", NULL);
-
     C2D_TextBufDelete(buf);
 }

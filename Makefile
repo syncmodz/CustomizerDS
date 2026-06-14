@@ -19,7 +19,7 @@ AR := $(CCPREFIX)ar
 OBJCOPY := $(CCPREFIX)objcopy
 OBJDUMP := $(CCPREFIX)objdump
 
-CFLAGS := -Wall -O2 -mword-relocations -ffunction-sections -fdata-sections \
+CFLAGS := -Wall -Wno-unused-variable -O2 -mword-relocations -ffunction-sections -fdata-sections \
           -march=armv6k -mtune=mpcore -mfloat-abi=hard -mfpu=vfp -marm \
           -I$(DEVKITPRO)/libctru/include \
           -I$(DEVKITPRO)/portlibs/armv6k/include \

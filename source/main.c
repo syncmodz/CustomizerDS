@@ -27,6 +27,7 @@ int main() {
     botTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
     if (!botTarget) { C2D_Fini(); C3D_Fini(); if (!romfsRc) romfsExit(); gfxExit(); return 1; }
 
+    C2D_Prepare();
     animInit();
     themeInit();
     fontsSystemInit();
@@ -42,8 +43,12 @@ int main() {
         if (kDown & KEY_START) break;
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-        C2D_TargetClear(topTarget, g_theme.backgroundTop);
-        C2D_TargetClear(botTarget, g_theme.background);
+        C2D_TargetClear(topTarget, C2D_Color32(
+            g_theme.backgroundTop.r, g_theme.backgroundTop.g,
+            g_theme.backgroundTop.b, g_theme.backgroundTop.a));
+        C2D_TargetClear(botTarget, C2D_Color32(
+            g_theme.background.r, g_theme.background.g,
+            g_theme.background.b, g_theme.background.a));
 
         C2D_SceneBegin(topTarget);
         switch (currentScreen) {
@@ -64,7 +69,7 @@ int main() {
         C2D_SceneBegin(botTarget);
         C2D_TextBuf buf = C2D_TextBufNew(1024);
         if (buf) {
-            UI_Footer(buf, NULL, "START para sair", NULL);
+            UI_Footer(buf, NULL, NULL, "START para sair");
             C2D_TextBufDelete(buf);
         }
 

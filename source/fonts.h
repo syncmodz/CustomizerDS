@@ -9,7 +9,7 @@ typedef struct {
     C2D_Font comfortaaBold;
     C2D_Font madeEvolveRegular;
     C2D_Font madeEvolveBold;
-    int currentFont; // 0=sistema, 1=comfortaa, 2=made_evolve
+    int currentFont;
 } FontSystem;
 
 extern FontSystem g_fonts;
