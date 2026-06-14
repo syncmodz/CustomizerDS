@@ -7,13 +7,11 @@
 
 static int selectedIndex = 0;
 static const char* menuItems[] = {
-    "Assets/Icones",
     "Fontes do Sistema",
     "Modo Escuro/Tema",
-    "LED RGB",
-    "Sair"
+    "LED RGB"
 };
-static const int MENU_COUNT = 5;
+static const int MENU_COUNT = 3;
 static Anim selectedAnim;
 
 void menuInit(void) {
@@ -30,11 +28,9 @@ void menuRender(u32 kDown, u32 kHeld, int* currentScreen) {
     }
     if (kDown & KEY_A) {
         switch (selectedIndex) {
-            case 0: *currentScreen = SCREEN_ASSETS; break;
-            case 1: *currentScreen = SCREEN_FONTS; break;
-            case 2: *currentScreen = SCREEN_DARKMODE; break;
-            case 3: *currentScreen = SCREEN_LED; break;
-            case 4: *currentScreen = SCREEN_MAIN_MENU; break;
+            case 0: *currentScreen = SCREEN_FONTS; break;
+            case 1: *currentScreen = SCREEN_DARKMODE; break;
+            case 2: *currentScreen = SCREEN_LED; break;
         }
     }
 

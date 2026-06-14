@@ -27,12 +27,7 @@ typedef struct {
 // Tema global acessível por todos os módulos
 extern AppTheme g_theme;
 
-// Inicializa o sistema de tema
-// Carrega o tema padrão se não encontrar wallpaper do Anemone
+// Inicializa o sistema de tema com paleta padrão
 void themeInit(void);
-
-// Tenta ler wallpaper do Anemone via BodyCache.bin ou body_LZ.bin
-// Fallback silencioso para tema padrão se arquivo não encontrado
-void themeLoadFromAnemone(void);
 
 #endif // THEME_H

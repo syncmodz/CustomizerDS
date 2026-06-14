@@ -15,7 +15,6 @@
 // Screen types
 typedef enum {
     SCREEN_MAIN_MENU,
-    SCREEN_ASSETS,
     SCREEN_FONTS,
     SCREEN_DARKMODE,
     SCREEN_LED
