@@ -38,6 +38,7 @@ AccessControlInfo:
    - am:APP
    - ac:u
    - pxi:dev
+   - mcu::HWC
 
   SystemCallAccess:
     ArbitrateAddress: 34

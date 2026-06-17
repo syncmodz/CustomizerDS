@@ -3,6 +3,7 @@
 #include "theme.h"
 #include "config.h"
 #include "ui.h"
+#include "fonts.h"
 #include <string.h>
 
 static int selectedOption = 0;
@@ -70,7 +71,8 @@ void darkmodeRender(u32 kDown, u32 kHeld, int* currentScreen) {
         if (i == 0 && !themeIsDark()) indicator = "OK";
         if (i == 1 && themeIsDark()) indicator = "OK";
         UI_ListItem(buf, 10, 90 + i * 40, 300, 35, options[i],
-                    NULL, selected, itemAnim, indicator);
+                    NULL, selected, itemAnim, indicator,
+                    g_fonts.current);
     }
 
     UI_Footer(buf, "Selecionar", "Voltar", NULL);

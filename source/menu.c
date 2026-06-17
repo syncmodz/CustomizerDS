@@ -3,6 +3,7 @@
 #include "theme.h"
 #include "anim.h"
 #include "ui.h"
+#include "fonts.h"
 #include <string.h>
 
 static int selectedIndex = 0;
@@ -56,7 +57,8 @@ void menuRender(u32 kDown, u32 kHeld, int* currentScreen) {
             if (itemAnim < 0) itemAnim += 1.0f;
         }
         UI_ListItem(buf, 10, 50 + i*40, 300, 35, menuItems[i],
-                    NULL, selected, itemAnim, selected ? ">" : NULL);
+                    NULL, selected, itemAnim, selected ? ">" : NULL,
+                    g_fonts.current);
     }
 
     // Footer

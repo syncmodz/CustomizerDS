@@ -4,6 +4,7 @@
 #include "anim.h"
 #include "ui.h"
 #include "config.h"
+#include "fonts.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -225,7 +226,8 @@ void ledRender(u32 kDown, u32 kHeld, int* currentScreen) {
         UI_ListItem(buf, 10, 160 + i * 28, 300, 25,
                     getItemLabel(i),
                     NULL, selected, itemAnim,
-                    getItemRight(i));
+                    getItemRight(i),
+                    g_fonts.current);
     }
 
     UI_Footer(buf, editMode ? "Parar" : "Selecionar", "Voltar", NULL);

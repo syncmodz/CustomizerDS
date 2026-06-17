@@ -51,7 +51,7 @@ all: $(3DSX) $(CIA)
 $(3DSX): $(ELF) $(SMDH)
 	$(3DSXTOOL) $< $@ --smdh=$(SMDH)
 
-$(ELF): $(BUILD)/main.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/config.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o
+$(ELF): $(BUILD)/main.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/config.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/color_picker.o $(BUILD)/led_control.o
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 $(BUILD)/%.o: $(SOURCES)/%.c
@@ -106,6 +106,7 @@ $(APP_RSF):
 	@echo '   - am:APP' >> $@
 	@echo '   - ac:u' >> $@
 	@echo '   - pxi:dev' >> $@
+	@echo '   - mcu::HWC' >> $@
 	@echo '' >> $@
 	@echo '  SystemCallAccess:' >> $@
 	@echo '    ArbitrateAddress: 34' >> $@

@@ -23,7 +23,8 @@ void UI_ListItem(C2D_TextBuf buf, float x, float y,
                  float w, float h, const char* label,
                  const char* sublabel,  // pode ser NULL
                  bool selected, float selectAnim,
-                 const char* rightLabel); // ex: ">" ou "ON" ou NULL
+                 const char* rightLabel, // ex: ">" ou "ON" ou NULL
+                 C2D_Font font); // fonte customizada (NULL = padrão)
 
 // ── HEADER DO MÓDULO ───────────────────────────//
 // Barra no topo: cor primary, título em branco, linha accent embaixo

@@ -33,7 +33,8 @@ void fontsSystemInit(void) {
     g_fonts.comfortaaBold = C2D_FontLoad("romfs:/fonts/comfortaa_bold.bcfnt");
     g_fonts.madeEvolveRegular = C2D_FontLoad("romfs:/fonts/made_evolve_regular.bcfnt");
     g_fonts.madeEvolveBold = C2D_FontLoad("romfs:/fonts/made_evolve_bold.bcfnt");
-    g_fonts.currentFont = 0;
+    g_fonts.current = NULL;
+    g_fonts.currentIndex = 0;
 }
 
 void fontsSystemCleanup(void) {
@@ -57,8 +58,14 @@ void fontsRender(u32 kDown, u32 kHeld, int* currentScreen) {
             *currentScreen = SCREEN_MAIN_MENU;
             return;
         }
-        if (selectedFont < 4) g_fonts.currentFont = 1;
-        else g_fonts.currentFont = 0;
+        switch (selectedFont) {
+            case 0: g_fonts.current = g_fonts.comfortaaRegular; break;
+            case 1: g_fonts.current = g_fonts.comfortaaBold; break;
+            case 2: g_fonts.current = g_fonts.madeEvolveRegular; break;
+            case 3: g_fonts.current = g_fonts.madeEvolveBold; break;
+            default: g_fonts.current = NULL; break;
+        }
+        g_fonts.currentIndex = selectedFont;
         ConfigData cfg;
         configLoad(&cfg);
         cfg.fontIndex = selectedFont;
@@ -82,7 +89,8 @@ void fontsRender(u32 kDown, u32 kHeld, int* currentScreen) {
             if (itemAnim < 0) itemAnim += 1.0f;
         }
         UI_ListItem(buf, 10, 55 + i * 35, 300, 30, fontLabels[i],
-                    NULL, selected, itemAnim, selected ? ">" : NULL);
+                    NULL, selected, itemAnim, selected ? ">" : NULL,
+                    g_fonts.current);
     }
 
     UI_Footer(buf, "Selecionar", "Voltar", NULL);

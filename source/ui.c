@@ -55,21 +55,34 @@ void UI_ListItem(C2D_TextBuf buf, float x, float y,
                  float w, float h, const char* label,
                  const char* sublabel,
                  bool selected, float selectAnim,
-                 const char* rightLabel) {
+                 const char* rightLabel,
+                 C2D_Font font) {
     UI_Card(x, y, w, h, selected, selectAnim);
     C2D_Text text;
-    C2D_TextParse(&text, buf, label);
+    if (font != NULL) {
+        C2D_TextFontParse(&text, font, buf, label);
+    } else {
+        C2D_TextParse(&text, buf, label);
+    }
     C2D_TextOptimize(&text);
     C2D_DrawText(&text, 0.3f, x + 10.0f, y + 8.0f, 0.3f, 0.3f, colorToU32(g_theme.textPrimary));
     if (sublabel) {
         C2D_Text sub;
-        C2D_TextParse(&sub, buf, sublabel);
+        if (font != NULL) {
+            C2D_TextFontParse(&sub, font, buf, sublabel);
+        } else {
+            C2D_TextParse(&sub, buf, sublabel);
+        }
         C2D_TextOptimize(&sub);
         C2D_DrawText(&sub, 0.25f, x + 10.0f, y + 28.0f, 0.25f, 0.25f, colorToU32(g_theme.textSecondary));
     }
     if (rightLabel) {
         C2D_Text rlabel;
-        C2D_TextParse(&rlabel, buf, rightLabel);
+        if (font != NULL) {
+            C2D_TextFontParse(&rlabel, font, buf, rightLabel);
+        } else {
+            C2D_TextParse(&rlabel, buf, rightLabel);
+        }
         C2D_TextOptimize(&rlabel);
         float tw = 0, th = 0;
         C2D_TextGetDimensions(&rlabel, 0.25f, 0.25f, &tw, &th);
