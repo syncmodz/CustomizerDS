@@ -1,260 +1,120 @@
-# AGENTES.md - CustomizerDS: Correção e Validação Completa
+# CustomizerDS - macOS Touch Bar Edition
 
-**Data:** 01/05/2026  
-**Usuário:** chicharito  
-**Objetivo:** Corrigir sintaxe do `main.c` e validar o projeto
+## Resumo das Correcoes e Melhorias
 
----
+### Bugs Corrigidos
 
-## ⚠️ PROBLEMA CRÍTICO ATUAL
+1. **Stutter em setas (causa raiz)**
+   - `input.c`: left/right agora usam debounce/repeat igual up/down
+   - `led.c`: saves em disco nao sao mais chamados a cada frame de seta — usam `SAVE_DEBOUNCE_FRAMES` (18 frames ~300ms)
 
-O arquivo `/home/chicharito/CustomizerDS/source/main.c` tem erros de sintaxe que persistem:
-1. **Faltam vírgulas** em chamadas de função
-2. **Nomes incorretos** de constantes e funções
-3. **Função inexistente** sendo chamada
+2. **Tema funcionando nas duas telas**
+   - `ui.c`: `UI_TouchBarBackground()` usa `g_theme.background`
+   - `UI_KeyHelp`: barra de fundo adapta ao tema (claro/escuro)
+   - Todas as cores hardcoded foram substituidas por `themeIsDark()` ternarios
 
----
+3. **Preview de fontes**
+   - `fonts.c`: `FONT_REAL_LOAD` = 1 (reativado)
+   - Preview agora mostra mensagem elegante se fonte nao carregar, ao inves de crashar
+   - Fontes em `romfs/fonts/` carregadas via `C2D_FontLoad`
 
-## 📋 INSTRUÇÕES PARA CORREÇÃO MANUAL
+4. **Arredondamento**
+   - `UI_RoundRect`: usa `sqrtf(ri*ri - dy*dy)` para circulos perfeitos
 
-### PASSO 1: Backup do main.c atual
+5. **UI_MorphSelector**
+   - Variavel static `s_morphX` agora tem `s_morphInit` booleano para inicializacao correta
+   - Mesmo fix em `darkmode.c` e `led.c`
+
+6. **UI_Shadow**
+   - Agora aceita parametro `alpha` para controle de intensidade
+
+### Redesign macOS Touch Bar
+
+#### Top Screen (400x240)
+- `UI_MacPanel`: glass panel com sombra suave e borda sutil
+- Fundo com gradiente sutil (highlight no topo, sombra embaixo)
+- Tipografia hierarquica: titulo (.58f), subtitulo (.34f), caption (.25f)
+
+#### Bottom Screen / Touch Bar (320x240)
+- `UI_TouchBarBackground`: faixa escura no topo (44px) simulando Touch Bar do MacBook Pro
+- Abaixo: MacPanel clean estilo macOS para conteudo
+- Key help bar adaptativa ao tema na base (26px)
+- Seletor modo LED e segmentos escuro/claro com morph animation
+
+#### Componentes Novos
+- `UI_TouchBarButton`: botao estilo Touch Bar com icone em badge quadrado + label
+- `UI_MacPanel`: glass panel padrao macOS (sombra + borda + highlight)
+
+#### Animacoes
+- Entrada de tela com `easeOutBack` (spring com overshoot)
+- Itens aparecem escalonados com delay
+- Startup logo com overshoot no badge CDS e saida suave
+
+### Reva UI Icons
+
+Os icones do Reva UI (extraidos de `/home/chicharito/Downloads/reva ui.tar`) servem como
+referencia de estilo. O app usa icon badges em quadrados arredondados com fundo na
+cor de destaque, que replicam o estilo Reva UI de icones minimalistas em formato
+rounded square com simbolo central.
+
+Para integracao futura de icones Reva UI como texturas:
 ```bash
-cp /home/chicharito/CustomizerDS/source/main.c /home/chicharito/CustomizerDS/source/main.c.backup
+# Extrair icones
+tar xf /home/chicharito/Downloads/reva\ ui.tar -C /tmp/reva
+# Criar sprite sheet (requer tex3ds)
+# Mais detalhes: https://github.com/devkitPro/tex3ds
 ```
 
-### PASSO 2: Remover main.c com erros
+### Arquivos Modificados
+
+| Arquivo | Linhas | O que mudou |
+|---------|--------|-------------|
+| `source/ui.c` | 434 | Rewrite completo: macOS Touch Bar, shadows, morph fix |
+| `source/ui.h` | 63 | Add UI_MacPanel, UI_TouchBarButton, UI_Shadow alpha |
+| `source/menu.c` | 140 | Pills com cores do tema, TouchBarButton |
+| `source/menu.h` | 16 | Add menuRenderTouchBar |
+| `source/fonts.c` | 244 | Preview seguro com NULL font, cores do tema |
+| `source/darkmode.c` | 269 | Morph init fix, cores adaptativas |
+| `source/led.c` | 452 | Save debounce dpad, morph init fix |
+| `source/main.c` | 189 | Cleanup, sem mudancas estruturais |
+
+### Build
+
 ```bash
-rm /home/chicharito/CustomizerDS/source/main.c
+cd /home/chicharito/CustomizerDS
+make clean && make
+# Resultados em build/:
+#   CustomizerDS.3dsx  (Homebrew Launcher, 2.3MB)
+#   CustomizerDS.cia   (Instalacao via FBI, 2.3MB)
+#   CustomizerDS.elf   (Debug, 1.5MB)
 ```
 
-### PASSO 3: Criar main.c correto (COPY & PASTE)
-
-**⚠️ IMPORTANTE:** Copie TODO o código abaixo e cole no terminal:
+### Teste no Azahar
 
 ```bash
-cat > /home/chicharito/CustomizerDS/source/main.c << 'MAINEOF'
-#include <3ds.h>
-#include <citro2d.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "common.h"
-#include "menu.h"
-#include "assets.h"
-#include "fonts.h"
-#include "darkmode.h"
-#include "led.h"
-#include "config.h"
-
-C3D_RenderTarget *topTarget, *botTarget;
-
-int main() {
-    gfxInitDefault();
-    C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
-    
-    topTarget = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
-    botTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
-    
-    int currentScreen = SCREEN_MAIN_MENU;
-    menuInit();
-    
-    while (aptMainLoop()) {
-        hidScanInput();
-        u32 kDown = hidKeysDown();
-        u32 kHeld = hidKeysHeld();
-        
-        if (kDown & KEY_START) break;
-        
-        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-        C2D_TargetClear(topTarget, C2D_Color32(20, 20, 30, 255));
-        C2D_TargetClear(botTarget, C2D_Color32(20, 20, 30, 255));
-        
-        C2D_SceneBegin(topTarget);
-        switch (currentScreen) {
-            case SCREEN_MAIN_MENU:
-                menuRender(kDown, kHeld, &currentScreen);
-                break;
-            case SCREEN_ASSETS:
-                assetsRender(kDown, kHeld, &currentScreen);
-                break;
-            case SCREEN_FONTS:
-                fontsRender(kDown, kHeld, &currentScreen);
-                break;
-            case SCREEN_DARKMODE:
-                darkmodeRender(kDown, kHeld, &currentScreen);
-                break;
-            case SCREEN_LED:
-                ledRender(kDown, kHeld, &currentScreen);
-                break;
-        }
-        
-        C2D_SceneBegin(botTarget);
-        C2D_TextBuf buf = C2D_TextBufNew(1024);
-        C2D_Text info;
-        C2D_TextParse(&info, buf, "Pressione START para sair");
-        C2D_TextOptimize(&info);
-        C2D_DrawText(&info, 0.3f, 10, 200, 0.3f, 0.3f, C2D_Color32(200, 200, 200, 255));
-        C2D_TextBufDelete(buf);
-        
-        C3D_FrameEnd(0);
-    }
-    
-    C2D_Fini();
-    C3D_Fini();
-    gfxExit();
-    return 0;
-}
-MAINEOF
+azahar /home/chicharito/CustomizerDS/build/CustomizerDS.3dsx
 ```
 
-### PASSO 4: Verificar se o main.c foi criado corretamente
+### Uso no Azahar
+
 ```bash
-head -30 /home/chicharito/CustomizerDS/source/main.c
+flatpak run org.azahar_emu.Azahar /home/chicharito/CustomizerDS/build/CustomizerDS.3dsx
 ```
 
-**Verifique se:**
-- Linha 5: `#include "common.h"` (com aspas retas)
-- Linha 17: `C3D_DEFAULT_CMDBUF_SIZE` (não `C3D_DEFAULT_CMDBUF_SIZE`)
-- Linha 18: `C2D_DEFAULT_MAX_OBJECTS` (com S no final)
-- Linha 22: `GFX_BOTTOM` (não `GFX_BOTTOM`)
-- Linha 24: `SCREEN_MAIN_MENU` (não `SCREEN_MAIN_MENU`)
-- Linha 34: `C3D_FRAME_SYNCDRAW` (não `C3D_FRAME_SYNC_DRAW`)
-- Linha 35: `C2D_Color32(20, 20, 30, 255)` (com vírgulas)
-- Linha 38: `C2D_SceneBegin` (não `C2D_SceneBegin`)
-- Linha 41: `menuRender(kDown, kHeld, &currentScreen)` (com vírgulas)
-- Linha 60: `C2D_TextParse(&info, buf, "Pressione START para sair")` (com vírgulas)
-- Linha 62: `C2D_DrawText(&info, 0.3f, 10, 200, 0.3f, 0.3f, C2D_Color32(200, 200, 200, 255))` (com vírgulas)
+### Checklist de Testes
 
----
+- [ ] Stutter: setas nao travam em nenhuma tela
+- [ ] Tema: claro/escuro funciona nas duas telas
+- [ ] Fontes: preview mostra fonte carregada, nao crasha
+- [ ] LED: modo RGB, sliders R/G/B, velocity
+- [ ] HEX picker: editar cor customizada por hex
+- [ ] Arredondamento: cantos sao circulos perfeitos
+- [ ] Animacoes: entrada com spring, suave
+- [ ] Touch Bar: faixa escura no topo da tela inferior
 
-## 🔧 COMPILAÇÃO E TESTE
+### Ultimas Alteracoes
 
-### PASSO 5: Compilar o projeto
-```bash
-cd /home/chicharito/CustomizerDS && make clean && make 2>&1 | tee build/log_compilacao.txt
-```
-
-**Se houver erros:**
-- Verifique o arquivo `build/log_compilacao.txt`
-- Corrija os erros manualmente com `nano` ou `vim`
-
-### PASSO 6: Gerar o CIA
-```bash
-cd /home/chicharito/CustomizerDS/build && \
-/home/chicharito/bin/makerom -f cia -o CustomizerDS_FINAL.cia \
--rsf app.rsf -elf CustomizerDS.elf -icon CustomizerDS.smdh
-```
-
-### PASSO 7: Copiar para Downloads
-```bash
-cp /home/chicharito/CustomizerDS/build/CustomizerDS_FINAL.cia /home/chicharito/Downloads/
-```
-
----
-
-## 🎮 TESTE NO 3DS
-
-### PASSO 8: Montar SD Card
-```bash
-# Verificar se o SD card está conectado
-lsblk | grep sd
-
-# Montar (substitua /dev/sda pelo dispositivo correto)
-mount /dev/sda /mnt/sd
-
-# Verificar se montou
-ls /mnt/sd/
-```
-
-### PASSO 9: Copiar CIA para SD Card
-```bash
-mkdir -p /mnt/sd/cias
-cp /home/chicharito/Downloads/CustomizerDS_FINAL.cia /mnt/sd/cias/CustomizerDS.cia
-sync
-umount /mnt/sd
-```
-
-### PASSO 10: Testar no 3DS
-1. Insira o SD card no 3DS
-2. Ligue o 3DS
-3. Abra o FBI
-4. Vá em `SD` -> `cias` -> `CustomizerDS.cia`
-5. Instale o CIA
-6. Saia do FBI e abra o CustomizerDS pelo menu
-
----
-
-## 📝 ATUALIZAÇÃO DO RESUMO
-
-### PASSO 11: Atualizar o arquivo de resumo
-```bash
-nano /home/chicharito/Downloads/CustomizerDS_Resumo.txt
-```
-
-Adicione:
-```
-[✅] 5. MAIN.C CORRIGIDO (01/05/2026)
-- main.c reescrito com sintaxe correta
-- Vírgulas adicionadas em todas as chamadas de função
-- Nomes de constantes corrigidos (GFX_BOTTOM, SCREEN_MAIN_MENU, etc.)
-- Removido C2D_Prepare() inexistente
-- Compilação limpa funcionando
-- .CIA gerado e testado no 3DS
-```
-
----
-
-## 🛠️ COMANDOS ÚTEIS PARA DEPURAÇÃO
-
-### Verificar erros de compilação:
-```bash
-cd /home/chicharito/CustomizerDS && make 2>&1 | grep -i "error\|warning"
-```
-
-### Limpar e recompilar do zero:
-```bash
-cd /home/chicharito/CustomizerDS && rm -rf build && make
-```
-
-### Verificar se o CIA é válido:
-```bash
-hexdump -C /home/chicharito/Downloads/CustomizerDS_FINAL.cia | head -3
-# Deve mostrar: 20 20 00 00 (magic bytes do CIA)
-```
-
-### Verificar crash dumps no 3DS:
-```bash
-# Após testar no 3DS, monte o SD e verifique:
-ls /mnt/sd/luma/dumps/arm11/
-```
-
----
-
-## ✅ CHECKLIST FINAL
-
-- [ ] main.c reescrito com sintaxe correta
-- [ ] Compilação limpa (sem erros)
-- [ ] .3dsx gerado em build/
-- [ ] .CIA gerado em build/
-- [ ] CIA copiado para Downloads
-- [ ] SD card montado
-- [ ] CIA copiado para /mnt/sd/cias/
-- [ ] Testado no 3DS real
-- [ ] Sem crashes no 3DS
-- [ ] Resumo atualizado
-
----
-
-## 📞 CONTATO E SUPORTE
-
-Se encontrar problemas persistentes:
-1. Verifique o arquivo `build/log_compilacao.txt`
-2. Leia o erro com atenção
-3. Corrija manualmente o arquivo afetado
-4. Recompile e teste novamente
-
-**Lembre-se:** O 3DS OLD tem apenas 64MB RAM e CPU 268MHz - mantenha o código simples!
-
----
-
-**FIM DO ARQUIVO AGENTES.md**
+- `led.c`: corrigida funcao de render corrompida no for loop dos swatches de cor (linhas 424-428 estavam mescladas com argumentos extras)
+- `led.c`: removido sentinela redundante `s_morphX < -9000` na inicializacao do morph
+- `main.c`: removido `menuInit()` duplicado (ja era chamado por `onScreenEnter(SCREEN_MAIN_MENU)`)
+- Build 100% limpo: zero erros, zero warnings

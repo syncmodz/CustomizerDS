@@ -48,10 +48,10 @@ ROMFS_BIN := $(BUILD)/romfs.bin
 
 all: $(3DSX) $(CIA)
 
-$(3DSX): $(ELF) $(SMDH)
-	$(3DSXTOOL) $< $@ --smdh=$(SMDH)
+$(3DSX): $(ELF) $(SMDH) $(ROMFS_BIN)
+	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_BIN)
 
-$(ELF): $(BUILD)/main.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/config.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/color_picker.o $(BUILD)/led_control.o
+$(ELF): $(BUILD)/main.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/config.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 $(BUILD)/%.o: $(SOURCES)/%.c
@@ -165,7 +165,14 @@ $(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(ROMFS_BIN)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
 	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER) -romfs $(ROMFS_BIN)
 
+PREVIEW_3DSX := $(BUILD)/$(TARGET)_preview.3dsx
+
+preview3dsx: $(PREVIEW_3DSX)
+
+$(PREVIEW_3DSX): $(ELF) $(SMDH) $(ROMFS_BIN)
+	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_BIN)
+
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all clean
+.PHONY: all clean preview3dsx

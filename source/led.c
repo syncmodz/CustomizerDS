@@ -1,54 +1,61 @@
 #include "led.h"
 #include "common.h"
 #include "theme.h"
-#include "anim.h"
 #include "ui.h"
+#include "anim.h"
 #include "config.h"
 #include "fonts.h"
 #include <math.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include <3ds/services/mcuhwc.h>
 
-static u8 curR, curG, curB;
-static int curSpeed;
-static int selectedItem;
-static bool editMode;
-static Anim selectedAnim;
-static Ripple ledRipple;
-
 typedef enum {
-    MODE_RAINBOW,
-    MODE_SOLID,
-    MODE_OFF,
-    MODE_COUNT
+    LED_RAINBOW = 0,
+    LED_SOLID,
+    LED_PULSE,
+    LED_MODE_OFF,
+    LED_MODE_COUNT
 } LedMode;
 
-static int currentMode;
-static ConfigData ledCfg;
+static const char* MODE_NAMES[] = { "RGB", "Fixo", "Pulso", "Off" };
 
-static const char* modeLabels[] = {
-    "Arco-iris",
-    "Cor Solida",
-    "Desligado",
-    "Voltar"
-};
+static int s_mode = LED_RAINBOW;
+static int s_selected = 0;
+static int s_speed = 2;
+static u8 s_r = 255;
+static u8 s_g = 96;
+static u8 s_b = 160;
+static bool s_mcuReady = false;
+static Result s_lastResult = 0;
 
-void ledInit(void) {
-    mcuHwcInit();
-    configLoad(&ledCfg);
-    currentMode = ledCfg.ledMode;
-    curR = ledCfg.ledR;
-    curG = ledCfg.ledG;
-    curB = ledCfg.ledB;
-    curSpeed = ledCfg.ledSpeed;
-    selectedItem = 0;
-    editMode = false;
-    animSet(&selectedAnim, 0.0f, 0.12f);
-    ledRipple.active = false;
+static float s_segSlideT = 1.0f;
+static int s_draggingSlider = -1;
+
+int ledSelected(void) { return s_selected; }
+
+static u8 scaleU8(u8 value, float mul) {
+    int out = (int)((float)value * mul);
+    return (u8)clampi(out, 0, 255);
 }
 
-static void setLEDColor(u8 r, u8 g, u8 b) {
+static void hsvToRgb(float h, float s, float v, u8* r, u8* g, u8* b) {
+    float c = v * s;
+    float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+    float m = v - c;
+    float rr = 0, gg = 0, bb = 0;
+    if (h < 60) { rr = c; gg = x; bb = 0; }
+    else if (h < 120) { rr = x; gg = c; bb = 0; }
+    else if (h < 180) { rr = 0; gg = c; bb = x; }
+    else if (h < 240) { rr = 0; gg = x; bb = c; }
+    else if (h < 300) { rr = x; gg = 0; bb = c; }
+    else { rr = c; gg = 0; bb = x; }
+    *r = (u8)((rr + m) * 255.0f);
+    *g = (u8)((gg + m) * 255.0f);
+    *b = (u8)((bb + m) * 255.0f);
+}
+
+static Result setPatternSolid(u8 r, u8 g, u8 b) {
     InfoLedPattern pattern;
     memset(&pattern, 0, sizeof(pattern));
     pattern.delay = 0x10;
@@ -58,182 +65,297 @@ static void setLEDColor(u8 r, u8 g, u8 b) {
     memset(pattern.redPattern, r, 32);
     memset(pattern.greenPattern, g, 32);
     memset(pattern.bluePattern, b, 32);
-    MCUHWC_SetInfoLedPattern(&pattern);
+    return MCUHWC_SetInfoLedPattern(&pattern);
 }
 
-static void setLEDRainbow(void) {
+static Result setPatternRainbow(void) {
     InfoLedPattern pattern;
     memset(&pattern, 0, sizeof(pattern));
-    pattern.delay = 0x10;
+    pattern.delay = (u8)clampi(0x1C - s_speed * 4, 4, 28);
     pattern.smoothing = 0x00;
     pattern.loopDelay = 0x00;
     pattern.blinkSpeed = 0x00;
     for (int i = 0; i < 32; i++) {
-        float h = (i / 32.0f) * 360.0f;
-        float s = 1.0f, v = 1.0f;
-        float c = v * s;
-        float x = c * (1.0f - fabs(fmodf(h / 60.0f, 2.0f) - 1.0f));
-        float m = v - c;
-        float r1, g1, b1;
-        if (h < 60)       { r1 = c; g1 = x; b1 = 0; }
-        else if (h < 120)  { r1 = x; g1 = c; b1 = 0; }
-        else if (h < 180)  { r1 = 0; g1 = c; b1 = x; }
-        else if (h < 240)  { r1 = 0; g1 = x; b1 = c; }
-        else if (h < 300)  { r1 = x; g1 = 0; b1 = c; }
-        else                { r1 = c; g1 = 0; b1 = x; }
-        pattern.redPattern[i]   = (u8)((r1 + m) * 255);
-        pattern.greenPattern[i] = (u8)((g1 + m) * 255);
-        pattern.bluePattern[i]  = (u8)((b1 + m) * 255);
+        u8 r, g, b;
+        hsvToRgb((float)i * 360.0f / 32.0f, 1.0f, 1.0f, &r, &g, &b);
+        pattern.redPattern[i] = r;
+        pattern.greenPattern[i] = g;
+        pattern.bluePattern[i] = b;
     }
-    MCUHWC_SetInfoLedPattern(&pattern);
+    return MCUHWC_SetInfoLedPattern(&pattern);
 }
 
-static void setLEDOff(void) {
-    setLEDColor(0, 0, 0);
+static Result setPatternPulse(void) {
+    InfoLedPattern pattern;
+    memset(&pattern, 0, sizeof(pattern));
+    pattern.delay = (u8)clampi(0x1E - s_speed * 4, 4, 30);
+    pattern.smoothing = 0x01;
+    pattern.loopDelay = 0x00;
+    pattern.blinkSpeed = 0x00;
+    for (int i = 0; i < 32; i++) {
+        float t = (float)i / 31.0f;
+        float wave = 0.20f + 0.80f * (sinf(t * M_TAU) * 0.5f + 0.5f);
+        pattern.redPattern[i] = scaleU8(s_r, wave);
+        pattern.greenPattern[i] = scaleU8(s_g, wave);
+        pattern.bluePattern[i] = scaleU8(s_b, wave);
+    }
+    return MCUHWC_SetInfoLedPattern(&pattern);
 }
 
-static void applyLED(void) {
-    switch (currentMode) {
-        case MODE_RAINBOW: setLEDRainbow(); break;
-        case MODE_SOLID:   setLEDColor(curR, curG, curB); break;
-        case MODE_OFF:     setLEDOff(); break;
+static void saveLed(void) {
+    ConfigData cfg;
+    configLoad(&cfg);
+    cfg.ledMode = (u8)s_mode;
+    cfg.ledSpeed = (u8)s_speed;
+    cfg.ledR = s_r;
+    cfg.ledG = s_g;
+    cfg.ledB = s_b;
+    configSave(&cfg);
+}
+
+static void applyLed(void) {
+    if (!s_mcuReady) return;
+    switch (s_mode) {
+        case LED_RAINBOW: s_lastResult = setPatternRainbow(); break;
+        case LED_SOLID: s_lastResult = setPatternSolid(s_r, s_g, s_b); break;
+        case LED_PULSE: s_lastResult = setPatternPulse(); break;
+        case LED_MODE_OFF: s_lastResult = setPatternSolid(0, 0, 0); break;
+        default: break;
     }
 }
 
-static void saveConfig(void) {
-    ledCfg.ledMode = currentMode;
-    ledCfg.ledR = curR;
-    ledCfg.ledG = curG;
-    ledCfg.ledB = curB;
-    ledCfg.ledSpeed = curSpeed;
-    configSave(&ledCfg);
+void ledInit(void) {
+    ConfigData cfg;
+    configLoad(&cfg);
+    s_mode = clampi(cfg.ledMode, 0, LED_MODE_COUNT - 1);
+    s_speed = clampi(cfg.ledSpeed, 1, 5);
+    s_r = cfg.ledR;
+    s_g = cfg.ledG;
+    s_b = cfg.ledB;
+    s_selected = 0;
+    s_draggingSlider = -1;
+    s_lastResult = mcuHwcInit();
+    s_mcuReady = R_SUCCEEDED(s_lastResult);
 }
 
-static int getItemCount(void) {
-    if (currentMode == MODE_RAINBOW) return 4;
-    if (currentMode == MODE_SOLID) return 6;
-    return 4;
+void ledEnter(void) {
+    s_selected = 0;
+    s_draggingSlider = -1;
 }
 
-static const char* getItemLabel(int i) {
-    int baseCount = 4;
-    if (i < baseCount) return modeLabels[i];
-    if (currentMode == MODE_RAINBOW) {
-        if (i == baseCount) return "Velocidade";
+void ledExit(void) {
+    if (s_mcuReady) {
+        mcuHwcExit();
+        s_mcuReady = false;
     }
-    if (currentMode == MODE_SOLID) {
-        if (i == baseCount + 0) return "Vermelho";
-        if (i == baseCount + 1) return "Verde";
-        if (i == baseCount + 2) return "Azul";
-    }
-    return "";
 }
 
-static const char* getItemRight(int i) {
-    int baseCount = 4;
-    if (i < baseCount) return NULL;
-    if (currentMode == MODE_RAINBOW && i == baseCount) {
-        static char s[16];
-        snprintf(s, 16, "%d", curSpeed);
-        return s;
-    }
-    if (currentMode == MODE_SOLID) {
-        static char s[16];
-        if (i == baseCount + 0) { snprintf(s, 16, "%d", curR); return s; }
-        if (i == baseCount + 1) { snprintf(s, 16, "%d", curG); return s; }
-        if (i == baseCount + 2) { snprintf(s, 16, "%d", curB); return s; }
-    }
-    return NULL;
+static void setMode(int mode) {
+    s_mode = clampi(mode, 0, LED_MODE_COUNT - 1);
+    applyLed();
+    saveLed();
 }
 
-void ledRender(u32 kDown, u32 kHeld, int* currentScreen) {
-    if (kDown & KEY_B) {
-        setLEDColor(255, 255, 255);
+static int sliderValueFromTouch(const AppInput* in, int index, float barX, float barY, float barW, int min, int max) {
+    float t = clampf(((float)in->touchPX - barX) / barW, 0.0f, 1.0f);
+    int val = min + (int)(t * (max - min) + 0.5f);
+    val = clampi(val, min, max);
+    s_draggingSlider = index;
+    s_selected = index;
+    return val;
+}
+
+static int s_savePending = 0;
+
+static void commitSliderChange(void) {
+    applyLed();
+    s_savePending = SAVE_DEBOUNCE_FRAMES;
+}
+
+static void handleSliderDPad(int sel, u8* ch, int step) {
+    if (ch) {
+        *ch = (u8)clampi((int)*ch + step, 0, 255);
+    }
+    applyLed();
+    if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES;
+}
+
+void ledUpdate(const AppInput* in, int* currentScreen) {
+    if (in->back) {
+        s_draggingSlider = -1;
         *currentScreen = SCREEN_MAIN_MENU;
         return;
     }
 
-    int itemCount = getItemCount();
+    int totalItems = 1;
+    if (s_mode == LED_SOLID || s_mode == LED_PULSE) totalItems = 5;
+    else totalItems = 2;
 
-    if (!editMode) {
-        if (kDown & KEY_DOWN) selectedItem = (selectedItem + 1) % itemCount;
-        if (kDown & KEY_UP) selectedItem = (selectedItem - 1 + itemCount) % itemCount;
+    bool dragging = (s_draggingSlider >= 0 && in->touchHeld);
+
+    bool modeChanged = false;
+    if (in->left || in->right) {
+        int dir = in->right ? 1 : -1;
+        setMode((s_mode + dir + LED_MODE_COUNT) % LED_MODE_COUNT);
+        s_segSlideT = 0.0f;
+        modeChanged = true;
     }
 
-    if (kDown & KEY_A) {
-        if (selectedItem >= 4) {
-            editMode = !editMode;
-        } else if (selectedItem != 3) {
-            currentMode = selectedItem;
-            applyLED();
-            saveConfig();
+    if (!dragging && !modeChanged) {
+        if (in->downNav) { s_selected = (s_selected + 1) % totalItems; s_draggingSlider = -1; }
+        if (in->up) { s_selected = (s_selected - 1 + totalItems) % totalItems; s_draggingSlider = -1; }
+
+        if (s_selected == 0) {
+            if (in->confirm) {
+                setMode((s_mode + 1) % LED_MODE_COUNT);
+            }
+        } else if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
+            if (s_selected >= 1 && s_selected <= 3) {
+                u8* ch = (s_selected == 1) ? &s_r : (s_selected == 2) ? &s_g : &s_b;
+                if (in->left) handleSliderDPad(s_selected, ch, -8);
+                if (in->right) handleSliderDPad(s_selected, ch, 8);
+            }
+            if (s_selected == 4) {
+                if (in->left) { s_speed = clampi(s_speed - 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
+                if (in->right) { s_speed = clampi(s_speed + 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
+            }
         } else {
-            setLEDColor(255, 255, 255);
-            *currentScreen = SCREEN_MAIN_MENU;
+            if (s_selected == 1) {
+                if (in->left) { s_speed = clampi(s_speed - 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
+                if (in->right) { s_speed = clampi(s_speed + 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
+            }
+        }
+    }
+
+    if (in->touchDown || (in->touchHeld && s_draggingSlider >= 0)) {
+        if (!dragging && in->touchPY >= 8 && in->touchPY < 8 + 28 &&
+            in->touchPX >= 10 && in->touchPX < 310) {
+            float segItemW = 300.0f / (float)LED_MODE_COUNT;
+            int newMode = (int)((in->touchPX - 10) / segItemW);
+            newMode = clampi(newMode, 0, LED_MODE_COUNT - 1);
+            if (in->touchDown) {
+                s_segSlideT = 0.0f;
+                s_selected = 0;
+                setMode(newMode);
+            }
             return;
         }
+
+        if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
+            float slY = 62.0f, rowH = 28.0f, barX = 36.0f, barW = 256.0f;
+            for (int i = 0; i < 3; i++) {
+                float sy = slY + i * 30.0f;
+                if ((dragging && s_draggingSlider == 1 + i) ||
+                    (!dragging && in->touchPY >= sy && in->touchPY < sy + rowH &&
+                     in->touchPX >= barX && in->touchPX < barX + barW)) {
+                    if (in->touchDown || (dragging && s_draggingSlider == 1 + i)) {
+                        u8* ch = (i == 0) ? &s_r : (i == 1) ? &s_g : &s_b;
+                        *ch = (u8)sliderValueFromTouch(in, 1 + i, barX, sy + 9, barW, 0, 255);
+                        commitSliderChange();
+                    }
+                    return;
+                }
+            }
+            float spY = 152.0f;
+            if ((dragging && s_draggingSlider == 4) ||
+                (!dragging && in->touchPY >= spY && in->touchPY < spY + rowH &&
+                 in->touchPX >= barX && in->touchPX < barX + barW)) {
+                if (in->touchDown || (dragging && s_draggingSlider == 4)) {
+                    s_speed = sliderValueFromTouch(in, 4, barX, spY + 9, barW, 1, 5);
+                    commitSliderChange();
+                }
+                return;
+            }
+        } else {
+            float barX = 36.0f, barW = 256.0f, spY = 62.0f;
+            if ((dragging && s_draggingSlider == 1) ||
+                (!dragging && in->touchPY >= spY && in->touchPY < spY + 28 &&
+                 in->touchPX >= barX && in->touchPX < barX + barW)) {
+                if (in->touchDown || (dragging && s_draggingSlider == 1)) {
+                    s_speed = sliderValueFromTouch(in, 1, barX, spY + 9, barW, 1, 5);
+                    commitSliderChange();
+                }
+                return;
+            }
+        }
     }
 
-    if (editMode) {
-        if (currentMode == MODE_RAINBOW && selectedItem == 4) {
-            if (kDown & KEY_RIGHT) { if (curSpeed < 5) curSpeed++; applyLED(); saveConfig(); }
-            if (kDown & KEY_LEFT)  { if (curSpeed > 0) curSpeed--; applyLED(); saveConfig(); }
-        }
-        if (currentMode == MODE_SOLID) {
-            if (selectedItem == 4) {
-                if (kDown & KEY_RIGHT) { if (curR < 255) curR += 15; if (curR > 255) curR = 255; applyLED(); saveConfig(); }
-                if (kDown & KEY_LEFT)  { if (curR > 15) curR -= 15; else curR = 0; applyLED(); saveConfig(); }
-            }
-            if (selectedItem == 5) {
-                if (kDown & KEY_RIGHT) { if (curG < 255) curG += 15; if (curG > 255) curG = 255; applyLED(); saveConfig(); }
-                if (kDown & KEY_LEFT)  { if (curG > 15) curG -= 15; else curG = 0; applyLED(); saveConfig(); }
-            }
-            if (selectedItem == 6) {
-                if (kDown & KEY_RIGHT) { if (curB < 255) curB += 15; if (curB > 255) curB = 255; applyLED(); saveConfig(); }
-                if (kDown & KEY_LEFT)  { if (curB > 15) curB -= 15; else curB = 0; applyLED(); saveConfig(); }
-            }
-        }
-        if (kDown & KEY_A) editMode = false;
+    if (!in->touchHeld) s_draggingSlider = -1;
+
+    if (s_savePending > 0) {
+        s_savePending--;
+        if (s_savePending == 0) saveLed();
     }
 
-    C2D_TextBuf buf = C2D_TextBufNew(1024);
-    if (!buf) return;
-
-    UI_Header(buf, "LED RGB", "Personalizar cor do LED");
-
-    u32 ledColor = C2D_Color32(curR, curG, curB, 255);
-    UI_Card(50, 50, 100, 100, true, 0.0f);
-    C2D_DrawRectSolid(60, 60, 0, 80, 80, ledColor);
-
-    C2D_DrawRectSolid(170, 60, 0, 20, 20, C2D_Color32(255,0,0,255));
-    C2D_DrawRectSolid(195, 60, 0, 20, 20, C2D_Color32(0,255,0,255));
-    C2D_DrawRectSolid(220, 60, 0, 20, 20, C2D_Color32(0,0,255,255));
-    C2D_DrawRectSolid(170, 85, 0, 20, 20, C2D_Color32(255,255,0,255));
-    C2D_DrawRectSolid(195, 85, 0, 20, 20, C2D_Color32(128,0,128,255));
-    C2D_DrawRectSolid(220, 85, 0, 20, 20, C2D_Color32(curR,curG,curB,255));
-
-    animTo(&selectedAnim, selectedItem * 1.0f);
-    animStep(&selectedAnim);
-    float selectAnim = animEasedOut(&selectedAnim);
-
-    for (int i = 0; i < itemCount; i++) {
-        bool selected = (i == selectedItem);
-        float itemAnim = selected ? 1.0f : 0.0f;
-        if (selected) {
-            itemAnim = selectAnim - (int)selectAnim;
-            if (itemAnim < 0) itemAnim += 1.0f;
-        }
-        UI_ListItem(buf, 10, 160 + i * 28, 300, 25,
-                    getItemLabel(i),
-                    NULL, selected, itemAnim,
-                    getItemRight(i),
-                    g_fonts.current);
-    }
-
-    UI_Footer(buf, editMode ? "Parar" : "Selecionar", "Voltar", NULL);
-    C2D_TextBufDelete(buf);
+    s_segSlideT = fminf(s_segSlideT + 1.0f/60.0f, 1.0f);
 }
 
-void ledDrawPreview(void) {
-    C2D_DrawRectSolid(300, 20, 0, 80, 80, C2D_Color32(curR, curG, curB, 255));
+static ColorRGBA previewColor(void) {
+    if (s_mode == LED_MODE_OFF) return (ColorRGBA){24, 24, 32, 255};
+    if (s_mode == LED_SOLID) return (ColorRGBA){s_r, s_g, s_b, 255};
+    if (s_mode == LED_PULSE) {
+        float wave = 0.25f + 0.75f * (sinf(uiFrameTime() * (1.2f + s_speed)) * 0.5f + 0.5f);
+        return (ColorRGBA){scaleU8(s_r, wave), scaleU8(s_g, wave), scaleU8(s_b, wave), 255};
+    }
+    u8 r, g, b;
+    float h = fmodf(uiFrameTime() * (45.0f + s_speed * 25.0f), 360.0f);
+    hsvToRgb(h, 1.0f, 1.0f, &r, &g, &b);
+    return (ColorRGBA){r, g, b, 255};
+}
+
+void ledRenderTop(C2D_TextBuf buf, float transVal) {
+    float offset = (1.0f - transVal) * 40.0f;
+    UI_TopBackground();
+    UI_TopMenuBar("LED", buf);
+
+    UI_Card(16, 30 + offset, 368, 196, 16, g_theme.surface);
+
+    UI_Text(buf, NULL, MODE_NAMES[s_mode], 32, 52 + offset, 0.44f, 0.44f, g_theme.textPrimary);
+    UI_Text(buf, NULL, s_mcuReady ? "led ativo" : "MCU indisponivel — preview",
+            32, 78 + offset, 0.22f, 0.22f, s_mcuReady ? g_theme.success : g_theme.warning);
+
+    ColorRGBA c = previewColor();
+    float lx = 266.0f, ly = 52 + offset;
+    ColorRGBA previewBg = themeIsDark() ? (ColorRGBA){8, 10, 14, 255} : (ColorRGBA){225, 228, 238, 255};
+    UI_RoundFrame(lx, ly, 88, 64, 16, previewBg, (ColorRGBA){255, 255, 255, 12});
+    UI_RoundRect(lx + 4, ly + 4, 80, 56, 12, c);
+    ColorRGBA glow = c;
+    glow.a = 30;
+    UI_RoundRect(lx + 2, ly + 2, 84, 60, 14, glow);
+
+    char rgb[40];
+    snprintf(rgb, sizeof(rgb), "R%d G%d B%d  vel %d", s_r, s_g, s_b, s_speed);
+    UI_Text(buf, NULL, rgb, 32, 100 + offset, 0.26f, 0.26f, g_theme.textSecondary);
+
+    if (R_FAILED(s_lastResult)) {
+        char err[32];
+        snprintf(err, sizeof(err), "erro: 0x%08lX", (unsigned long)s_lastResult);
+        UI_Text(buf, NULL, err, 32, 126 + offset, 0.22f, 0.22f, g_theme.textHint);
+    } else {
+        UI_Text(buf, NULL, "ajuste com os controles abaixo", 32, 126 + offset, 0.22f, 0.22f, g_theme.textHint);
+    }
+
+    UI_Text(buf, NULL, s_mcuReady ? "tempo real" : "simulacao na tela",
+            32, 150 + offset, 0.20f, 0.20f, g_theme.textHint);
+}
+
+void ledRenderBottom(C2D_TextBuf buf, float transVal) {
+    float offset = (1.0f - transVal) * 30.0f;
+    float et = UI_EnterProgress();
+    UI_BottomBackground();
+
+    const char* modeLabels[LED_MODE_COUNT];
+    for (int i = 0; i < LED_MODE_COUNT; i++) modeLabels[i] = MODE_NAMES[i];
+    UI_TouchBarSegmented(buf, 10, 8 + offset, 300, 28, modeLabels, LED_MODE_COUNT, s_mode, s_segSlideT);
+
+    if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
+        UI_TouchBarSlider(buf, 10, 56 + offset, 300, "R", s_r, 0, 255, s_selected == 1, (ColorRGBA){s_r, 40, 40, 255});
+        UI_TouchBarSlider(buf, 10, 88 + offset, 300, "G", s_g, 0, 255, s_selected == 2, (ColorRGBA){40, s_g, 40, 255});
+        UI_TouchBarSlider(buf, 10, 120 + offset, 300, "B", s_b, 0, 255, s_selected == 3, (ColorRGBA){40, 40, s_b, 255});
+        UI_TouchBarSlider(buf, 10, 152 + offset, 300, "Vel", s_speed, 1, 5, s_selected == 4, g_theme.accent);
+    } else {
+        UI_TouchBarSlider(buf, 10, 56 + offset, 300, "Vel", s_speed, 1, 5, s_selected == 1, g_theme.accent);
+    }
+
+    UI_HelpBar(buf, "A modo  B voltar  <- valor ->", "START sair");
 }
