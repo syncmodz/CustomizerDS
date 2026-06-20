@@ -1,84 +1,79 @@
 #include "anim.h"
 
-float easeFunc(float t, EaseType type) {
-    if (t <= 0.0f) return 0.0f;
-    if (t >= 1.0f) return 1.0f;
-    switch (type) {
-        case EASE_LINEAR: return t;
-        case EASE_OUT_SINE: return sinf(t * M_PI / 2.0f);
-        case EASE_OUT_CUBIC: return 1.0f - powf(1.0f - t, 3.0f);
-        case EASE_OUT_QUINT: return 1.0f - powf(1.0f - t, 5.0f);
-        case EASE_OUT_BACK: {
-            float c1 = 1.70158f;
-            float c3 = c1 + 1.0f;
-            return 1.0f + c3 * powf(t - 1.0f, 3.0f) + c1 * powf(t - 1.0f, 2.0f);
-        }
-        case EASE_OUT_EXPO: return (t >= 1.0f) ? 1.0f : 1.0f - powf(2.0f, -10.0f * t);
-        case EASE_IN_OUT_CUBIC:
-            return (t < 0.5f) ? 4.0f * t * t * t : 1.0f - powf(-2.0f * t + 2.0f, 3.0f) / 2.0f;
-        case EASE_IN_OUT_BACK: {
-            float c1 = 1.70158f;
-            float c2 = c1 * 1.525f;
-            return (t < 0.5f)
-                ? (powf(2.0f * t, 2.0f) * ((c2 + 1.0f) * 2.0f * t - c2)) / 2.0f
-                : (powf(2.0f * t - 2.0f, 2.0f) * ((c2 + 1.0f) * (t * 2.0f - 2.0f) + c2) + 2.0f) / 2.0f;
-        }
-        case EASE_OUT_ELASTIC: {
-            if (t == 0.0f || t == 1.0f) return t;
-            float c4 = 2.0f * M_PI / 3.0f;
-            return powf(2.0f, -10.0f * t) * sinf((t * 10.0f - 0.75f) * c4) + 1.0f;
-        }
-        default: return t;
+float g_parallaxOffset = 0;
+float g_bootProgress = 0;
+bool g_bootComplete = false;
+
+void animInit(void) {}
+void animUpdate(float dt) {
+    g_parallaxOffset = sinf(appGetTime() * 0.3f) * 2;
+    if (!g_bootComplete) {
+        g_bootProgress = fminf(1, g_bootProgress + dt * 0.15f);
+        if (g_bootProgress >= 1) g_bootComplete = true;
     }
 }
 
-void transitionStart(ScreenTransition* t, TransitionType type, int from, int to, float duration) {
-    t->type = type;
-    t->fromScreen = from;
-    t->toScreen = to;
-    t->duration = duration;
-    t->progress = 0.0f;
-    t->active = true;
+void springInit(Spring* s, float target, float stiff, float damp, float mass) {
+    s->pos = target; s->vel = 0; s->target = target;
+    s->stiff = stiff; s->damp = damp; s->mass = mass;
 }
 
-void transitionUpdate(ScreenTransition* t) {
-    if (!t->active) return;
-    t->progress += 1.0f / 60.0f;
-    if (t->progress >= t->duration) {
-        t->progress = t->duration;
-        t->active = false;
+void springSetTarget(Spring* s, float t) { s->target = t; }
+
+bool springStep(Spring* s, float dt) {
+    float f = -(s->stiff * (s->pos - s->target));
+    float d = -s->damp * s->vel;
+    float a = (f + d) / s->mass;
+    s->vel += a * dt;
+    s->pos += s->vel * dt;
+    return fabsf(s->pos - s->target) < 0.5f && fabsf(s->vel) < 0.5f;
+}
+
+Transition transStart(float duration, float delay) {
+    Transition t = {0, duration, delay, 0, true, false, easeOutCubic};
+    return t;
+}
+
+float transGet(Transition* t) {
+    return t->active ? t->progress : 1;
+}
+
+float transUpdate(Transition* t, float dt) {
+    if (!t->active || t->finished) return 1;
+    t->elapsed += dt;
+    if (t->elapsed < t->delay) return 0;
+    t->progress = clampf((t->elapsed - t->delay) / t->duration, 0, 1);
+    if (t->progress >= 1) { t->finished = true; t->active = false; }
+    return t->easeFunc(t->progress);
+}
+
+void animStateInit(AnimState* a) {
+    memset(a, 0, sizeof(AnimState));
+    a->opacity = 0; a->scale = 0.8f;
+    springInit(&a->opacityS, 1, 100, 10, 1);
+    springInit(&a->scaleS, 1, 300, 20, 1);
+    springInit(&a->slideXS, 0, 100, 10, 1);
+    springInit(&a->slideYS, 0, 100, 10, 1);
+}
+
+void animStateFadeIn(AnimState* a) { a->active = true; a->opacity = 0; springSetTarget(&a->opacityS, 1); }
+void animStateFadeOut(AnimState* a) { a->active = true; springSetTarget(&a->opacityS, 0); }
+void animStateSlideIn(AnimState* a, float fx, float fy) {
+    a->active = true; a->slideX = fx; a->slideY = fy;
+    springSetTarget(&a->slideXS, 0); springSetTarget(&a->slideYS, 0);
+}
+void animStatePopIn(AnimState* a) {
+    a->active = true; a->scale = 0.7f; a->opacity = 0;
+    springSetTarget(&a->scaleS, 1); springSetTarget(&a->opacityS, 1);
+}
+
+void animStateUpdate(AnimState* a, float dt) {
+    if (!a->active) return;
+    springStep(&a->opacityS, dt); springStep(&a->scaleS, dt);
+    springStep(&a->slideXS, dt); springStep(&a->slideYS, dt);
+    a->opacity = a->opacityS.pos; a->scale = a->scaleS.pos;
+    a->slideX = a->slideXS.pos; a->slideY = a->slideYS.pos;
+    if (fabsf(a->opacity - a->opacityS.target) < 0.5f && fabsf(a->scale - a->scaleS.target) < 0.5f) {
+        if (a->opacityS.target <= 0) memset(a, 0, sizeof(AnimState));
     }
-}
-
-bool transitionActive(ScreenTransition* t) {
-    return t->active;
-}
-
-float transitionValue(ScreenTransition* t) {
-    if (!t->active) return 1.0f;
-    return fminf(t->progress / t->duration, 1.0f);
-}
-
-float transitionEased(ScreenTransition* t, EaseType ease) {
-    return easeFunc(transitionValue(t), ease);
-}
-
-float springTo(float current, float target, float* velocity, float stiffness, float damping, float dt) {
-    float diff = target - current;
-    float springForce = diff * stiffness;
-    float dampForce = *velocity * damping;
-    float acceleration = springForce - dampForce;
-    *velocity += acceleration * dt;
-    current += *velocity * dt;
-    if (fabsf(diff) < 0.5f && fabsf(*velocity) < 0.5f) {
-        current = target;
-        *velocity = 0.0f;
-    }
-    return current;
-}
-
-float approach(float current, float target, float maxStep) {
-    float diff = target - current;
-    if (fabsf(diff) < maxStep) return target;
-    return current + copysignf(maxStep, diff);
 }

@@ -1,17 +1,20 @@
-#ifndef LED_H_
-#define LED_H_
+#pragma once
+#include "common.h"
+#include "menu.h"
 
-#include <3ds.h>
-#include <citro2d.h>
-#include <stdbool.h>
-#include "input.h"
+typedef enum {
+    LED_MODE_OFF, LED_MODE_SOLID, LED_MODE_BREATHE, LED_MODE_RAINBOW, LED_MODE_COUNT
+} LEDMode;
 
-void ledInit(void);
-void ledEnter(void);
-void ledExit(void);
-void ledUpdate(const AppInput* in, int* currentScreen);
-void ledRenderTop(C2D_TextBuf buf, float transVal);
-void ledRenderBottom(C2D_TextBuf buf, float transVal);
-int ledSelected(void);
+typedef struct {
+    MenuState* menu;
+    LEDMode mode;
+    int brightness, speed, selMode;
+    u32 color;
+    AnimState modeAnim[4];
+} LEDState;
 
-#endif
+void ledInit(LEDState* ls, MenuState* menu);
+void ledUpdate(LEDState* ls, InputState* in);
+void ledDraw(LEDState* ls);
+void ledDrawTop(LEDState* ls);

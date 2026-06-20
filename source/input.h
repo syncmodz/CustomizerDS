@@ -1,29 +1,14 @@
-#ifndef INPUT_H
-#define INPUT_H
-
-#include <3ds.h>
-#include <stdbool.h>
-
-#define INPUT_CPAD_THRESHOLD 80
+#pragma once
+#include "common.h"
 
 typedef struct {
-    u32 down;
-    u32 held;
+    u32 down, held, up;
+    bool left, right, upDir, downDir;
+    bool confirm, cancel, a, b, xIn, yIn, start, select;
+    bool touchDown, touchHeld, touchUp;
     touchPosition touch;
-    bool touchDown;
-    bool touchHeld;
-    bool up;
-    bool downNav;
-    bool left;
-    bool right;
-    bool confirm;
-    bool back;
-    bool start;
-    bool debug;
-    int touchPX;
-    int touchPY;
-} AppInput;
+    int cpadX, cpadY;
+    bool anyPress;
+} InputState;
 
-void inputRead(AppInput* in);
-
-#endif
+void inputPoll(InputState* in);

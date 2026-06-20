@@ -1,53 +1,38 @@
-#ifndef THEME_H
-#define THEME_H
+#pragma once
+#include "common.h"
 
-#include <3ds.h>
-#include <stdbool.h>
+extern bool g_darkMode;
+extern u32 g_accentColor;
+extern u32 g_bgColor;
+extern u32 g_surfaceColor;
+extern u32 g_textColor;
+extern u32 g_secTextColor;
+extern u32 g_borderColor;
 
-typedef struct {
-    u8 r, g, b, a;
-} ColorRGBA;
+// C2D_Color32: 0xRRGGBBAA
+#define ACCENT_GRAPHITE 0x8E8E93FF
+#define ACCENT_BLUE    0x007AFFFF
+#define ACCENT_PURPLE  0xAF52DEFF
+#define ACCENT_PINK    0xFF2D55FF
+#define ACCENT_RED     0xFF3B30FF
+#define ACCENT_ORANGE  0xFF9500FF
+#define ACCENT_YELLOW  0xFFCC00FF
+#define ACCENT_GREEN   0x34C759FF
 
-typedef struct {
-    ColorRGBA background;
-    ColorRGBA backgroundTop;
-    ColorRGBA surface;
-    ColorRGBA surfaceAlt;
-    ColorRGBA surfaceElevated;
-    ColorRGBA primary;
-    ColorRGBA primaryLight;
-    ColorRGBA primaryDark;
-    ColorRGBA accent;
-    ColorRGBA success;
-    ColorRGBA warning;
-    ColorRGBA onPrimary;
-    ColorRGBA textPrimary;
-    ColorRGBA textSecondary;
-    ColorRGBA textHint;
-    ColorRGBA divider;
-} ThemePalette;
+#define LIGHT_BG      0xF5F5F7FF
+#define LIGHT_SURFACE 0xFFFFFFFF
+#define LIGHT_TEXT    0x1D1D1FFF
+#define LIGHT_SEC     0x86868BFF
+#define LIGHT_BORDER  0xD2D2D7FF
 
-extern ThemePalette g_theme;
+#define DARK_BG       0x1C1C1EFF
+#define DARK_SURFACE  0x2C2C2EFF
+#define DARK_TEXT     0xF5F5F7FF
+#define DARK_SEC      0x98989DFF
+#define DARK_BORDER   0x444446FF
 
-void themeInit(void);
-void themeSetDark(bool dark);
-bool themeIsDark(void);
-void themeSetAccentIndex(int index);
-int themeGetAccentIndex(void);
-int themeAccentCount(void);
-const char* themeAccentName(int index);
-ColorRGBA themeAccentColor(int index);
-u32 themeColor(ColorRGBA color);
-ColorRGBA themeMix(ColorRGBA a, ColorRGBA b, float t);
+extern const u32 g_accentOptions[8];
+extern const char* g_accentNames[8];
 
-/* Cor de texto com contraste seguro sobre qualquer fundo (formula de luminancia real,
- * nao a soma crua de canais) -- usar sempre que o fundo nao for diretamente uma cor
- * do tema (ex: fundo fixo, accent, ou cor escolhida pelo usuario). */
-ColorRGBA themeContrastText(ColorRGBA bg);
-
-/* Accent customizado via hexadecimal (#RRGGBB), independente dos presets */
-bool themeAccentIsCustom(void);
-ColorRGBA themeGetCustomAccent(void);
-void themeSetCustomAccent(ColorRGBA c);
-
-#endif
+u32 accentForTheme(void);
+void themeRefresh(void);

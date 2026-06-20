@@ -1,48 +1,41 @@
-#ifndef ANIM_H
-#define ANIM_H
-
-#include <3ds.h>
-#include <stdbool.h>
-#include <math.h>
-
-typedef enum {
-    EASE_LINEAR = 0,
-    EASE_OUT_SINE,
-    EASE_OUT_CUBIC,
-    EASE_OUT_QUINT,
-    EASE_OUT_BACK,
-    EASE_OUT_EXPO,
-    EASE_IN_OUT_CUBIC,
-    EASE_IN_OUT_BACK,
-    EASE_OUT_ELASTIC,
-} EaseType;
-
-float easeFunc(float t, EaseType type);
-
-typedef enum {
-    TRANSITION_NONE = 0,
-    TRANSITION_SLIDE_UP,      /* Travel Motion: content slides up with parallax */
-    TRANSITION_SCALE_FADE,    /* Travel Agency: card scales+fades in as popup */
-    TRANSITION_FADE,          /* simple crossfade */
-    TRANSITION_SLIDE_RIGHT,   /* content slides in from right */
-} TransitionType;
+#pragma once
+#include "common.h"
 
 typedef struct {
-    float progress;
-    TransitionType type;
+    float pos, vel, target;
+    float stiff, damp, mass;
+} Spring;
+
+void springInit(Spring* s, float target, float stiff, float damp, float mass);
+void springSetTarget(Spring* s, float t);
+bool springStep(Spring* s, float dt);
+
+typedef struct {
+    float progress, duration, delay, elapsed;
+    bool active, finished;
+    float (*easeFunc)(float);
+} Transition;
+
+Transition transStart(float duration, float delay);
+float transGet(Transition* t);
+float transUpdate(Transition* t, float dt);
+
+typedef struct {
+    float opacity, scale, slideX, slideY;
+    Spring opacityS, scaleS, slideXS, slideYS;
     bool active;
-    int fromScreen;
-    int toScreen;
-    float duration;
-} ScreenTransition;
+} AnimState;
 
-void transitionStart(ScreenTransition* t, TransitionType type, int from, int to, float duration);
-void transitionUpdate(ScreenTransition* t);
-bool transitionActive(ScreenTransition* t);
-float transitionValue(ScreenTransition* t);
-float transitionEased(ScreenTransition* t, EaseType ease);
+void animStateInit(AnimState* a);
+void animStateFadeIn(AnimState* a);
+void animStateFadeOut(AnimState* a);
+void animStateSlideIn(AnimState* a, float fx, float fy);
+void animStatePopIn(AnimState* a);
+void animStateUpdate(AnimState* a, float dt);
 
-float springTo(float current, float target, float* velocity, float stiffness, float damping, float dt);
-float approach(float current, float target, float maxStep);
+void animInit(void);
+void animUpdate(float dt);
 
-#endif
+extern float g_parallaxOffset;
+extern float g_bootProgress;
+extern bool g_bootComplete;

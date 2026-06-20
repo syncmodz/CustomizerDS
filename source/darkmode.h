@@ -1,15 +1,14 @@
-#ifndef DARKMODE_H_
-#define DARKMODE_H_
+#pragma once
+#include "common.h"
+#include "menu.h"
 
-#include <3ds.h>
-#include <citro2d.h>
-#include <stdbool.h>
-#include "input.h"
+typedef struct {
+    MenuState* menu;
+    int selAccent;
+    AnimState accentAnim[8];
+} DarkModeState;
 
-void darkmodeInit(void);
-void darkmodeUpdate(const AppInput* in, int* currentScreen);
-void darkmodeRenderTop(C2D_TextBuf buf, float transVal);
-void darkmodeRenderBottom(C2D_TextBuf buf, float transVal);
-int darkmodeSelected(void);
-
-#endif
+void darkModeInit(DarkModeState* ds, MenuState* menu);
+void darkModeUpdate(DarkModeState* ds, InputState* in);
+void darkModeDraw(DarkModeState* ds);
+void darkModeDrawTop(DarkModeState* ds);

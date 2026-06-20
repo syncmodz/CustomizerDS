@@ -1,15 +1,34 @@
-#ifndef MENU_H
-#define MENU_H
-
-#include <3ds.h>
-#include <citro2d.h>
-#include <stdbool.h>
+#pragma once
+#include "common.h"
 #include "input.h"
+#include "anim.h"
 
-void menuInit(void);
-void menuUpdate(const AppInput* in, int* currentScreen);
-void menuRenderTop(C2D_TextBuf buf, float transVal);
-void menuRenderBottom(C2D_TextBuf buf, float transVal);
-int menuSelected(void);
+typedef enum {
+    SCREEN_MAIN,
+    SCREEN_THEME,
+    SCREEN_LED,
+    SCREEN_FONTS,
+    SCREEN_ABOUT,
+    SCREEN_COUNT,
+} ScreenID;
 
-#endif
+typedef struct {
+    const char* title;
+    const char* subtitle;
+    u32 color;
+    ScreenID target;
+} MenuItem;
+
+extern const MenuItem g_menuItems[5];
+
+typedef struct {
+    ScreenID current, previous;
+    AnimState trans;
+    int selected;
+} MenuState;
+
+void menuInit(MenuState* ms);
+void menuDraw(MenuState* ms);
+void menuDrawTop(MenuState* ms);
+void menuHandle(MenuState* ms, InputState* in);
+void menuNav(MenuState* ms, ScreenID t);
