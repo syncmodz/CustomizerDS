@@ -12,29 +12,38 @@ FontSystem g_fonts;
 
 static int s_selected = 0;
 
-/* Sao presets de estilo (peso/tamanho) sobre a fonte de sistema, nao tipografias
- * separadas -- nao existe .bcfnt de Comfortaa/MADE Evolve no romfs, e carregar
- * um arquivo que nao existe e exatamente o que travava a tela de Fontes antes.
- * Os nomes refletem isso para nao prometer uma fonte que o app nao tem. */
 static const char* FONT_LABELS[] = {
-    "Redondo",
-    "Redondo Negrito",
-    "Moderno",
-    "Moderno Negrito",
+    "Comfortaa",
+    "Comfortaa Negrito",
+    "MADE Evolve Sans",
+    "MADE Evolve Sans Negrito",
     "Padrao do Sistema",
+};
+
+/* Caminho dentro da romfs (arquivos .bcfnt em romfs/fonts, gerados com mkbcfnt
+ * a partir dos .ttf/.otf reais). Indice correspondente em FONT_LABELS/g_fonts.fonts. */
+static const char* FONT_PATHS[MAX_CUSTOM_FONTS] = {
+    "romfs:/fonts/comfortaa_regular.bcfnt",
+    "romfs:/fonts/comfortaa_bold.bcfnt",
+    "romfs:/fonts/made_evolve_regular.bcfnt",
+    "romfs:/fonts/made_evolve_bold.bcfnt",
 };
 
 int fontsSelected(void) { return s_selected; }
 
+/* Nunca retorna NULL: se o .bcfnt de um indice nao carregou (arquivo ausente,
+ * romfs nao montada etc.), cai pra fonte de sistema em vez de travar -- essa
+ * falta de fallback era exatamente o que crashava a tela de Fontes antes. */
 C2D_Font fontsGetFont(int index) {
-    (void)index;
+    index = clampi(index, 0, fontsCount() - 1);
+    if (index < MAX_CUSTOM_FONTS && g_fonts.fonts[index]) return g_fonts.fonts[index];
     return g_fonts.systemFont;
 }
 
 static void applyFont(int index, bool save) {
     index = clampi(index, 0, fontsCount() - 1);
     g_fonts.currentIndex = index;
-    g_fonts.current = g_fonts.systemFont;
+    g_fonts.current = fontsGetFont(index);
     if (save) {
         ConfigData cfg;
         configLoad(&cfg);
@@ -45,18 +54,17 @@ static void applyFont(int index, bool save) {
 
 void fontsSystemInit(void) {
     for (int i = 0; i < MAX_CUSTOM_FONTS; i++) {
-        g_fonts.fonts[i] = NULL;
+        g_fonts.fonts[i] = C2D_FontLoad(FONT_PATHS[i]);
     }
     g_fonts.systemFont = C2D_FontLoadSystem(CFG_REGION_USA);
-    g_fonts.current = NULL;
-    g_fonts.currentIndex = 4;
+    if (!g_fonts.systemFont) g_fonts.systemFont = C2D_FontLoadSystem(CFG_REGION_JPN);
     g_fonts.count = fontsCount();
 
     ConfigData cfg;
     configLoad(&cfg);
     int idx = clampi(cfg.fontIndex, 0, fontsCount() - 1);
     g_fonts.currentIndex = idx;
-    g_fonts.current = NULL;
+    g_fonts.current = fontsGetFont(idx);
 }
 
 void fontsInit(void) {
@@ -64,6 +72,9 @@ void fontsInit(void) {
 }
 
 void fontsSystemCleanup(void) {
+    for (int i = 0; i < MAX_CUSTOM_FONTS; i++) {
+        if (g_fonts.fonts[i]) { C2D_FontFree(g_fonts.fonts[i]); g_fonts.fonts[i] = NULL; }
+    }
     if (g_fonts.systemFont) {
         C2D_FontFree(g_fonts.systemFont);
         g_fonts.systemFont = NULL;
@@ -108,10 +119,10 @@ static const char* previewLine(int index) {
 
 static const char* previewTitle(int index) {
     switch (index) {
-        case 0: return "Redondo";
-        case 1: return "Redondo Negrito";
-        case 2: return "Moderno";
-        case 3: return "Moderno Negrito";
+        case 0: return "Comfortaa";
+        case 1: return "Comfortaa Negrito";
+        case 2: return "MADE Evolve Sans";
+        case 3: return "MADE Evolve Sans Negrito";
         default: return "Padrao do Sistema";
     }
 }
@@ -126,8 +137,7 @@ void fontsRenderTop(C2D_TextBuf buf, float transVal) {
     UI_Text(buf, NULL, "Preview", 32, 52 + offset, 0.28f, 0.28f, g_theme.textSecondary);
     UI_Text(buf, NULL, previewTitle(s_selected), 32, 70 + offset, 0.48f, 0.48f, g_theme.textPrimary);
 
-    C2D_Font f = g_fonts.systemFont;
-    if (!f) f = NULL;
+    C2D_Font f = fontsGetFont(s_selected);
 
     ColorRGBA previewBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.08f);
     UI_RoundFrame(32, 112 + offset, 300, 70, 14, previewBg, (ColorRGBA){255, 255, 255, 12});
@@ -183,7 +193,7 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal) {
         UI_RoundFrame(10 + slide, by + slide, 300, 28, 14, bg, border);
 
         ColorRGBA textCol = selected ? g_theme.textPrimary : g_theme.textSecondary;
-        UI_Text(buf, NULL, FONT_LABELS[i], 20 + slide, by + 5 + slide, 0.26f, 0.26f, textCol);
+        UI_Text(buf, fontsGetFont(i), FONT_LABELS[i], 20 + slide, by + 5 + slide, 0.26f, 0.26f, textCol);
 
         if (isCurrent) {
             UI_Badge(buf, 260, by + 4 + slide, "OK", g_theme.success);
@@ -199,7 +209,7 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal) {
 }
 
 C2D_Font fontsCurrent(void) {
-    return g_fonts.systemFont;
+    return fontsGetFont(g_fonts.currentIndex);
 }
 
 const char* fontsCurrentName(void) {
@@ -216,6 +226,6 @@ int fontsCount(void) {
 }
 
 bool fontsLoaded(int index) {
-    (void)index;
-    return true;
+    if (index < 0 || index >= MAX_CUSTOM_FONTS) return true; /* fonte de sistema */
+    return g_fonts.fonts[index] != NULL;
 }
