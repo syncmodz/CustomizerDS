@@ -1,102 +1,167 @@
 #include "menu.h"
-#include "input.h"
-#include "ui.h"
+#include "common.h"
 #include "theme.h"
+#include "ui.h"
 #include "fonts.h"
+#include "anim.h"
+#include <string.h>
+#include <stdio.h>
+#include <math.h>
 
-const MenuItem g_menuItems[5] = {
-    {"Theme", "Customize colors & appearance", ACCENT_BLUE, SCREEN_THEME},
-    {"LED", "Controller LED configuration", ACCENT_PURPLE, SCREEN_LED},
-    {"Fonts", "System font preview", ACCENT_ORANGE, SCREEN_FONTS},
-    {"About", "App info & credits", ACCENT_GREEN, SCREEN_ABOUT},
-    {"Close", "Return to Homebrew Launcher", ACCENT_RED, SCREEN_MAIN},
+typedef struct {
+    const char* title;
+    const char* icon;
+    const char* subtitle;
+    ScreenType target;
+} MenuItem;
+
+static const MenuItem ITEMS[] = {
+    { "Fontes",      "Aa", "personalizar", SCREEN_FONTS },
+    { "Tema do app", "UI", "modo e cor",   SCREEN_DARKMODE },
+    { "LED RGB",     "Ld", "cor e luz",    SCREEN_LED },
 };
 
-void menuInit(MenuState* ms) {
-    memset(ms, 0, sizeof(MenuState));
-    ms->current = SCREEN_MAIN;
-    animStateInit(&ms->trans);
-}
+static int s_selected = 0;
 
-void menuNav(MenuState* ms, ScreenID t) {
-    ms->previous = ms->current;
-    ms->current = t;
-    animStateInit(&ms->trans);
-    animStateFadeIn(&ms->trans);
-}
+int menuSelected(void) { return s_selected; }
+void menuInit(void) { s_selected = 0; }
 
-void menuDraw(MenuState* ms) {
-    if (ms->trans.active) animStateUpdate(&ms->trans, 1.0f/60.0f);
-    float alpha = ms->trans.active ? ms->trans.opacity : 1;
+void menuUpdate(const AppInput* in, int* currentScreen) {
+    if (in->back) return;
+    if (in->downNav) s_selected = (s_selected + 1) % 3;
+    if (in->up) s_selected = (s_selected - 1 + 3) % 3;
 
-    int startY = 10;
-    int cw = SCREEN_BOT_W - 40, ch = 38, sp = 6;
-    float glow = ms->trans.active ? ms->trans.opacity : 0;
-
-    if (glow > 0) {
-        C2D_DrawRectSolid(0, 0, 0.5f, SCREEN_BOT_W, SCREEN_BOT_H, colorWithAlpha(g_bgColor, (u8)(glow * 80)));
-    }
-    if (glow > 0.5f) {
-        C2D_DrawRectSolid(0, 0, 0.5f, SCREEN_BOT_W, 3, colorWithAlpha(accentForTheme(), (u8)((glow-0.5f)*2*200)));
-    }
-
-    for (int i = 0; i < 5; i++) {
-        const MenuItem* item = &g_menuItems[i];
-        int cy = startY + i * (ch + sp);
-        float par = g_parallaxOffset * (0.3f + i * 0.12f);
-
-        int ex = i == ms->selected ? 1 : 0;
-        int ecw = cw + ex * 6, ech = ch + ex * 6;
-        int exOff = (ecw - cw) / 2;
-        int ecx = (SCREEN_BOT_W - ecw) / 2;
-
-        drawCard(ecx, cy + (int)par, ecw, ech,
-            i == ms->selected ? blendColors(g_surfaceColor, item->color, 0.08f) : g_surfaceColor,
-            item->title, item->subtitle, par, alpha);
-
-        if (i == ms->selected && alpha > 0.5f) {
-            C2D_DrawRectSolid(ecx, cy + ech - 2 + (int)par, 0.5f, ecw, 2,
-                colorWithAlpha(item->color, (u8)((alpha-0.5f)*2*200)));
+    if (in->touchDown) {
+        float tbY = 12.0f;
+        float btnW = 90.0f;
+        float btnH = 32.0f;
+        float gap = 12.0f;
+        float totalW = btnW * 3 + gap * 2;
+        float startX = (SCREEN_BOT_WIDTH - totalW) * 0.5f;
+        for (int i = 0; i < 3; i++) {
+            float bx = startX + i * (btnW + gap);
+            if (in->touchPY >= tbY && in->touchPY < tbY + btnH &&
+                in->touchPX >= bx && in->touchPX < bx + btnW) {
+                s_selected = i;
+                *currentScreen = ITEMS[i].target;
+                return;
+            }
+        }
+        float descY = 56.0f;
+        if (in->touchPY >= descY && in->touchPY < descY + 70 &&
+            in->touchPX >= 20 && in->touchPX < 300) {
+            *currentScreen = ITEMS[s_selected].target;
+            return;
         }
     }
 
-    drawMacOSTouchBar2(startY + 5 * (ch + sp) + 8, alpha);
-}
-
-void menuDrawTop(MenuState* ms) {
-    char t[48];
-    snprintf(t, sizeof(t), "CustomizerDS");
-    drawTextCentered(fontsGetBuf(), fontsGetSystem(), t, SCREEN_TOP_W/2, 12, 0.5f, 0.5f, g_textColor);
-
-    int bw = 240, bh = 4;
-    float p = 0;
-    switch (ms->current) {
-        case SCREEN_MAIN: p = 0; break;
-        case SCREEN_THEME: p = 0.25f; break;
-        case SCREEN_LED: p = 0.5f; break;
-        case SCREEN_FONTS: p = 0.75f; break;
-        case SCREEN_ABOUT: p = 1; break;
-        default: p = 0; break;
-    }
-    drawProgress(SCREEN_TOP_W/2 - bw/2, 100, bw, bh, p, rgba8(58,58,60,255), accentForTheme());
-
-    const char* steps[] = {"Home", "Theme", "LED", "Fonts", "About"};
-    for (int i = 0; i < 5; i++) {
-        u32 c = i == ms->current ? accentForTheme() : g_secTextColor;
-        drawTextCentered(fontsGetBuf(), fontsGetSystem(), steps[i], SCREEN_TOP_W/2 - 120 + i * 60, 112, 0.3f, 0.3f, c);
+    if (in->confirm) {
+        *currentScreen = ITEMS[s_selected].target;
     }
 }
 
-void menuHandle(MenuState* ms, InputState* in) {
-    if (in->downDir) ms->selected = (ms->selected + 1) % 5;
-    if (in->upDir) ms->selected = (ms->selected - 1 + 5) % 5;
-    if (in->confirm || in->a) {
-        ScreenID t = g_menuItems[ms->selected].target;
-        if (t == SCREEN_MAIN && ms->current == SCREEN_MAIN) return;
-        if (t == SCREEN_MAIN) return;
-        menuNav(ms, t);
+void menuRenderTop(C2D_TextBuf buf, float transVal) {
+    float offset = (1.0f - transVal) * 40.0f;
+    UI_TopBackground();
+    UI_TopMenuBar("Inicio", buf);
+
+    float et = UI_EnterProgress();
+
+    float px = sinf(uiFrameTime() * 0.3f) * 6.0f;
+    float py = cosf(uiFrameTime() * 0.2f) * 4.0f;
+    ColorRGBA dot1 = themeIsDark()
+        ? (ColorRGBA){50, 60, 90, 18}
+        : (ColorRGBA){180, 190, 220, 20};
+    ColorRGBA dot2 = themeIsDark()
+        ? (ColorRGBA){70, 50, 100, 12}
+        : (ColorRGBA){200, 180, 220, 18};
+    UI_RoundRect(60 + px, 80 + py, 70, 70, 35, dot1);
+    UI_RoundRect(280 - px, 170 - py, 50, 50, 25, dot2);
+    UI_RoundRect(320 + px, 60 - py, 40, 40, 20, dot1);
+
+    float cascadeT = clampf((et * 2.0f - 0.0f), 0.0f, 1.0f);
+    float cascadeOffset = (1.0f - easeOutCubic(cascadeT)) * 20.0f;
+
+    UI_Card(16, 30 + offset + cascadeOffset, 368, 196, 16, g_theme.surface);
+
+    float pulse = (sinf(uiFrameTime() * 2.8f) + 1.0f) * 0.5f;
+    ColorRGBA logoBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.08f + pulse * 0.06f);
+    UI_RoundFrame(36, 52 + offset + cascadeOffset, 52, 52, 16, logoBg, (ColorRGBA){255, 255, 255, 24});
+    UI_TextCenter(buf, NULL, "CDS", 62, 66 + offset + cascadeOffset, 0.46f, 0.46f, g_theme.textPrimary);
+
+    UI_Text(buf, NULL, "CustomizerDS", 104, 50 + offset + cascadeOffset, 0.54f, 0.54f, g_theme.textPrimary);
+    UI_Text(buf, NULL, "personalize seu console", 104, 76 + offset + cascadeOffset, 0.24f, 0.24f, g_theme.accent);
+
+    ColorRGBA itemBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.10f);
+    UI_RoundRect(36, 104 + offset + cascadeOffset, 42, 42, 12, itemBg);
+    UI_TextCenter(buf, NULL, ITEMS[s_selected].icon, 57, 114 + offset + cascadeOffset, 0.36f, 0.36f, g_theme.textPrimary);
+    UI_Text(buf, NULL, ITEMS[s_selected].title, 92, 110 + offset + cascadeOffset, 0.36f, 0.36f, g_theme.textPrimary);
+    UI_Text(buf, NULL, ITEMS[s_selected].subtitle, 92, 132 + offset + cascadeOffset, 0.22f, 0.22f, g_theme.textSecondary);
+
+    for (int i = 0; i < 3; i++) {
+        float dotT = clampf((et * 2.5f - i * 0.10f), 0.0f, 1.0f);
+        float ds = easeOutBack(dotT);
+        float cx = 130 + i * 22;
+        float cy = 168 + offset + cascadeOffset;
+        ColorRGBA dotC = (i == s_selected)
+            ? g_theme.accent
+            : (themeIsDark() ? (ColorRGBA){60, 65, 85, 200} : (ColorRGBA){190, 194, 210, 200});
+        UI_RoundRect(cx - 5 * (1.0f - ds), cy - 5 * (1.0f - ds), 10 * ds, 10 * ds, 5 * ds, dotC);
+        if (i == s_selected) {
+            ColorRGBA glow = {255, 255, 255, 24};
+            UI_RoundRect(cx - 7 * (1.0f - ds), cy - 7 * (1.0f - ds), 14 * ds, 14 * ds, 7 * ds, glow);
+        }
     }
-    if (in->b || in->cancel) {
-        if (ms->current != SCREEN_MAIN) ms->current = SCREEN_MAIN;
+}
+
+void menuRenderBottom(C2D_TextBuf buf, float transVal) {
+    float offset = (1.0f - transVal) * 30.0f;
+    float et = UI_EnterProgress();
+    UI_BottomBackground();
+
+    float tbY = 12.0f + offset;
+    float btnW = 90.0f;
+    float btnH = 32.0f;
+    float gap = 12.0f;
+    float totalW = btnW * 3 + gap * 2;
+    float startX = (SCREEN_BOT_WIDTH - totalW) * 0.5f;
+
+    for (int i = 0; i < 3; i++) {
+        float bx = startX + i * (btnW + gap);
+        float appearT = clampf((et * 2.5f - i * 0.10f), 0.0f, 1.0f);
+        UI_PillButton(buf, bx, tbY, btnW, btnH,
+                      ITEMS[i].title, ITEMS[i].icon,
+                      i == s_selected, appearT);
     }
+
+    float descY = 56.0f + offset;
+    float descAp = clampf((et * 2.0f - 0.15f), 0.0f, 1.0f);
+    float da = easeOutCubic(descAp);
+    ColorRGBA descBg = themeIsDark()
+        ? (ColorRGBA){20, 22, 30, 240}
+        : (ColorRGBA){240, 242, 248, 240};
+    descBg.a = (u8)((float)descBg.a * da);
+    UI_RoundFrame(20, descY, 280, 70, 14, descBg, (ColorRGBA){255, 255, 255, (u8)(8 * da)});
+
+    UI_RoundRect(32, descY + 8, 36, 36, 10, g_theme.accent);
+    ColorRGBA iconText = themeContrastText(g_theme.accent);
+    iconText.a = (u8)(255 * da);
+    C2D_Text tmp;
+    C2D_TextParse(&tmp, buf, ITEMS[s_selected].icon);
+    C2D_TextOptimize(&tmp);
+    C2D_DrawText(&tmp, C2D_WithColor, 50 - 8, descY + 14, 0.0f, 0.32f, 0.32f, themeColor(iconText));
+
+    ColorRGBA titleC = g_theme.textPrimary;
+    titleC.a = (u8)(255 * da);
+    UI_Text(buf, NULL, ITEMS[s_selected].title, 80, descY + 8, 0.34f, 0.34f, titleC);
+    ColorRGBA subC = g_theme.textSecondary;
+    subC.a = (u8)(255 * da);
+    UI_Text(buf, NULL, ITEMS[s_selected].subtitle, 80, descY + 30, 0.24f, 0.24f, subC);
+
+    ColorRGBA hintC = g_theme.textHint;
+    hintC.a = (u8)(180 * da);
+    UI_TextCenter(buf, NULL, "Navegue com as setas ou toque na tela",
+                  160, descY + 54, 0.22f, 0.22f, hintC);
+
+    UI_HelpBar(buf, "A abrir", "START sair");
 }

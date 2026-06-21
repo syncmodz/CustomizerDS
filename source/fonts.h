@@ -1,7 +1,35 @@
-#pragma once
-#include "common.h"
+#ifndef FONTS_H_
+#define FONTS_H_
+
+#include <3ds.h>
+#include <citro2d.h>
+#include <stdbool.h>
+#include "input.h"
+
+#define MAX_CUSTOM_FONTS 4
+
+typedef struct {
+    C2D_Font fonts[MAX_CUSTOM_FONTS];
+    C2D_Font systemFont;
+    C2D_Font current;
+    int currentIndex;
+    int count;
+} FontSystem;
+
+extern FontSystem g_fonts;
 
 void fontsInit(void);
-void fontsExit(void);
-C2D_Font fontsGetSystem(void);
-C2D_TextBuf fontsGetBuf(void);
+void fontsSystemInit(void);
+void fontsSystemCleanup(void);
+void fontsUpdate(const AppInput* in, int* currentScreen);
+void fontsRenderTop(C2D_TextBuf buf, float transVal);
+void fontsRenderBottom(C2D_TextBuf buf, float transVal);
+C2D_Font fontsCurrent(void);
+C2D_Font fontsGetFont(int index);
+const char* fontsCurrentName(void);
+const char* fontsLabel(int index);
+int fontsCount(void);
+bool fontsLoaded(int index);
+int fontsSelected(void);
+
+#endif

@@ -1,152 +1,154 @@
 #include <3ds.h>
 #include <citro2d.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <math.h>
-
 #include "common.h"
-#include "theme.h"
-#include "anim.h"
-#include "input.h"
-#include "fonts.h"
-#include "ui.h"
 #include "menu.h"
+#include "fonts.h"
 #include "darkmode.h"
 #include "led.h"
-#include "color_picker.h"
+#include "config.h"
+#include "theme.h"
+#include "anim.h"
+#include "ui.h"
+#include "input.h"
 
-static C3D_RenderTarget* s_top = NULL;
-static C3D_RenderTarget* s_bot = NULL;
+C3D_RenderTarget *topTarget, *botTarget;
 
 int main() {
     gfxInitDefault();
-    romfsInit();
+    Result romfsRc = romfsInit();
     C3D_Init(C3D_DEFAULT_CMDBUF_SIZE);
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
     C2D_Prepare();
 
-    s_top = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
-    s_bot = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    topTarget = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
+    if (!topTarget) { C2D_Fini(); C3D_Fini(); if (!romfsRc) romfsExit(); gfxExit(); return 1; }
+    botTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+    if (!botTarget) { C2D_Fini(); C3D_Fini(); if (!romfsRc) romfsExit(); gfxExit(); return 1; }
 
+    themeInit();
+    fontsSystemInit();
+
+    int currentScreen = SCREEN_MAIN_MENU;
     fontsInit();
-    themeRefresh();
-    animInit();
+    darkmodeInit();
+    ledInit();
+    uiScreenEnter();
 
-    MenuState ms;
-    menuInit(&ms);
+    C2D_TextBuf buf = C2D_TextBufNew(4096);
+    if (!buf) {
+        fontsSystemCleanup();
+        ledExit();
+        if (!romfsRc) romfsExit();
+        C2D_Fini();
+        C3D_Fini();
+        gfxExit();
+        return 1;
+    }
 
-    DarkModeState ds;
-    darkModeInit(&ds, &ms);
+    bool startupDone = false;
+    float startupT = 0.0f;
+    const float STARTUP_DURATION = 1.30f;
 
-    LEDState ls;
-    ledInit(&ls, &ms);
-
-    InputState in;
-    memset(&in, 0, sizeof(in));
-
-    u64 last = osGetTime();
-    float dt = 1.0f/60.0f;
-
-    g_bootProgress = 0;
-    g_bootComplete = false;
+    u64 lastTick = osGetTime();
 
     while (aptMainLoop()) {
-        u64 now = osGetTime();
-        dt = (now - last) / 1000.0f;
-        if (dt > 0.05f) dt = 1.0f/60.0f;
-        last = now;
+        u64 nowTick = osGetTime();
+        float dt = (nowTick - lastTick) / 1000.0f;
+        lastTick = nowTick;
+        if (dt <= 0.0f || dt > 0.25f) dt = 1.0f / 60.0f;
 
-        inputPoll(&in);
-        if (in.start) break;
+        AppInput in;
+        inputRead(&in, dt);
 
-        if (!g_bootComplete) {
-            animUpdate(dt);
-            g_bootProgress += dt * 0.15f;
-            if (g_bootProgress >= 1) g_bootComplete = true;
+        if (!startupDone) {
+            if (in.down != 0 || in.held != 0 || in.touchHeld) {
+                startupDone = true;
+            } else {
+                startupT += dt;
+                if (startupT >= STARTUP_DURATION) startupDone = true;
+            }
+            if (startupDone) uiScreenEnter();
         } else {
-            animUpdate(dt);
-            switch (ms.current) {
-                case SCREEN_MAIN: menuHandle(&ms, &in); break;
-                case SCREEN_THEME: darkModeUpdate(&ds, &in); break;
-                case SCREEN_LED: ledUpdate(&ls, &in); break;
-                case SCREEN_FONTS: if (in.b || in.cancel) ms.current = SCREEN_MAIN; break;
-                case SCREEN_ABOUT: if (in.b || in.cancel) ms.current = SCREEN_MAIN; break;
-                default: break;
+            if (in.start) break;
+
+            /* screen navigation with transitions */
+            int oldScreen = currentScreen;
+            switch (currentScreen) {
+                case SCREEN_MAIN_MENU:
+                    menuUpdate(&in, &currentScreen);
+                    break;
+                case SCREEN_FONTS:
+                    fontsUpdate(&in, &currentScreen);
+                    break;
+                case SCREEN_DARKMODE:
+                    darkmodeUpdate(&in, dt, &currentScreen);
+                    break;
+                case SCREEN_LED:
+                    ledUpdate(&in, dt, &currentScreen);
+                    break;
+            }
+            if (currentScreen != oldScreen) {
+                transitionStart(&g_trans, TRANSITION_SLIDE_UP, oldScreen, currentScreen, 0.30f);
+                uiScreenEnter();
+                inputResetRepeat();
+                switch (currentScreen) {
+                    case SCREEN_MAIN_MENU: menuInit(); break;
+                    case SCREEN_FONTS: fontsInit(); break;
+                    case SCREEN_DARKMODE: darkmodeInit(); break;
+                    case SCREEN_LED: ledEnter(); break;
+                }
             }
         }
+
+        uiFrameTick(dt);
 
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        C2D_TargetClear(topTarget, C2D_Color32(
+            g_theme.backgroundTop.r, g_theme.backgroundTop.g,
+            g_theme.backgroundTop.b, g_theme.backgroundTop.a));
+        C2D_TargetClear(botTarget, C2D_Color32(
+            g_theme.background.r, g_theme.background.g,
+            g_theme.background.b, g_theme.background.a));
 
-        // --- Top Screen ---
-        C2D_TargetClear(s_top, g_bgColor);
-        C2D_SceneBegin(s_top);
-        C2D_TextBufClear(fontsGetBuf());
+        C2D_TextBufClear(buf);
 
-        if (!g_bootComplete) {
-            drawTextCentered(fontsGetBuf(), fontsGetSystem(), "CustomizerDS", SCREEN_TOP_W/2, SCREEN_TOP_H/2 - 20, 0.6f, 0.6f, g_textColor);
-            drawTextCentered(fontsGetBuf(), fontsGetSystem(), "for Nintendo 3DS", SCREEN_TOP_W/2, SCREEN_TOP_H/2 + 4, 0.35f, 0.35f, g_secTextColor);
-            drawStartupScreen(g_bootProgress);
-        } else {
-            switch (ms.current) {
-                case SCREEN_MAIN: menuDrawTop(&ms); break;
-                case SCREEN_THEME: darkModeDrawTop(&ds); break;
-                case SCREEN_LED: ledDrawTop(&ls); break;
-                case SCREEN_FONTS:
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "Font Preview", SCREEN_TOP_W/2, 12, 0.5f, 0.5f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", SCREEN_TOP_W/2, 60, 0.45f, 0.45f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "abcdefghijklmnopqrstuvwxyz", SCREEN_TOP_W/2, 82, 0.45f, 0.45f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "0123456789 !@#$%^&*()", SCREEN_TOP_W/2, 104, 0.45f, 0.45f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "B to go back", SCREEN_TOP_W/2, SCREEN_TOP_H-20, 0.3f, 0.3f, g_secTextColor);
-                    break;
-                case SCREEN_ABOUT:
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "About", SCREEN_TOP_W/2, 12, 0.5f, 0.5f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "CustomizerDS v2.0", SCREEN_TOP_W/2, 60, 0.5f, 0.5f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "Customize your 3DS experience", SCREEN_TOP_W/2, 84, 0.35f, 0.35f, g_secTextColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "B to go back", SCREEN_TOP_W/2, SCREEN_TOP_H-20, 0.3f, 0.3f, g_secTextColor);
-                    break;
-                default: break;
+        C2D_SceneBegin(topTarget);
+        if (startupDone) {
+            float transVal = transitionActive(&g_trans) ? transitionEased(&g_trans, EASE_OUT_CUBIC) : 1.0f;
+            switch (currentScreen) {
+                case SCREEN_MAIN_MENU: menuRenderTop(buf, transVal); break;
+                case SCREEN_FONTS: fontsRenderTop(buf, transVal); break;
+                case SCREEN_DARKMODE: darkmodeRenderTop(buf, transVal); break;
+                case SCREEN_LED: ledRenderTop(buf, transVal); break;
             }
+        } else {
+            UI_TopBackground();
+            UI_StartupLogo(buf, startupT);
         }
 
-        // --- Bottom Screen ---
-        C2D_TargetClear(s_bot, g_bgColor);
-        C2D_SceneBegin(s_bot);
-
-        if (!g_bootComplete) {
-            float p = g_bootProgress;
-            drawTextCentered(fontsGetBuf(), fontsGetSystem(), "CustomizerDS", SCREEN_BOT_W/2, (int)(-50 + p * 160), 0.7f, 0.7f,
-                colorWithAlpha(g_textColor, (u8)(p * 255)));
-            drawTextCentered(fontsGetBuf(), fontsGetSystem(), "Loading...", SCREEN_BOT_W/2, (int)(140 + p * 20), 0.35f, 0.35f,
-                colorWithAlpha(g_secTextColor, (u8)(p * 200)));
-            drawProgress(SCREEN_BOT_W/2 - 100, 180, 200, 4, p, rgba8(58,58,60,255), accentForTheme());
-        } else {
-            switch (ms.current) {
-                case SCREEN_MAIN: menuDraw(&ms); break;
-                case SCREEN_THEME: darkModeDraw(&ds); break;
-                case SCREEN_LED: ledDraw(&ls); break;
-                case SCREEN_FONTS:
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "Font Preview", SCREEN_BOT_W/2, 20, 0.5f, 0.5f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "System font used throughout", SCREEN_BOT_W/2, 44, 0.35f, 0.35f, g_secTextColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", SCREEN_BOT_W/2, 80, 0.45f, 0.45f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "abcdefghijklmnopqrstuvwxyz", SCREEN_BOT_W/2, 104, 0.45f, 0.45f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "0123456789", SCREEN_BOT_W/2, 128, 0.45f, 0.45f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "B to go back", SCREEN_BOT_W/2, SCREEN_BOT_H-20, 0.3f, 0.3f, g_secTextColor);
-                    break;
-                case SCREEN_ABOUT:
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "About", SCREEN_BOT_W/2, 20, 0.5f, 0.5f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "CustomizerDS v2.0", SCREEN_BOT_W/2, 60, 0.5f, 0.5f, g_textColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "Built for CFW 3DS", SCREEN_BOT_W/2, 84, 0.35f, 0.35f, g_secTextColor);
-                    drawTextCentered(fontsGetBuf(), fontsGetSystem(), "B to go back", SCREEN_BOT_W/2, SCREEN_BOT_H-20, 0.3f, 0.3f, g_secTextColor);
-                    break;
-                default: break;
+        C2D_SceneBegin(botTarget);
+        if (startupDone) {
+            float transVal = transitionActive(&g_trans) ? transitionEased(&g_trans, EASE_OUT_CUBIC) : 1.0f;
+            switch (currentScreen) {
+                case SCREEN_MAIN_MENU: menuRenderBottom(buf, transVal); break;
+                case SCREEN_FONTS: fontsRenderBottom(buf, transVal); break;
+                case SCREEN_DARKMODE: darkmodeRenderBottom(buf, transVal); break;
+                case SCREEN_LED: ledRenderBottom(buf, transVal); break;
             }
+        } else {
+            UI_TouchBarBackground();
         }
 
         C3D_FrameEnd(0);
     }
 
-    fontsExit();
-
+    C2D_TextBufDelete(buf);
+    fontsSystemCleanup();
+    ledExit();
+    if (!romfsRc) romfsExit();
     C2D_Fini();
     C3D_Fini();
     gfxExit();
