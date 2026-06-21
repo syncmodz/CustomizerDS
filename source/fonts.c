@@ -128,25 +128,30 @@ static const char* previewTitle(int index) {
 }
 
 void fontsRenderTop(C2D_TextBuf buf, float transVal) {
-    float offset = (1.0f - transVal) * 40.0f;
+    /* Parallax 2 camadas: o card (midground) anda mais que o conteudo
+     * dentro dele (foreground), que se acomoda primeiro -- igual ao
+     * "Travel Motion" usado nas outras telas. */
+    float offsetRaw = (1.0f - transVal);
+    float offset = offsetRaw * 40.0f;
+    float offsetFg = offsetRaw * 18.0f;
     UI_TopBackground();
     UI_TopMenuBar("Fontes", buf);
 
     UI_Card(16, 30 + offset, 368, 196, 16, g_theme.surface);
 
-    UI_Text(buf, NULL, "Preview", 32, 52 + offset, 0.28f, 0.28f, g_theme.textSecondary);
-    UI_Text(buf, NULL, previewTitle(s_selected), 32, 70 + offset, 0.48f, 0.48f, g_theme.textPrimary);
+    UI_Text(buf, NULL, "Preview", 32, 52 + offsetFg, 0.28f, 0.28f, g_theme.textSecondary);
+    UI_Text(buf, NULL, previewTitle(s_selected), 32, 70 + offsetFg, 0.48f, 0.48f, g_theme.textPrimary);
 
     C2D_Font f = fontsGetFont(s_selected);
 
     ColorRGBA previewBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.08f);
-    UI_RoundFrame(32, 112 + offset, 300, 70, 14, previewBg, (ColorRGBA){255, 255, 255, 12});
+    UI_RoundFrame(32, 112 + offsetFg, 300, 70, 14, previewBg, (ColorRGBA){255, 255, 255, 12});
 
-    UI_Text(buf, f, previewLine(s_selected), 48, 126 + offset,
+    UI_Text(buf, f, previewLine(s_selected), 48, 126 + offsetFg,
             (s_selected == 2 || s_selected == 3) ? 0.38f : 0.34f,
             (s_selected == 1 || s_selected == 3) ? 0.42f : 0.34f,
             g_theme.textPrimary);
-    UI_Text(buf, f, "Aa Bb Cc 123", 48, 152 + offset,
+    UI_Text(buf, f, "Aa Bb Cc 123", 48, 152 + offsetFg,
             (s_selected == 2 || s_selected == 3) ? 0.44f : 0.40f,
             (s_selected == 1 || s_selected == 3) ? 0.48f : 0.40f,
             g_theme.accent);
@@ -162,9 +167,9 @@ void fontsRenderTop(C2D_TextBuf buf, float transVal) {
     float pw = tw + 14.0f;
     float badgeX = (16 + 368) - pw - 8; /* relativo a borda direita do card (cima tem 400px, nao 320) */
     ColorRGBA badgeC = (s_selected == g_fonts.currentIndex) ? g_theme.success : g_theme.accent;
-    UI_RoundRect(badgeX, 50 + offset, pw, 18, 9, badgeC);
+    UI_RoundRect(badgeX, 50 + offsetFg, pw, 18, 9, badgeC);
     ColorRGBA badgeText = themeContrastText(badgeC);
-    UI_TextCenter(buf, NULL, status, badgeX + pw * 0.5f, 52 + offset, 0.22f, 0.22f, badgeText);
+    UI_TextCenter(buf, NULL, status, badgeX + pw * 0.5f, 52 + offsetFg, 0.22f, 0.22f, badgeText);
 }
 
 void fontsRenderBottom(C2D_TextBuf buf, float transVal) {

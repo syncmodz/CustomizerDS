@@ -162,31 +162,34 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
 }
 
 void darkmodeRenderTop(C2D_TextBuf buf, float transVal) {
-    float offset = (1.0f - transVal) * 40.0f;
+    /* Parallax 2 camadas: card anda mais, conteudo de dentro se acomoda primeiro. */
+    float offsetRaw = (1.0f - transVal);
+    float offset = offsetRaw * 40.0f;
+    float offsetFg = offsetRaw * 18.0f;
     UI_TopBackground();
     UI_TopMenuBar("Tema", buf);
 
     UI_Card(16, 30 + offset, 368, 196, 16, g_theme.surface);
 
     if (s_hexEditing) {
-        UI_Text(buf, NULL, "Cor customizada (hex)", 32, 52 + offset, 0.32f, 0.32f, g_theme.textPrimary);
+        UI_Text(buf, NULL, "Cor customizada (hex)", 32, 52 + offsetFg, 0.32f, 0.32f, g_theme.textPrimary);
         UI_Text(buf, NULL, "esq/dir: valor, cima/baixo: posicao",
-                32, 76 + offset, 0.22f, 0.22f, g_theme.textHint);
+                32, 76 + offsetFg, 0.22f, 0.22f, g_theme.textHint);
         Color_RGB rgb = s_hexPicker.preview;
         ColorRGBA previewC = {rgb.r, rgb.g, rgb.b, 255};
-        UI_TextCenter(buf, NULL, "Preview", 308, 36 + offset, 0.20f, 0.20f, g_theme.textHint);
-        UI_Card(260, 50 + offset, 96, 96, 14,
+        UI_TextCenter(buf, NULL, "Preview", 308, 36 + offsetFg, 0.20f, 0.20f, g_theme.textHint);
+        UI_Card(260, 50 + offsetFg, 96, 96, 14,
                 themeIsDark() ? (ColorRGBA){10, 12, 18, 255} : (ColorRGBA){225, 228, 238, 255});
-        UI_RoundRect(268, 58 + offset, 80, 80, 10, previewC);
+        UI_RoundRect(268, 58 + offsetFg, 80, 80, 10, previewC);
         char hexLabel[10];
         snprintf(hexLabel, sizeof(hexLabel), "#%s", s_hexPicker.hex_input);
-        UI_TextCenter(buf, NULL, hexLabel, 308, 156 + offset, 0.28f, 0.28f, g_theme.textSecondary);
+        UI_TextCenter(buf, NULL, hexLabel, 308, 156 + offsetFg, 0.28f, 0.28f, g_theme.textSecondary);
         return;
     }
 
-    UI_Text(buf, NULL, "Aparencia", 32, 52 + offset, 0.34f, 0.34f, g_theme.textPrimary);
+    UI_Text(buf, NULL, "Aparencia", 32, 52 + offsetFg, 0.34f, 0.34f, g_theme.textPrimary);
 
-    float px = 36.0f, py = 78.0f + offset;
+    float px = 36.0f, py = 78.0f + offsetFg;
     ColorRGBA cardBg = themeIsDark() ? (ColorRGBA){20, 24, 34, 255} : (ColorRGBA){235, 238, 246, 255};
     UI_RoundFrame(px, py, 150, 72, 12, cardBg, (ColorRGBA){255, 255, 255, 12});
     UI_RoundRect(px + 10, py + 8, 130, 5, 2.5f, g_theme.accent);

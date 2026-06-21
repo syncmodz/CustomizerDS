@@ -62,7 +62,12 @@ void menuUpdate(const AppInput* in, int* currentScreen) {
 }
 
 void menuRenderTop(C2D_TextBuf buf, float transVal) {
-    float offset = (1.0f - transVal) * 40.0f;
+    /* Parallax de 3 camadas (Travel Motion): o fundo "atrasa" mais que o
+     * card, e o conteudo dentro do card se acomoda primeiro que o card. */
+    float offsetRaw = (1.0f - transVal);
+    float offsetBg = offsetRaw * 70.0f;
+    float offset = offsetRaw * 40.0f;
+    float offsetFg = offsetRaw * 18.0f;
     UI_TopBackground();
     UI_TopMenuBar("Inicio", buf);
 
@@ -76,9 +81,9 @@ void menuRenderTop(C2D_TextBuf buf, float transVal) {
     ColorRGBA dot2 = themeIsDark()
         ? (ColorRGBA){70, 50, 100, 12}
         : (ColorRGBA){200, 180, 220, 18};
-    UI_RoundRect(60 + px, 80 + py, 70, 70, 35, dot1);
-    UI_RoundRect(280 - px, 170 - py, 50, 50, 25, dot2);
-    UI_RoundRect(320 + px, 60 - py, 40, 40, 20, dot1);
+    UI_RoundRect(60 + px, 80 + py + offsetBg, 70, 70, 35, dot1);
+    UI_RoundRect(280 - px, 170 - py + offsetBg, 50, 50, 25, dot2);
+    UI_RoundRect(320 + px, 60 - py + offsetBg, 40, 40, 20, dot1);
 
     float cascadeT = clampf((et * 2.0f - 0.0f), 0.0f, 1.0f);
     float cascadeOffset = (1.0f - easeOutCubic(cascadeT)) * 20.0f;
@@ -87,23 +92,23 @@ void menuRenderTop(C2D_TextBuf buf, float transVal) {
 
     float pulse = (sinf(uiFrameTime() * 2.8f) + 1.0f) * 0.5f;
     ColorRGBA logoBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.08f + pulse * 0.06f);
-    UI_RoundFrame(36, 52 + offset + cascadeOffset, 52, 52, 16, logoBg, (ColorRGBA){255, 255, 255, 24});
-    UI_TextCenter(buf, NULL, "CDS", 62, 66 + offset + cascadeOffset, 0.46f, 0.46f, g_theme.textPrimary);
+    UI_RoundFrame(36, 52 + offsetFg + cascadeOffset, 52, 52, 16, logoBg, (ColorRGBA){255, 255, 255, 24});
+    UI_TextCenter(buf, NULL, "CDS", 62, 66 + offsetFg + cascadeOffset, 0.46f, 0.46f, g_theme.textPrimary);
 
-    UI_Text(buf, NULL, "CustomizerDS", 104, 50 + offset + cascadeOffset, 0.54f, 0.54f, g_theme.textPrimary);
-    UI_Text(buf, NULL, "personalize seu console", 104, 76 + offset + cascadeOffset, 0.24f, 0.24f, g_theme.accent);
+    UI_Text(buf, NULL, "CustomizerDS", 104, 50 + offsetFg + cascadeOffset, 0.54f, 0.54f, g_theme.textPrimary);
+    UI_Text(buf, NULL, "personalize seu console", 104, 76 + offsetFg + cascadeOffset, 0.24f, 0.24f, g_theme.accent);
 
     ColorRGBA itemBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.10f);
-    UI_RoundRect(36, 104 + offset + cascadeOffset, 42, 42, 12, itemBg);
-    iconsDraw((IconID)ITEMS[s_selected].iconImg, 57, 125 + offset + cascadeOffset, 20.0f, g_theme.textPrimary, 1.0f);
-    UI_Text(buf, NULL, ITEMS[s_selected].title, 92, 110 + offset + cascadeOffset, 0.36f, 0.36f, g_theme.textPrimary);
-    UI_Text(buf, NULL, ITEMS[s_selected].subtitle, 92, 132 + offset + cascadeOffset, 0.22f, 0.22f, g_theme.textSecondary);
+    UI_RoundRect(36, 104 + offsetFg + cascadeOffset, 42, 42, 12, itemBg);
+    iconsDraw((IconID)ITEMS[s_selected].iconImg, 57, 125 + offsetFg + cascadeOffset, 20.0f, g_theme.textPrimary, 1.0f);
+    UI_Text(buf, NULL, ITEMS[s_selected].title, 92, 110 + offsetFg + cascadeOffset, 0.36f, 0.36f, g_theme.textPrimary);
+    UI_Text(buf, NULL, ITEMS[s_selected].subtitle, 92, 132 + offsetFg + cascadeOffset, 0.22f, 0.22f, g_theme.textSecondary);
 
     for (int i = 0; i < 3; i++) {
         float dotT = clampf((et * 2.5f - i * 0.10f), 0.0f, 1.0f);
         float ds = easeOutBack(dotT);
         float cx = 130 + i * 22;
-        float cy = 168 + offset + cascadeOffset;
+        float cy = 168 + offsetFg + cascadeOffset;
         ColorRGBA dotC = (i == s_selected)
             ? g_theme.accent
             : (themeIsDark() ? (ColorRGBA){60, 65, 85, 200} : (ColorRGBA){190, 194, 210, 200});

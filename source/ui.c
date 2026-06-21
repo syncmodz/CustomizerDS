@@ -453,6 +453,13 @@ void UI_PillButton(C2D_TextBuf buf, float x, float y, float w, float h,
     textCol.a = (u8)((float)textCol.a * ap);
 
     UI_Shadow(ox, oy, w, h, 15, 1.0f);
+    if (selected) {
+        /* leve brilho pulsante no botao ativo (60fps.design: "pulse background") */
+        float pulse = (sinf(uiFrameTime() * 3.2f) + 1.0f) * 0.5f;
+        ColorRGBA glow = g_theme.accent;
+        glow.a = (u8)((10.0f + pulse * 22.0f) * ap);
+        UI_RoundRect(ox - 3, oy - 3, w + 6, h + 6, r + 3, glow);
+    }
     UI_RoundRect(ox, oy, w, h, r, bg);
 
     if (!selected) {

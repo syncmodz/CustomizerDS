@@ -306,18 +306,21 @@ static ColorRGBA previewColor(void) {
 }
 
 void ledRenderTop(C2D_TextBuf buf, float transVal) {
-    float offset = (1.0f - transVal) * 40.0f;
+    /* Parallax 2 camadas: card anda mais, conteudo de dentro se acomoda primeiro. */
+    float offsetRaw = (1.0f - transVal);
+    float offset = offsetRaw * 40.0f;
+    float offsetFg = offsetRaw * 18.0f;
     UI_TopBackground();
     UI_TopMenuBar("LED", buf);
 
     UI_Card(16, 30 + offset, 368, 196, 16, g_theme.surface);
 
-    UI_Text(buf, NULL, MODE_NAMES[s_mode], 32, 52 + offset, 0.44f, 0.44f, g_theme.textPrimary);
+    UI_Text(buf, NULL, MODE_NAMES[s_mode], 32, 52 + offsetFg, 0.44f, 0.44f, g_theme.textPrimary);
     UI_Text(buf, NULL, s_mcuReady ? "led ativo" : "MCU indisponivel — preview",
-            32, 78 + offset, 0.22f, 0.22f, s_mcuReady ? g_theme.success : g_theme.warning);
+            32, 78 + offsetFg, 0.22f, 0.22f, s_mcuReady ? g_theme.success : g_theme.warning);
 
     ColorRGBA c = previewColor();
-    float lx = 266.0f, ly = 52 + offset;
+    float lx = 266.0f, ly = 52 + offsetFg;
     ColorRGBA previewBg = themeIsDark() ? (ColorRGBA){8, 10, 14, 255} : (ColorRGBA){225, 228, 238, 255};
     UI_RoundFrame(lx, ly, 88, 64, 16, previewBg, (ColorRGBA){255, 255, 255, 12});
     UI_RoundRect(lx + 4, ly + 4, 80, 56, 12, c);
@@ -327,18 +330,18 @@ void ledRenderTop(C2D_TextBuf buf, float transVal) {
 
     char rgb[40];
     snprintf(rgb, sizeof(rgb), "R%d G%d B%d  vel %d", s_r, s_g, s_b, s_speed);
-    UI_Text(buf, NULL, rgb, 32, 100 + offset, 0.26f, 0.26f, g_theme.textSecondary);
+    UI_Text(buf, NULL, rgb, 32, 100 + offsetFg, 0.26f, 0.26f, g_theme.textSecondary);
 
     if (R_FAILED(s_lastResult)) {
         char err[32];
         snprintf(err, sizeof(err), "erro: 0x%08lX", (unsigned long)s_lastResult);
-        UI_Text(buf, NULL, err, 32, 126 + offset, 0.22f, 0.22f, g_theme.textHint);
+        UI_Text(buf, NULL, err, 32, 126 + offsetFg, 0.22f, 0.22f, g_theme.textHint);
     } else {
-        UI_Text(buf, NULL, "ajuste com os controles abaixo", 32, 126 + offset, 0.22f, 0.22f, g_theme.textHint);
+        UI_Text(buf, NULL, "ajuste com os controles abaixo", 32, 126 + offsetFg, 0.22f, 0.22f, g_theme.textHint);
     }
 
     UI_Text(buf, NULL, s_mcuReady ? "tempo real" : "simulacao na tela",
-            32, 150 + offset, 0.20f, 0.20f, g_theme.textHint);
+            32, 150 + offsetFg, 0.20f, 0.20f, g_theme.textHint);
 }
 
 void ledRenderBottom(C2D_TextBuf buf, float transVal) {
