@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "common.h"
+#include "icons.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -428,7 +429,7 @@ void UI_Badge(C2D_TextBuf buf, float x, float y, const char* text, ColorRGBA bg)
 }
 
 void UI_PillButton(C2D_TextBuf buf, float x, float y, float w, float h,
-                   const char* label, const char* icon, bool selected, float appearT) {
+                   const char* label, const char* icon, int iconImg, bool selected, float appearT) {
     float ap = (appearT < 1.0f) ? easeOutCubic(appearT) : 1.0f;
     if (ap <= 0.0f) return;
     float slide = (1.0f - ap) * 8.0f;
@@ -439,8 +440,8 @@ void UI_PillButton(C2D_TextBuf buf, float x, float y, float w, float h,
     ColorRGBA bg, textCol;
 
     if (selected) {
-        bg = (ColorRGBA){0, 122, 255, 255};
-        textCol = (ColorRGBA){255, 255, 255, 255};
+        bg = g_theme.accent;
+        textCol = themeContrastText(g_theme.accent);
     } else {
         bg = themeIsDark()
             ? (ColorRGBA){44, 46, 54, 240}
@@ -460,11 +461,14 @@ void UI_PillButton(C2D_TextBuf buf, float x, float y, float w, float h,
         UI_RoundFrame(ox, oy, w, h, r, bg, border);
     }
 
+    bool hasIcon = (iconImg >= 0) || (icon != NULL);
     float cx = ox + w * 0.5f;
-    if (icon) {
+    if (iconImg >= 0) {
+        iconsDraw((IconID)iconImg, cx, oy + 9, 14.0f, textCol, ap);
+    } else if (icon) {
         UI_TextCenter(buf, NULL, icon, cx, oy + 3, 0.28f, 0.28f, textCol);
     }
-    UI_TextCenter(buf, NULL, label, cx, oy + (icon ? 17 : 6), 0.26f, 0.26f, textCol);
+    UI_TextCenter(buf, NULL, label, cx, oy + (hasIcon ? 17 : 6), 0.26f, 0.26f, textCol);
 }
 
 void UI_StartupLogo(C2D_TextBuf buf, float t) {

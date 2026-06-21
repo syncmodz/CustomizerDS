@@ -13,6 +13,7 @@
 #include "anim.h"
 #include "ui.h"
 #include "input.h"
+#include "icons.h"
 
 C3D_RenderTarget *topTarget, *botTarget;
 
@@ -30,6 +31,7 @@ int main() {
 
     themeInit();
     fontsSystemInit();
+    iconsInit();
 
     int currentScreen = SCREEN_MAIN_MENU;
     fontsInit();
@@ -39,6 +41,7 @@ int main() {
 
     C2D_TextBuf buf = C2D_TextBufNew(4096);
     if (!buf) {
+        iconsExit();
         fontsSystemCleanup();
         ledExit();
         if (!romfsRc) romfsExit();
@@ -146,6 +149,7 @@ int main() {
     }
 
     C2D_TextBufDelete(buf);
+    iconsExit();
     fontsSystemCleanup();
     ledExit();
     if (!romfsRc) romfsExit();

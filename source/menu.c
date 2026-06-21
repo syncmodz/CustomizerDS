@@ -4,21 +4,22 @@
 #include "ui.h"
 #include "fonts.h"
 #include "anim.h"
+#include "icons.h"
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
 
 typedef struct {
     const char* title;
-    const char* icon;
+    int iconImg; /* IconID -- glifo real do Reva UI, ver icons.h */
     const char* subtitle;
     ScreenType target;
 } MenuItem;
 
 static const MenuItem ITEMS[] = {
-    { "Fontes",      "Aa", "personalizar", SCREEN_FONTS },
-    { "Tema do app", "UI", "modo e cor",   SCREEN_DARKMODE },
-    { "LED RGB",     "Ld", "cor e luz",    SCREEN_LED },
+    { "Fontes",      ICON_FONTS, "personalizar", SCREEN_FONTS },
+    { "Tema do app", ICON_THEME, "modo e cor",   SCREEN_DARKMODE },
+    { "LED RGB",     ICON_LED,   "cor e luz",    SCREEN_LED },
 };
 
 static int s_selected = 0;
@@ -94,7 +95,7 @@ void menuRenderTop(C2D_TextBuf buf, float transVal) {
 
     ColorRGBA itemBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.10f);
     UI_RoundRect(36, 104 + offset + cascadeOffset, 42, 42, 12, itemBg);
-    UI_TextCenter(buf, NULL, ITEMS[s_selected].icon, 57, 114 + offset + cascadeOffset, 0.36f, 0.36f, g_theme.textPrimary);
+    iconsDraw((IconID)ITEMS[s_selected].iconImg, 57, 125 + offset + cascadeOffset, 20.0f, g_theme.textPrimary, 1.0f);
     UI_Text(buf, NULL, ITEMS[s_selected].title, 92, 110 + offset + cascadeOffset, 0.36f, 0.36f, g_theme.textPrimary);
     UI_Text(buf, NULL, ITEMS[s_selected].subtitle, 92, 132 + offset + cascadeOffset, 0.22f, 0.22f, g_theme.textSecondary);
 
@@ -130,7 +131,7 @@ void menuRenderBottom(C2D_TextBuf buf, float transVal) {
         float bx = startX + i * (btnW + gap);
         float appearT = clampf((et * 2.5f - i * 0.10f), 0.0f, 1.0f);
         UI_PillButton(buf, bx, tbY, btnW, btnH,
-                      ITEMS[i].title, ITEMS[i].icon,
+                      ITEMS[i].title, NULL, ITEMS[i].iconImg,
                       i == s_selected, appearT);
     }
 
@@ -146,10 +147,7 @@ void menuRenderBottom(C2D_TextBuf buf, float transVal) {
     UI_RoundRect(32, descY + 8, 36, 36, 10, g_theme.accent);
     ColorRGBA iconText = themeContrastText(g_theme.accent);
     iconText.a = (u8)(255 * da);
-    C2D_Text tmp;
-    C2D_TextParse(&tmp, buf, ITEMS[s_selected].icon);
-    C2D_TextOptimize(&tmp);
-    C2D_DrawText(&tmp, C2D_WithColor, 50 - 8, descY + 14, 0.0f, 0.32f, 0.32f, themeColor(iconText));
+    iconsDraw((IconID)ITEMS[s_selected].iconImg, 50, descY + 26, 18.0f, iconText, da);
 
     ColorRGBA titleC = g_theme.textPrimary;
     titleC.a = (u8)(255 * da);

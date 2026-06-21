@@ -78,8 +78,10 @@ void UI_HelpBar(C2D_TextBuf buf, const char* left, const char* right);
 
 /* Badge, pill, shared */
 void UI_Badge(C2D_TextBuf buf, float x, float y, const char* text, ColorRGBA bg);
+/* iconImg: indice IconID (icons.h) para usar um glifo real, ou -1 para usar
+ * o fallback de texto em "icon" (ou nenhum icone, se ambos forem nulos/-1). */
 void UI_PillButton(C2D_TextBuf buf, float x, float y, float w, float h,
-                   const char* label, const char* icon, bool selected, float appearT);
+                   const char* label, const char* icon, int iconImg, bool selected, float appearT);
 void UI_StartupLogo(C2D_TextBuf buf, float t);
 
 #endif
