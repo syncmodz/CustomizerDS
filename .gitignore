@@ -1,8 +1,42 @@
-build/
+# Build artifacts
 *.o
 *.elf
 *.3dsx
-*.smdh
-.DS_Store
 *.cia
+*.smdh
 *.bin
+build/
+bin/
+dist/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.cproject
+
+# OS-specific
+Thumbs.db
+.DS_Store
+
+# Emulator outputs
+*.sav
+*.backup
+
+# CMake
+CMakeFiles/
+cmake_build_directory/
+CMakeCache.txt
+
+# Dependencies
+libctru/
+devkitARM/
+
+# Temporary files
+*.tmp
+.*.swp
+*.log
+proto/**/node_modules/
