@@ -10,6 +10,7 @@ BANNERTOOL := /home/chicharito/bin/bannertool
 MAKEROM := /home/chicharito/bin/makerom
 3DSXTOOL := /opt/devkitpro/tools/bin/3dsxtool
 MKROMFS := /opt/devkitpro/tools/bin/mkromfs3ds
+TEX3DS := /opt/devkitpro/tools/bin/tex3ds
 
 CCPREFIX := $(DEVKITARM)/bin/arm-none-eabi-
 CC := $(CCPREFIX)gcc
@@ -45,13 +46,14 @@ ELF := $(BUILD)/$(TARGET).elf
 CIA := $(BUILD)/$(TARGET).cia
 SMDH := $(BUILD)/$(TARGET).smdh
 ROMFS_BIN := $(BUILD)/romfs.bin
+ROMFS_RAW := $(BUILD)/romfs_raw.bin
 
 all: $(3DSX) $(CIA)
 
-$(3DSX): $(ELF) $(SMDH) $(ROMFS_BIN)
-	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_BIN)
+$(3DSX): $(ELF) $(SMDH) $(ROMFS_RAW)
+	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_RAW)
 
-$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o
+$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o $(BUILD)/transitions.o $(BUILD)/compositor.o $(BUILD)/lang.o
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 $(BUILD)/%.o: $(SOURCES)/%.c
@@ -59,7 +61,7 @@ $(BUILD)/%.o: $(SOURCES)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(SMDH): $(APP_ICON)
-	$(BANNERTOOL) makesmdh -s "$(APP_TITLE)" -l "Personalize seu Nintendo 3DS" -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $@
+	$(BANNERTOOL) makesmdh -s "$(APP_TITLE)" -l "Personalize your Nintendo 3DS" -p "$(APP_AUTHOR)" -i $(APP_ICON) -o $@
 
 $(BANNER): banner_source.png audio.wav
 	$(BANNERTOOL) makebanner -i $< -a audio.wav -o $@
@@ -156,10 +158,25 @@ $(APP_RSF):
 	@echo 'SystemControlInfo:' >> $@
 	@echo '  StackSize: 0x40000' >> $@
 
-$(ROMFS_BIN): $(DATA)
+# Saida crua do mkromfs3ds (so romfs_header + tabelas, sem hash tree): e o
+# formato que romfs_dev.c do libctru espera direto no offset 0 ao montar a
+# romfs embutida de um .3dsx -- ele nao interpreta IVFC nenhum nesse caminho.
+# Sheet separado das sprites novas da v9 (swatches cakeOS + icone in-app). Os
+# PNGs-fonte de icons.t3x nao estao no repo, mas os destas estao -- entao este
+# .t3x e regenerado a partir do .t3s (atlas). source/extra_gen.h sai junto.
+EXTRA_T3S := $(DATA)/gfx/extra.t3s
+EXTRA_T3X := $(DATA)/gfx/extra.t3x
+$(EXTRA_T3X): $(EXTRA_T3S) $(DATA)/gfx/swatch_ring_thick_3x.png $(DATA)/gfx/swatch_ring_thin_3x.png $(DATA)/gfx/icon_256.png
+	$(TEX3DS) -i $(EXTRA_T3S) -o $(EXTRA_T3X) -H source/extra_gen.h
+
+$(ROMFS_RAW): $(DATA) $(EXTRA_T3X)
 	@mkdir -p $(BUILD)
-	$(MKROMFS) $(DATA) $(BUILD)/romfs_raw.bin
-	python3 scripts/mk_ivfc_romfs.py $(BUILD)/romfs_raw.bin $@
+	$(MKROMFS) $(DATA) $@
+
+# So o .cia (via makerom) passa pelo NCCH/IVFC com hash tree de verificacao;
+# por isso o wrapper IVFC e gerado a partir da romfs crua so para esse alvo.
+$(ROMFS_BIN): $(ROMFS_RAW)
+	python3 scripts/mk_ivfc_romfs.py $(ROMFS_RAW) $@
 
 $(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(ROMFS_BIN)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
@@ -169,8 +186,8 @@ PREVIEW_3DSX := $(BUILD)/$(TARGET)_preview.3dsx
 
 preview3dsx: $(PREVIEW_3DSX)
 
-$(PREVIEW_3DSX): $(ELF) $(SMDH) $(ROMFS_BIN)
-	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_BIN)
+$(PREVIEW_3DSX): $(ELF) $(SMDH) $(ROMFS_RAW)
+	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_RAW)
 
 clean:
 	rm -rf $(BUILD)

@@ -1,0 +1,4 @@
+--atlas -f rgba8888 -z auto
+swatch_ring_thick_3x.png
+swatch_ring_thin_3x.png
+icon_256.png
