@@ -18,7 +18,9 @@ static const ConfigData DEFAULT_CONFIG = {
     .customR = 160,
     .customG = 110,
     .customB = 255,
-    .reserved = {0},
+    /* reserved[0] = idioma; CFG_LANG_UNSET por padrao -> primeira execucao
+     * (sem config) cai no idioma do sistema (§i18n.5). */
+    .reserved = {CFG_LANG_UNSET, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 };
 
 const ConfigData* configDefaults(void) {

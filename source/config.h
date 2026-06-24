@@ -7,6 +7,11 @@
 #define CONFIG_MAGIC 0x43445332
 #define CONFIG_PATH "sdmc:/3ds/CustomizerDS/config.bin"
 
+/* i18n (v9.1 §i18n.5): o idioma e guardado em reserved[0]. 0xFF = "nao
+ * definido" -> usa o idioma do SISTEMA. Mantem magic/tamanho do struct, entao
+ * saves antigos continuam validos. */
+#define CFG_LANG_UNSET 0xFF
+
 typedef struct {
     u32 magic;
     u8 darkMode;
