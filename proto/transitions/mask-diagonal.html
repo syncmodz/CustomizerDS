@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pool: Mask Reveal Diagonal</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<h2>9. Mask Reveal Diagonal (wipe em ângulo) -- spec v7</h2>
+<p class="desc">
+<b>Mesma classe de desvio do Wipe Radial (item 3), pela mesma razão técnica:</b> uma faixa diagonal que "revela" o conteúdo novo por dentro exige clip arbitrário, que o citro2d não expõe com segurança pra calibrar sem emulador. Adaptação: ao invés de uma faixa que RECORTA conteúdo, é uma faixa diagonal TRANSLÚCIDA decorativa (cor de accent, ~30°) que VARRE a tela de um canto ao oposto enquanto o conteúdo novo faz sua entrada padrão por baixo -- a "assinatura" diagonal/editorial fica no movimento da faixa, não num recorte real. easeInOutCubic, 400ms. Geometricamente um paralelogramo (2 triângulos via <code>C2D_DrawTriangle</code>, a mesma primitiva da Parte A) -- novo no pool porque antes eu só desenhava círculos/retângulos.
+</p>
+<div class="stage" id="stage"></div>
+<div class="controls">
+  <button onclick="run()">Avançar</button>
+</div>
+<div class="timing" id="timing"></div>
+<script src="_shared.js"></script>
+<script>
+const stage = document.getElementById('stage');
+let current = buildMockScreen('Tela A', '#0A84FF');
+stage.appendChild(current);
+
+const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+svg.setAttribute('width', '400'); svg.setAttribute('height', '240');
+svg.style.position = 'absolute'; svg.style.inset = '0'; svg.style.pointerEvents = 'none';
+const band = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+band.setAttribute('fill', '#BF5AF2');
+band.setAttribute('opacity', '0');
+svg.appendChild(band);
+stage.appendChild(svg);
+
+function run() {
+  const DUR = 0.40; // v7: 400ms
+  const incoming = buildMockScreen('Tela B', '#BF5AF2');
+  stage.appendChild(incoming);
+  stage.appendChild(svg);
+  current.remove();
+  const t0 = performance.now();
+  const BAND_W = 90; // largura da faixa (px, projetada no eixo X)
+  const ANGLE = 30 * Math.PI / 180;
+  const diagOffsetY = 240 * Math.tan(ANGLE); // deslocamento X equivalente por causa do angulo
+  function step(now) {
+    const t = clamp((now - t0) / 1000 / DUR, 0, 1);
+    const e = Ease.inOutCubic(t);
+    incoming.style.opacity = Ease.outCubic(t);
+
+    // faixa varre de x=-BAND_W (fora, esquerda) até x=400+BAND_W (fora, direita)
+    const cx = lerp(-BAND_W, 400 + BAND_W, e);
+    const x0 = cx - BAND_W / 2, x1 = cx + BAND_W / 2;
+    const pts = [
+      [x0 + diagOffsetY, 0], [x1 + diagOffsetY, 0],
+      [x1, 240], [x0, 240],
+    ].map(p => p.join(',')).join(' ');
+    band.setAttribute('points', pts);
+    const fadeEdge = Math.min(1, Math.min(t, 1 - t) * 6);
+    band.setAttribute('opacity', String(0.30 * fadeEdge + 0.06));
+
+    if (t < 1) requestAnimationFrame(step);
+    else { current = incoming; band.setAttribute('opacity', '0'); }
+  }
+  requestAnimationFrame(step);
+  document.getElementById('timing').textContent =
+    `dur=400ms easeInOutCubic faixa diagonal ~30deg varre esquerda->direita, accent@~30% | conteudo: fade easeOutCubic`;
+}
+</script>
+</body>
+</html>

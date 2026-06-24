@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pool: Flip de Profundidade</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<h2>7. Flip de Profundidade -- spec v7 (fallback ao cross-zoom, conforme a própria spec permite)</h2>
+<p class="desc">
+<b>Decisão registrada (a spec já prevê e autoriza isto):</b> "Só manter se segurar 60fps; senão, cair para cross-zoom." Um rotateY 3D de verdade (com foreshortening real) exige render-to-texture + matriz de perspectiva -- o citro2d é 2D (C2D_DrawImageAtRotated só gira NO PLANO, não dá profundidade) e eu não tenho emulador pra validar uma implementação assim sem risco real de quebrar a tela. Em vez de fingir um flip 3D que não é, uso o fallback que a própria spec autoriza: uma variação do cross-zoom com uma <i>compressão horizontal rápida no meio</i> (scaleX desce a ~0.85 e volta) sugerindo a silhueta "de canto" de um cartão virando, sem prometer perspectiva real. easeInOutCubic, 380ms total (190ms cada metade, como pedido).
+</p>
+<div class="stage" id="stage"></div>
+<div class="controls">
+  <button onclick="run()">Avançar</button>
+</div>
+<div class="timing" id="timing"></div>
+<script src="_shared.js"></script>
+<script>
+const stage = document.getElementById('stage');
+let current = buildMockScreen('Tela A', '#0A84FF');
+stage.appendChild(current);
+
+function run() {
+  const DUR = 0.38; // v7: 380ms total, 190ms cada metade
+  const incoming = buildMockScreen('Tela B', '#FFD60A');
+  incoming.style.opacity = 0;
+  stage.appendChild(incoming);
+  const t0 = performance.now();
+  function step(now) {
+    const t = clamp((now - t0) / 1000 / DUR, 0, 1);
+    if (t < 0.5) {
+      // metade 1: tela atual "comprime" (sai de cena, silhueta de canto)
+      const e = Ease.inOutCubic(t / 0.5);
+      current.style.transform = `scaleX(${lerp(1.0, 0.06, e)})`;
+      current.style.opacity = lerp(1.0, 0.4, e);
+    } else {
+      if (current) { current.remove(); current = null; }
+      const e = Ease.inOutCubic((t - 0.5) / 0.5);
+      incoming.style.transform = `scaleX(${lerp(0.06, 1.0, e)})`;
+      incoming.style.opacity = lerp(0.4, 1.0, e);
+    }
+    if (t < 1) requestAnimationFrame(step);
+    else { current = incoming; }
+  }
+  requestAnimationFrame(step);
+  document.getElementById('timing').textContent =
+    `dur=380ms (190+190ms) easeInOutCubic scaleX 1->0.06->1 (silhueta "de canto", fallback documentado ao flip 3D real)`;
+}
+</script>
+</body>
+</html>

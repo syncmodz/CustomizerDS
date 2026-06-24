@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pool: Stagger Cascata</title>
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .cascade-item { position:absolute; left:20px; right:20px; height:36px; background:#17151c; border:1px solid #ffffff22; border-radius:14px; display:flex; align-items:center; padding:0 14px; font-size:13px; }
+</style>
+</head>
+<body>
+<h2>8. Stagger Cascata -- spec v7</h2>
+<p class="desc">Fundo entra em fade rápido (160ms), depois cada elemento "cai"/sobe em cascata com stagger de 60ms, easeOutBack pequeno (overshoot 1.3), subindo 14px + fade. Total ~600ms, mas a sensação é fluida por causa do stagger. Esta é a transição onde o stagger NÃO é o cascade genérico de 40ms já usado nas outras telas -- aqui o numero de elementos e o tempo total são grandes o suficiente para valer um stagger próprio, calibrado aqui e portado 1:1 (não reusa UI_StaggerT global).</p>
+<div class="stage" id="stage" style="position:relative;"></div>
+<div class="controls">
+  <button onclick="run()">Avançar</button>
+</div>
+<div class="timing" id="timing"></div>
+<script src="_shared.js"></script>
+<script>
+const stage = document.getElementById('stage');
+const bg = document.createElement('div');
+bg.style.position = 'absolute'; bg.style.inset = '0'; bg.style.background = '#100f15';
+stage.appendChild(bg);
+const ITEMS_N = 5;
+let items = [];
+
+function run() {
+  bg.style.opacity = 0;
+  for (const it of items) it.remove();
+  items = [];
+  for (let i = 0; i < ITEMS_N; i++) {
+    const el = document.createElement('div');
+    el.className = 'cascade-item';
+    el.style.top = (30 + i * 42) + 'px';
+    el.textContent = 'Item ' + (i + 1);
+    el.style.opacity = 0;
+    stage.appendChild(el);
+    items.push(el);
+  }
+  const t0 = performance.now();
+  const BG_DUR = 0.16;
+  const STEP = 0.06, ITEM_DUR = 0.30;
+  function step(now) {
+    const t = (now - t0) / 1000;
+    bg.style.opacity = Math.min(1, Ease.outCubic(clamp(t / BG_DUR, 0, 1)));
+    let done = t > BG_DUR;
+    for (let i = 0; i < ITEMS_N; i++) {
+      const lt = clamp((t - i * STEP) / ITEM_DUR, 0, 1);
+      const e = Ease.outBack(lt, 1.3);
+      items[i].style.transform = `translateY(${(1 - e) * 14}px)`;
+      items[i].style.opacity = Math.min(1, Ease.outCubic(Math.min(1, lt * 2)));
+      if (lt < 1) done = false;
+    }
+    if (!done) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+  document.getElementById('timing').textContent =
+    `bg fade 160ms easeOutCubic | ${ITEMS_N} itens, stagger 60ms, easeOutBack(1.3), sobe 14px+fade, ~600ms total`;
+}
+</script>
+</body>
+</html>

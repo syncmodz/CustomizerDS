@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pool: Cover/Push Vertical</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<h2>4. Cover Vertical Elástico (Herman Miller / Baygulov) -- spec v7</h2>
+<p class="desc">v7: 420ms (era 380ms), overshoot easeOutBack ~1.4 (era 1.15 -- elastico bem mais perceptivel agora). slideX=0, fadeA=1 (cobertura opaca). Elementos internos staggeram 50ms depois de assentar -- aproximacao: o stagger interno ja existente (UI_StaggerT, dispara junto com uiScreenEnter()) roda CONCORRENTE ao slideY em vez de esperar ele assentar (engatar um delay novo so pra isso exigiria um campo extra so pra essa transicao); como os dois terminam perto de 400-450ms, a diferenca pratica e pequena. Nativo: <code>C2D_ViewTranslate(0, slideY)</code> em main.c, sem tocar as telas.</p>
+<div class="stage" id="stage"></div>
+<div class="controls">
+  <button onclick="run()">Abrir função</button>
+</div>
+<div class="timing" id="timing"></div>
+<script src="_shared.js"></script>
+<script>
+const stage = document.getElementById('stage');
+let current = buildMockScreen('Tela A', '#0A84FF');
+stage.appendChild(current);
+
+function run() {
+  const DUR = 0.42; // v7: 420ms (era 380ms)
+  const incoming = buildMockScreen('Tela B', '#FF9F0A');
+  stage.appendChild(incoming);
+  const t0 = performance.now();
+  function step(now) {
+    const t = clamp((now - t0) / 1000 / DUR, 0, 1);
+    const e = Ease.outBack(t, 1.4); // v7: 1.4 (era 1.15)
+    const slideY = lerp(240, 0, e);
+    incoming.style.transform = `translateY(${slideY}px)`;
+    if (t < 1) requestAnimationFrame(step);
+    else { current.remove(); current = incoming; }
+  }
+  requestAnimationFrame(step);
+  document.getElementById('timing').textContent =
+    `dur=420ms easeOutBack(1.4) slideY 240px->0 (cobre, sem fade) | C2D_ViewTranslate puro no nativo`;
+}
+</script>
+</body>
+</html>

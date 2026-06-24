@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pool: Radial Flash</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<h2>3. Wipe Radial / Yin-Yang (Discover / SPACED) -- adaptado, spec v7</h2>
+<p class="desc">
+<b>Desvio assumido e justificado (mesma razao do v6, reafirmada aqui):</b> o brief pede um círculo que cresce "engolindo" o conteúdo antigo e revelando o novo por dentro -- isso exige recortar (clip) o desenho da tela nova num círculo, ou manter as duas telas desenhadas ao mesmo tempo. O citro2d não expõe stencil/clip circular, e o scissor bruto da GPU (C3D_SetScissor) trabalha no espaço de framebuffer ROTACIONADO do 3DS -- sem emulador pra validar essa transformação de coordenadas, o risco de quebrar a tela toda (scissor preso "ligado") não vale o efeito. Adaptação (igual ao v6, retimada): a tela nova entra com o recipe padrão (slide curto 8px + fade + scale 0.97→1.0) e um <i>flash circular decorativo</i> da cor de accent cresce a partir do ponto de origem com <b>easeInOutCubic 440ms</b> (era easeOutCubic 420ms no v6 -- v7 pede InOut, mais "respiro" no inicio) e desaparece por cima. Reusa <code>C2D_DrawCircleSolid</code>, mesma familia do themeWipe (yin-yang real do toggle de tema).
+</p>
+<div class="stage" id="stage"></div>
+<div class="controls">
+  <button onclick="run()">Avançar (a partir do centro)</button>
+</div>
+<div class="timing" id="timing"></div>
+<script src="_shared.js"></script>
+<script>
+const stage = document.getElementById('stage');
+let current = buildMockScreen('Tela A', '#0A84FF');
+stage.appendChild(current);
+const flash = document.createElement('div');
+flash.className = 'flash';
+flash.style.background = '#BF5AF2';
+stage.appendChild(flash);
+
+function run() {
+  const DUR = 0.44; // v7: 440ms (era 420ms)
+  const incoming = buildMockScreen('Tela B', '#BF5AF2');
+  stage.appendChild(incoming);
+  stage.appendChild(flash);
+  current.remove();
+  const originX = 200, originY = 120; // centro da stage (400x240)
+  const maxR = Math.hypot(200, 120);
+  const t0 = performance.now();
+  function step(now) {
+    const t = clamp((now - t0) / 1000 / DUR, 0, 1);
+    const eIn = Ease.inOutCubic(Math.min(1, t / 0.7)); // v7: InOut (era outCubic)
+    const eContent = Ease.outCubic(t);
+    incoming.style.transform = `translateX(${8 * (1 - eContent)}px) scale(${lerp(0.97, 1.0, eContent)})`;
+    incoming.style.opacity = eContent;
+
+    const r = eIn * maxR * 0.9;
+    const fadeOut = t < 0.55 ? 0 : Ease.inCubic(clamp((t - 0.55) / 0.45, 0, 1));
+    flash.style.width = flash.style.height = `${r * 2}px`;
+    flash.style.left = originX + 'px'; flash.style.top = originY + 'px';
+    flash.style.opacity = 0.35 * (1 - fadeOut);
+
+    if (t < 1) requestAnimationFrame(step);
+    else { current = incoming; flash.style.opacity = 0; }
+  }
+  requestAnimationFrame(step);
+  document.getElementById('timing').textContent =
+    `dur=440ms flash accent@35% cresce easeInOutCubic(0-70%) e some easeInCubic(55-100%) | conteudo: slide 8px+fade+scale 0.97->1.0 easeOutCubic`;
+}
+</script>
+</body>
+</html>

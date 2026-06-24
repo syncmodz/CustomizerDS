@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Parte C -- micro-interação do seletor da home</title>
+<link rel="stylesheet" href="transitions/_shared.css">
+<style>
+  .pill-row { display:flex; gap:12px; margin-top:16px; }
+  .pill { width:90px; height:32px; border-radius:16px; background:#3a3a3e; display:flex; align-items:center; justify-content:center; font-size:13px; cursor:pointer; position:relative; }
+  .pill.sel { background:#0A84FF; color:#fff; }
+  .halo { position:absolute; inset:-4px; border-radius:20px; background:#0A84FF; opacity:0; pointer-events:none; }
+  .orig-demo { width:90px; height:32px; border-radius:16px; background:#0A84FF; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; cursor:pointer; transition: transform 150ms ease-in-out; }
+  .orig-demo:hover { transform: scale(1.4); }
+</style>
+</head>
+<body>
+<h2>Parte C -- exemplo original do dono (CSS colado, scale 1.4, pra referência)</h2>
+<p class="desc">.square:hover{transform:scale(1.4)} transition:transform 150ms ease-in-out -- passe o mouse. 1.4 é demais pra um pill de 90x32 na home (ficaria maior que os vizinhos), por isso o app usa 1.08, calibrado abaixo.</p>
+<div class="orig-demo">hover aqui</div>
+
+<h2>Calibrado pro app: pills Fontes/Tema/LED da home (bottom screen)</h2>
+<p class="desc">Foco (seta esq/dir muda o selecionado, ou clique): escala 1.0→1.08, easeInOutCubic ~160ms, + halo accent. Press (mousedown, simulando A/toque): 1.08→0.96 rápido, solta (mouseup) volta com easeOutBack leve. Portado para <code>source/ui.c::UI_PillButtonPress</code> (parâmetro <code>focusScale</code>, Tween mantido em <code>menu.c</code>) + <code>UI_RoundRect</code> já corrigido (Parte A) para o halo sair limpo.</p>
+<div class="pill-row" id="pills">
+  <div class="pill sel" data-i="0"><div class="halo"></div>Fontes</div>
+  <div class="pill" data-i="1"><div class="halo"></div>Tema</div>
+  <div class="pill" data-i="2"><div class="halo"></div>LED</div>
+</div>
+<div class="timing" id="timing">Use ← → pra trocar o foco, ou clique/segure um pill.</div>
+
+<script src="transitions/_shared.js"></script>
+<script>
+const pills = document.querySelectorAll('.pill');
+let selected = 0;
+const scaleState = [1, 1, 1]; // valor atual animado
+const scaleFrom = [1, 1, 1];
+const scaleTo = [1.08, 1, 1];
+const scaleT0 = [0, 0, 0];
+const SCALE_DUR = 0.16; // 160ms, dentro da janela 150-180ms pedida
+
+function setFocus(newSel) {
+  if (newSel === selected) return;
+  scaleFrom[selected] = scaleState[selected]; scaleTo[selected] = 1.0; scaleT0[selected] = performance.now();
+  scaleFrom[newSel] = scaleState[newSel]; scaleTo[newSel] = 1.08; scaleT0[newSel] = performance.now();
+  pills.forEach((p, i) => p.classList.toggle('sel', i === newSel));
+  selected = newSel;
+}
+
+let pressing = -1;
+function tick() {
+  for (let i = 0; i < 3; i++) {
+    const t = clamp((performance.now() - scaleT0[i]) / 1000 / SCALE_DUR, 0, 1);
+    const e = Ease.inOutCubic(t);
+    scaleState[i] = lerp(scaleFrom[i], scaleTo[i], e);
+    // press (0.96) sobrepoe o focus enquanto segurado -- prioridade visual clara de "estou apertando".
+    pills[i].style.transform = `scale(${pressing === i ? 0.96 : scaleState[i]})`;
+    const halo = pills[i].querySelector('.halo');
+    halo.style.opacity = (i === selected) ? 0.35 : 0.0;
+  }
+  requestAnimationFrame(tick);
+}
+tick();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') setFocus((selected + 1) % 3);
+  if (e.key === 'ArrowLeft') setFocus((selected - 1 + 3) % 3);
+});
+pills.forEach((p, i) => {
+  p.addEventListener('mousedown', () => { setFocus(i); pressing = i; document.getElementById('timing').textContent = 'press (0.96) no pill ' + i; });
+  p.addEventListener('mouseup', () => { pressing = -1; document.getElementById('timing').textContent = 'release -- volta a 1.08 com easeOutBack (visualmente via spring leve)'; });
+  p.addEventListener('mouseleave', () => { if (pressing === i) pressing = -1; });
+});
+</script>
+</body>
+</html>

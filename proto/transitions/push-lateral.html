@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pool: Push Lateral</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+<h2>6. Push Lateral (iOS-style stack) -- spec v7</h2>
+<p class="desc">As duas telas se movem juntas como uma pilha rigida, easeInOutCubic 300ms, direção segue a navegação. <b>Simplificação assumida:</b> sem a tela antiga desenhada simultaneamente, a entrante percorre 100% da largura (off-screen completo -> 0), o que VISUALMENTE comunica a mesma sensação de "empurrar" sem precisar da antiga visível (ela já não estava lá quando a entrante começa). Reforço de autenticidade: uma sombra direcional fina (gradiente de alpha) acompanha a borda de TRÁS da tela entrante durante o movimento, simulando o "contato" com a tela que ela está empurrando -- desenhada por <code>UI_TransOverlay</code> (novo campo <code>edgeShadowX/Alpha</code>), não pelas telas.</p>
+<div class="stage" id="stage"></div>
+<div class="controls">
+  <button onclick="run(1)">Avançar (direita) ▶</button>
+  <button onclick="run(-1)">Voltar (esquerda) ◀</button>
+</div>
+<div class="timing" id="timing"></div>
+<script src="_shared.js"></script>
+<script>
+const stage = document.getElementById('stage');
+let current = buildMockScreen('Tela A', '#0A84FF');
+stage.appendChild(current);
+const edgeShadow = document.createElement('div');
+edgeShadow.style.position = 'absolute';
+edgeShadow.style.top = '0'; edgeShadow.style.height = '100%';
+edgeShadow.style.width = '24px';
+edgeShadow.style.pointerEvents = 'none';
+stage.appendChild(edgeShadow);
+
+function run(dir) {
+  const DUR = 0.30; // v7: 300ms
+  const incoming = buildMockScreen('Tela B', '#5AC8FA');
+  stage.appendChild(incoming);
+  stage.appendChild(edgeShadow);
+  current.remove();
+  const t0 = performance.now();
+  const STAGE_W = 400;
+  function step(now) {
+    const t = clamp((now - t0) / 1000 / DUR, 0, 1);
+    const e = Ease.inOutCubic(t);
+    const x = dir > 0 ? lerp(STAGE_W, 0, e) : lerp(-STAGE_W, 0, e);
+    incoming.style.transform = `translateX(${x}px)`;
+
+    // sombra na borda de TRAS (lado de onde ela esta vindo) -- mais forte no
+    // inicio do movimento, esmaece conforme assenta.
+    const edgeX = dir > 0 ? x : x + STAGE_W - 24;
+    edgeShadow.style.left = edgeX + 'px';
+    const grad = dir > 0
+      ? 'linear-gradient(to right, rgba(0,0,0,0.35), rgba(0,0,0,0))'
+      : 'linear-gradient(to left, rgba(0,0,0,0.35), rgba(0,0,0,0))';
+    edgeShadow.style.background = grad;
+    edgeShadow.style.opacity = (1 - e) * 1.0 + e * 0.0 + 0.15; // esmaece ao assentar, leve residuo
+
+    if (t < 1) requestAnimationFrame(step);
+    else { current = incoming; edgeShadow.style.opacity = 0; }
+  }
+  requestAnimationFrame(step);
+  document.getElementById('timing').textContent =
+    `dur=300ms easeInOutCubic translateX 100%->0 dir=${dir>0?'direita':'esquerda'} + sombra de borda direcional`;
+}
+</script>
+</body>
+</html>
