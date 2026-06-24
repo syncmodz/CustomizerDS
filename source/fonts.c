@@ -1,4 +1,5 @@
 #include "fonts.h"
+#include "lang.h"
 #include "common.h"
 #include "theme.h"
 #include "ui.h"
@@ -11,13 +12,22 @@
 FontSystem g_fonts;
 
 static int s_selected = 0;
+/* Popup de confirmacao "tem certeza?" (spec v4 4.2) -- aplicar uma fonte so
+ * acontece depois do usuario confirmar A no popup, nunca direto no toque. */
+static PopupModal s_popup;
 
+/* v9 §10: 8 fontes (nomes proprios -- NAO traduzem no i18n). A fonte de
+ * sistema continua existindo como FALLBACK seguro (fontsGetFont cai nela se um
+ * .bcfnt nao carregar), mas nao e mais uma linha selecionavel da lista. */
 static const char* FONT_LABELS[] = {
     "Comfortaa",
     "Comfortaa Negrito",
     "MADE Evolve Sans",
     "MADE Evolve Sans Negrito",
-    "Padrao do Sistema",
+    "Love House",
+    "Comic Sans MS3",
+    "Minecraftia",
+    "Patterns & Dots",
 };
 
 /* Caminho dentro da romfs (arquivos .bcfnt em romfs/fonts, gerados com mkbcfnt
@@ -27,6 +37,10 @@ static const char* FONT_PATHS[MAX_CUSTOM_FONTS] = {
     "romfs:/fonts/comfortaa_bold.bcfnt",
     "romfs:/fonts/made_evolve_regular.bcfnt",
     "romfs:/fonts/made_evolve_bold.bcfnt",
+    "romfs:/fonts/love_house.bcfnt",
+    "romfs:/fonts/comic_sans_ms3.bcfnt",
+    "romfs:/fonts/minecraftia.bcfnt",
+    "romfs:/fonts/patterns_dots.bcfnt",
 };
 
 int fontsSelected(void) { return s_selected; }
@@ -69,6 +83,7 @@ void fontsSystemInit(void) {
 
 void fontsInit(void) {
     s_selected = clampi(g_fonts.currentIndex, 0, fontsCount() - 1);
+    s_popup.active = false;
 }
 
 void fontsSystemCleanup(void) {
@@ -82,6 +97,17 @@ void fontsSystemCleanup(void) {
 }
 
 void fontsUpdate(const AppInput* in, int* currentScreen) {
+    popupUpdate(&s_popup);
+
+    /* Popup de confirmacao em pe: bloqueia o resto do input da tela (so
+     * A/B/toque nos selos respondem), igual ao editor de hex em darkmode.c. */
+    if (popupActive(&s_popup)) {
+        if (popupConfirmInput(&s_popup, in) && s_popup.result == 1) {
+            applyFont(s_selected, true);
+        }
+        return;
+    }
+
     if (in->back) {
         *currentScreen = SCREEN_MAIN_MENU;
         return;
@@ -92,18 +118,19 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
 
     if (in->touchDown) {
         for (int i = 0; i < fontsCount(); i++) {
-            float by = 56.0f + i * 34.0f;
-            if (in->touchPY >= by && in->touchPY < by + 28 &&
+            float by = 8.0f + i * 25.0f; /* deve bater com fontsRenderBottom */
+            if (in->touchPY >= by && in->touchPY < by + 22 &&
                 in->touchPX >= 10 && in->touchPX < 310) {
+                /* Toque so seleciona/previa -- aplicar sempre passa pelo
+                 * popup de confirmacao (A), nunca direto no toque. */
                 s_selected = i;
-                applyFont(s_selected, true);
                 return;
             }
         }
     }
 
     if (in->confirm) {
-        applyFont(s_selected, true);
+        popupShowConfirm(&s_popup, T(STR_CONFIRM_FONT));
     }
 }
 
@@ -113,104 +140,138 @@ static const char* previewLine(int index) {
         case 1: return "ROUND FRIENDLY BOLD";
         case 2: return "sleek future display";
         case 3: return "SLEEK FUTURE BOLD";
+        case 4: return "lovely handwritten style";
+        case 5: return "casual comic lettering";
+        case 6: return "blocky pixel typeface";
+        case 7: return "dingbat symbols & dots"; /* §10.3: dingbat -> vira simbolos */
         default: return "system default preview";
     }
 }
 
 static const char* previewTitle(int index) {
-    switch (index) {
-        case 0: return "Comfortaa";
-        case 1: return "Comfortaa Negrito";
-        case 2: return "MADE Evolve Sans";
-        case 3: return "MADE Evolve Sans Negrito";
-        default: return "Padrao do Sistema";
-    }
+    return fontsLabel(index); /* o titulo do preview e o proprio nome da fonte */
 }
 
-void fontsRenderTop(C2D_TextBuf buf, float transVal) {
-    /* Parallax 2 camadas: o card (midground) anda mais que o conteudo
-     * dentro dele (foreground), que se acomoda primeiro -- igual ao
-     * "Travel Motion" usado nas outras telas. */
+void fontsRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
+    /* Parallax 3 camadas (Travel Motion), igual ao Menu: fundo decorativo
+     * anda mais, o cartao no meio, o conteudo de dentro se acomoda primeiro. */
     float offsetRaw = (1.0f - transVal);
     float offset = offsetRaw * 40.0f;
     float offsetFg = offsetRaw * 18.0f;
     UI_TopBackground();
-    UI_TopMenuBar("Fontes", buf);
+    UI_TopMenuBar(T(STR_TAB_FONTS), buf);
 
-    UI_Card(16, 30 + offset, 368, 196, 16, g_theme.surface);
+    /* Blobs decorativos de fundo removidos (mesma causa do bug "bolas
+     * sobrepostas" da Inicio): caiam dentro do retangulo do card, que tem
+     * alpha 235 (nao 255) e deixava-os espiar por tras. */
 
-    UI_Text(buf, NULL, "Preview", 32, 52 + offsetFg, 0.28f, 0.28f, g_theme.textSecondary);
-    UI_Text(buf, NULL, previewTitle(s_selected), 32, 70 + offsetFg, 0.48f, 0.48f, g_theme.textPrimary);
+    /* Transicao 3.2: card desliza/escala a partir do centro; o fade real
+     * (cobre tudo, mesmo widgets sem alpha proprio) vem do veu no final. */
+    float cardBaseX = 16, cardBaseY = 30 + offset, cardBaseW = 368, cardBaseH = 196;
+    float cardW = cardBaseW * scaleM, cardH = cardBaseH * scaleM;
+    float cardX = cardBaseX + slideX + (cardBaseW - cardW) * 0.5f;
+    float cardY = cardBaseY + (cardBaseH - cardH) * 0.5f;
+    UI_Card(cardX, cardY, cardW, cardH, RADIUS_CARD, g_theme.surface);
 
-    C2D_Font f = fontsGetFont(s_selected);
-
-    ColorRGBA previewBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.08f);
-    UI_RoundFrame(32, 112 + offsetFg, 300, 70, 14, previewBg, (ColorRGBA){255, 255, 255, 12});
-
-    UI_Text(buf, f, previewLine(s_selected), 48, 126 + offsetFg,
-            (s_selected == 2 || s_selected == 3) ? 0.38f : 0.34f,
-            (s_selected == 1 || s_selected == 3) ? 0.42f : 0.34f,
-            g_theme.textPrimary);
-    UI_Text(buf, f, "Aa Bb Cc 123", 48, 152 + offsetFg,
-            (s_selected == 2 || s_selected == 3) ? 0.44f : 0.40f,
-            (s_selected == 1 || s_selected == 3) ? 0.48f : 0.40f,
-            g_theme.accent);
+    UI_Text(buf, NULL, T(STR_PREVIEW), 32 + slideX, 50 + offsetFg, 0.26f, 0.26f, g_theme.textSecondary);
+    UI_Text(buf, NULL, previewTitle(s_selected), 32 + slideX, 68 + offsetFg, 0.42f, 0.42f, g_theme.textPrimary);
 
     char status[24];
     snprintf(status, sizeof(status), "%s",
-             (s_selected == g_fonts.currentIndex) ? "em uso" : "A para aplicar");
+             (s_selected == g_fonts.currentIndex) ? T(STR_IN_USE) : T(STR_TO_APPLY));
     float tw = 0;
     C2D_Text tmp2;
     C2D_TextParse(&tmp2, buf, status);
     C2D_TextOptimize(&tmp2);
     C2D_TextGetDimensions(&tmp2, 0.22f, 0.22f, &tw, NULL);
-    float pw = tw + 14.0f;
-    float badgeX = (16 + 368) - pw - 8; /* relativo a borda direita do card (cima tem 400px, nao 320) */
+    /* Mesma margem de seguranca do UI_Badge: "A para aplicar" estava saindo
+     * da caixa porque a largura medida sozinha nao bastava. */
+    float minW = (float)strlen(status) * 7.5f;
+    float pw = fmaxf(tw, minW) + 18.0f;
+    float badgeX = (16 + 368) - pw - 8 + slideX; /* relativo a borda direita do card (cima tem 400px, nao 320) */
     ColorRGBA badgeC = (s_selected == g_fonts.currentIndex) ? g_theme.success : g_theme.accent;
     UI_RoundRect(badgeX, 50 + offsetFg, pw, 18, 9, badgeC);
     ColorRGBA badgeText = themeContrastText(badgeC);
     UI_TextCenter(buf, NULL, status, badgeX + pw * 0.5f, 52 + offsetFg, 0.22f, 0.22f, badgeText);
+
+    /* Bloco de preview ocupa o resto do card (sem vazio embaixo) -- mostra
+     * a fonte real ja carregada, em duas linhas de tamanhos diferentes. */
+    C2D_Font f = fontsGetFont(s_selected);
+    float boxY = 96 + offsetFg;
+    float boxH = 122;
+    ColorRGBA previewBg = themeMix(g_theme.surfaceElevated, g_theme.accent, 0.07f);
+    /* 336 (era 304): a caixa terminava 32px antes da borda direita do card
+     * (margem 16 esq / 48 dir, assimetrico) -- spec v6 3: "conteudo
+     * centralizado, espacamentos iguais". Card vai de 16 a 384 (368 largo);
+     * caixa em 32..368 fecha com margem 16 simetrica dos dois lados. */
+    UI_RoundFrame(32 + slideX, boxY, 336, boxH, 14, previewBg, (ColorRGBA){255, 255, 255, 12});
+
+    bool bold = (s_selected == 1 || s_selected == 3);
+    bool alt = (s_selected == 2 || s_selected == 3);
+    UI_Text(buf, f, previewLine(s_selected), 48 + slideX, boxY + 14,
+            alt ? 0.40f : 0.36f, bold ? 0.44f : 0.36f, g_theme.textPrimary);
+    UI_Text(buf, f, "Aa Bb Cc 123", 48 + slideX, boxY + 46,
+            alt ? 0.48f : 0.44f, bold ? 0.52f : 0.44f, g_theme.accent);
+    UI_Text(buf, f, "0123456789 !?", 48 + slideX, boxY + 84,
+            alt ? 0.30f : 0.28f, bold ? 0.32f : 0.28f, g_theme.textSecondary);
+
+    if (fadeA < 0.999f) {
+        ColorRGBA veil = g_theme.backgroundTop;
+        veil.a = (u8)(255 * (1.0f - clampf(fadeA, 0.0f, 1.0f)));
+        UI_Fill(0, 25, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT - 25, veil);
+    }
 }
 
-void fontsRenderBottom(C2D_TextBuf buf, float transVal) {
+void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
     float offset = (1.0f - transVal) * 30.0f;
-    float et = UI_EnterProgress();
-    UI_BottomBackground();
+    (void)scaleM;
+    /* Fundo UNIFORME (nao o bicolor de UI_BottomBackground): a aba Fontes nao
+     * tem uma "Touch Bar" de controles no topo -- a lista ocupa tudo --, entao
+     * a faixa escura de 50px em cima so criava aquele "retangulo preto + quadrado"
+     * bicolor reclamado. Aqui a tela toda fica numa cor so. */
+    UI_TouchBarBackground();
 
+    /* §7b/§9: lista das 8 fontes. Com 8 linhas o passo antigo (34px desde
+     * y=56) estourava a tela (ultimas linhas caiam atras da help bar); passo
+     * 25px desde y=8 cabe as 8 e ainda preenche o vao que sobrava com 5. */
     for (int i = 0; i < fontsCount(); i++) {
-        float by = 56.0f + i * 34.0f + offset;
-        float appearT = clampf((et * 2.5f - i * 0.08f), 0.0f, 1.0f);
-        float ap = easeOutCubic(appearT);
+        float by = 8.0f + i * 25.0f + offset;
+        /* Stagger 3.2 exato: 40ms entre linhas, 260ms cada, easeOutCubic. */
+        float ap = UI_StaggerT(i, 0.04f, 0.26f);
         if (ap <= 0.0f) continue;
-        float slide = (1.0f - ap) * 14.0f;
+        float slide = (1.0f - ap) * 10.0f;
 
         bool selected = (i == s_selected);
         bool isCurrent = (i == g_fonts.currentIndex);
 
         ColorRGBA bg = selected
-            ? themeMix(g_theme.surface, g_theme.accent, 0.12f)
+            ? themeCardSelBg()
             : (themeIsDark() ? (ColorRGBA){26, 28, 38, 240} : (ColorRGBA){238, 240, 248, 240});
         ColorRGBA border = selected
             ? g_theme.accent
             : (themeIsDark() ? (ColorRGBA){255, 255, 255, 8} : (ColorRGBA){0, 0, 0, 8});
         if (selected) border.a = 80;
 
-        UI_RoundFrame(10 + slide, by + slide, 300, 28, 14, bg, border);
+        if (selected) UI_Shadow(10 + slide + slideX, by + slide, 300, 22, 11, 30, 1.5f);
+        UI_RoundFrame(10 + slide + slideX, by + slide, 300, 22, 11, bg, border);
 
         ColorRGBA textCol = selected ? g_theme.textPrimary : g_theme.textSecondary;
-        UI_Text(buf, fontsGetFont(i), FONT_LABELS[i], 20 + slide, by + 5 + slide, 0.26f, 0.26f, textCol);
+        /* nome de cada fonte renderizado na PROPRIA fonte (preview real, §9). */
+        UI_Text(buf, fontsGetFont(i), FONT_LABELS[i], 20 + slide + slideX, by + 3 + slide, 0.24f, 0.24f, textCol);
 
         if (isCurrent) {
-            UI_Badge(buf, 260, by + 4 + slide, "OK", g_theme.success);
-        }
-
-        if (i < fontsCount() - 1) {
-            ColorRGBA div = {255, 255, 255, themeIsDark() ? 6 : 18};
-            UI_Fill(20, by + 30 + slide, 280, 1, div);
+            UI_Badge(buf, 262 + slideX, by + 3 + slide, T(STR_IN_USE), g_theme.success);
         }
     }
 
-    UI_HelpBar(buf, "A aplicar", "START sair");
+    UI_HelpBar(buf, T(STR_HELP_FONTS_L), T(STR_SAIR));
+
+    if (fadeA < 0.999f) {
+        ColorRGBA veil = g_theme.background;
+        veil.a = (u8)(255 * (1.0f - clampf(fadeA, 0.0f, 1.0f)));
+        UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT - 26, veil);
+    }
+    popupRender(buf, &s_popup);
 }
 
 C2D_Font fontsCurrent(void) {

@@ -8,8 +8,14 @@
 
 void menuInit(void);
 void menuUpdate(const AppInput* in, int* currentScreen);
-void menuRenderTop(C2D_TextBuf buf, float transVal);
-void menuRenderBottom(C2D_TextBuf buf, float transVal);
+/* slideX/fadeA/scaleM: transicao direcional 3.2 (push entre telas) -- 0/1/1
+ * quando nao ha transicao em curso (nenhuma mudanca de comportamento). */
+void menuRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
+void menuRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
 int menuSelected(void);
+
+/* Previa das 3 pilulas de funcao na tela de baixo durante o splash (Herman
+ * Miller: varios elementos da cena entram em sequencia, nao so o logo). */
+void menuRenderStartupPills(C2D_TextBuf buf, float startupT);
 
 #endif

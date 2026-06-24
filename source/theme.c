@@ -13,49 +13,54 @@ typedef struct {
     ColorRGBA color;
 } AccentPreset;
 
+/* Cores reais do seletor de accent do macOS (System Colors), nao "candy neon". */
 static const AccentPreset ACCENTS[] = {
-    { "Touchbar Cyan", { 70, 210, 255, 255 } },
-    { "Neon Green",    { 70, 245, 155, 255 } },
-    { "Mac Purple",    { 160, 110, 255, 255 } },
-    { "Rose",          { 255, 95, 145, 255 } },
-    { "Amber",         { 255, 185, 75, 255 } },
+    { "Azul",    { 10, 132, 255, 255 } },
+    { "Verde",   { 50, 215, 75, 255 } },
+    { "Roxo",    { 191, 90, 242, 255 } },
+    { "Rosa",    { 255, 55, 95, 255 } },
+    { "Laranja", { 255, 159, 10, 255 } },
 };
 
+/* Tokens da spec v3 (docs/design-tokens.md): bg_base #0E0D12, bg_card
+ * #17151C, stroke branco@7%, text_primary #F3F1F7, text_secondary
+ * branco@52%. Nunca #000000 puro. (v2 tinha bg_base #0E0E10/bg_elevated
+ * #1A1A1D -- v3 ajustou pro tom levemente roxo/Monet do end4.) */
 static const ThemePalette DARK_BASE = {
-    .background      = { 28, 30, 40, 255 },
-    .backgroundTop   = { 32, 34, 44, 255 },
-    .surface         = { 14, 17, 23, 235 },
-    .surfaceAlt      = { 20, 24, 32, 245 },
-    .surfaceElevated = { 24, 28, 38, 245 },
-    .primary         = { 70, 210, 255, 255 },
-    .primaryLight    = { 130, 230, 255, 255 },
-    .primaryDark     = { 20, 30, 45, 255 },
-    .accent          = { 70, 210, 255, 255 },
-    .success         = { 70, 245, 155, 255 },
-    .warning         = { 255, 185, 75, 255 },
-    .onPrimary       = { 245, 247, 252, 255 },
-    .textPrimary     = { 245, 247, 252, 255 },
-    .textSecondary   = { 158, 166, 182, 255 },
-    .textHint        = { 126, 134, 150, 255 },
-    .divider         = { 255, 255, 255, 22 },
+    .background      = { 14, 13, 18, 255 },   /* bg_base #0E0D12 */
+    .backgroundTop   = { 16, 15, 20, 255 },
+    .surface         = { 23, 21, 28, 235 },   /* bg_card #17151C */
+    .surfaceAlt      = { 20, 19, 25, 245 },
+    .surfaceElevated = { 32, 29, 38, 245 },   /* elevado, mesmo tom roxo-escuro */
+    .primary         = { 10, 132, 255, 255 },
+    .primaryLight    = { 90, 180, 255, 255 },
+    .primaryDark     = { 20, 20, 24, 255 },
+    .accent          = { 10, 132, 255, 255 },
+    .success         = { 50, 215, 75, 255 },
+    .warning         = { 255, 159, 10, 255 },
+    .onPrimary       = { 245, 245, 247, 255 },
+    .textPrimary     = { 243, 241, 247, 255 },  /* text_primary #F3F1F7 */
+    .textSecondary   = { 255, 255, 255, 133 },  /* text_secondary branco@52% */
+    .textHint        = { 255, 255, 255, 90 },   /* terciario, branco@35% */
+    .divider         = { 255, 255, 255, 18 },   /* stroke branco@7% */
 };
 
 static const ThemePalette LIGHT_BASE = {
-    .background      = { 220, 222, 228, 255 },
-    .backgroundTop   = { 232, 234, 240, 255 },
-    .surface         = { 248, 249, 252, 255 },
-    .surfaceAlt      = { 240, 242, 248, 255 },
+    .background      = { 236, 236, 236, 255 },
+    .backgroundTop   = { 242, 242, 242, 255 },
+    .surface         = { 255, 255, 255, 255 },
+    .surfaceAlt      = { 247, 247, 247, 255 },
     .surfaceElevated = { 255, 255, 255, 255 },
-    .primary         = { 70, 210, 255, 255 },
-    .primaryLight    = { 130, 230, 255, 255 },
-    .primaryDark     = { 30, 40, 60, 255 },
-    .accent          = { 70, 210, 255, 255 },
-    .success         = { 40, 200, 110, 255 },
-    .warning         = { 220, 140, 45, 255 },
+    .primary         = { 0, 122, 255, 255 },
+    .primaryLight    = { 90, 170, 255, 255 },
+    .primaryDark     = { 40, 40, 46, 255 },
+    .accent          = { 0, 122, 255, 255 },
+    .success         = { 40, 180, 80, 255 },
+    .warning         = { 200, 120, 20, 255 },
     .onPrimary       = { 255, 255, 255, 255 },
-    .textPrimary     = { 22, 24, 30, 255 },
-    .textSecondary   = { 90, 94, 108, 255 },
-    .textHint        = { 110, 116, 132, 255 },
+    .textPrimary     = { 28, 28, 30, 255 },
+    .textSecondary   = { 110, 110, 115, 255 },
+    .textHint        = { 150, 150, 155, 255 },
     .divider         = { 0, 0, 0, 18 },
 };
 
@@ -108,6 +113,22 @@ void themeSetCustomAccent(ColorRGBA c) {
     applyTheme();
 }
 
+ColorRGBA themeAccentGlow(void) {
+    ColorRGBA c = g_theme.accent;
+    c.a = 89; /* 35% de 255 */
+    return c;
+}
+
+ColorRGBA themeAccentSoft(void) {
+    ColorRGBA c = g_theme.accent;
+    c.a = 36; /* 14% de 255 */
+    return c;
+}
+
+ColorRGBA themeCardSelBg(void) {
+    return themeMix(g_theme.surface, g_theme.accent, 0.08f);
+}
+
 ColorRGBA themeContrastText(ColorRGBA bg) {
     int luma = (int)bg.r * 299 + (int)bg.g * 587 + (int)bg.b * 114;
     return (luma > 150000) ? (ColorRGBA){ 10, 12, 16, 255 } : (ColorRGBA){ 250, 251, 253, 255 };
@@ -143,4 +164,34 @@ ColorRGBA themeMix(ColorRGBA a, ColorRGBA b, float t) {
     out.b = (u8)lerpf(a.b, b.b, t);
     out.a = (u8)lerpf(a.a, b.a, t);
     return out;
+}
+
+static ThemeWipe s_wipe;
+
+void themeWipeTrigger(float originTopX, float originTopY, float originBotX, float originBotY) {
+    /* Chamado ANTES de themeSetDark() pelo unico lugar que pode disparar a
+     * troca (darkmode.c) -- g_theme ainda tem a cor ANTIGA aqui, que e
+     * exatamente a que o wipe precisa "engolir". */
+    s_wipe.active = true;
+    s_wipe.t = 0.0f;
+    s_wipe.oldBgTop = g_theme.backgroundTop;
+    s_wipe.oldBgBot = g_theme.background;
+    s_wipe.wasDark = s_dark; /* themeSetDark() ainda nao rodou neste ponto */
+    s_wipe.originTopX = originTopX;
+    s_wipe.originTopY = originTopY;
+    s_wipe.originBotX = originBotX;
+    s_wipe.originBotY = originBotY;
+}
+
+void themeWipeTick(float dt) {
+    if (!s_wipe.active) return;
+    s_wipe.t += dt;
+    if (s_wipe.t >= THEME_WIPE_DUR) {
+        s_wipe.t = THEME_WIPE_DUR;
+        s_wipe.active = false;
+    }
+}
+
+ThemeWipe* themeWipeGet(void) {
+    return &s_wipe;
 }

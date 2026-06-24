@@ -92,4 +92,23 @@ static inline float animPulse(float frame, float speed, float offset) {
     return (sinf((frame + offset) * speed) + 1.0f) * 0.5f;
 }
 
+/* HSV->RGB compartilhado (era duplicado como static dentro de led.c; agora
+ * tambem usado pela barra de espectro Touch Bar em darkmode.c, v3 3.4).
+ * h em graus (0-360), s/v em 0..1. */
+static inline void hsvToRgbF(float h, float s, float v, u8* r, u8* g, u8* b) {
+    float c = v * s;
+    float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
+    float m = v - c;
+    float rr = 0, gg = 0, bb = 0;
+    if (h < 60) { rr = c; gg = x; bb = 0; }
+    else if (h < 120) { rr = x; gg = c; bb = 0; }
+    else if (h < 180) { rr = 0; gg = c; bb = x; }
+    else if (h < 240) { rr = 0; gg = x; bb = c; }
+    else if (h < 300) { rr = x; gg = 0; bb = c; }
+    else { rr = c; gg = 0; bb = x; }
+    *r = (u8)((rr + m) * 255.0f);
+    *g = (u8)((gg + m) * 255.0f);
+    *b = (u8)((bb + m) * 255.0f);
+}
+
 #endif

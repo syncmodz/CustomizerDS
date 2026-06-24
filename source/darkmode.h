@@ -8,8 +8,8 @@
 
 void darkmodeInit(void);
 void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen);
-void darkmodeRenderTop(C2D_TextBuf buf, float transVal);
-void darkmodeRenderBottom(C2D_TextBuf buf, float transVal);
+void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
+void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
 int darkmodeSelected(void);
 
 #endif

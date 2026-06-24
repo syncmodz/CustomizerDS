@@ -52,7 +52,7 @@ void colorPickerInput(ColorPicker* cp, const AppInput* in, float y) {
     if (in->down & KEY_LEFT) stepDigit(cp, cp->cursor_pos, -1);
 
     if (in->touchDown) {
-        float cellW = 38.0f, cellH = 44.0f, gap = 5.0f;
+        float cellW = HEX_CELL_W, cellH = HEX_CELL_H, gap = HEX_CELL_GAP;
         float totalW = cellW * 6 + gap * 5;
         float startX = (SCREEN_BOT_WIDTH - totalW) * 0.5f;
         for (int i = 0; i < 6; i++) {
@@ -69,16 +69,21 @@ void colorPickerInput(ColorPicker* cp, const AppInput* in, float y) {
 }
 
 /* Renderiza o editor de hex na tela de baixo (320x240).
- * Layout: 6 celulas de digito hex centradas, + preview abaixo + valores RGB */
-void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float x, float y) {
-    float cellW = 38.0f;
-    float cellH = 44.0f;
-    float gap = 5.0f;
+ * Layout: 6 celulas de digito hex centradas, + preview abaixo + valores RGB.
+ * (Sem parametro x: a fileira e sempre centrada na largura da tela --
+ * um "x" de origem do toque nunca foi usado aqui de verdade, era parametro
+ * morto; quem anima a partir do ponto tocado e a barra de espectro acima,
+ * que tem largura/posicao proprias.) */
+void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float y) {
+    float cellW = HEX_CELL_W;
+    float cellH = HEX_CELL_H;
+    float gap = HEX_CELL_GAP;
+    float radius = HEX_CELL_RADIUS;
     float totalW = cellW * 6 + gap * 5;
     float startX = (SCREEN_BOT_WIDTH - totalW) * 0.5f;
     float fy = y;
 
-    UI_Text(buf, NULL, "# ", startX - 18, fy + 12, 0.36f, 0.36f, g_theme.textSecondary);
+    UI_Text(buf, NULL, "# ", startX - 16, fy + 8, 0.32f, 0.32f, g_theme.textSecondary);
 
     for (int i = 0; i < 6; i++) {
         float cx = startX + i * (cellW + gap);
@@ -89,18 +94,18 @@ void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float x, float y) {
                                : (themeIsDark() ? (ColorRGBA){255, 255, 255, 18}
                                                 : (ColorRGBA){20, 24, 34, 22});
         if (sel) border.a = 120;
-        UI_RoundFrame(cx, fy, cellW, cellH, 10, bg, border);
         if (sel) {
-            /* pulsacao suave na borda selecionada */
+            /* pulsacao suave na borda selecionada + leve elevacao (sombra) */
+            UI_Shadow(cx, fy + 1, cellW, cellH, radius, 40, 1.5f);
             float pulse = 0.06f * sinf(uiFrameTime() * 5.0f);
             ColorRGBA glow = g_theme.accent;
             glow.a = (u8)(40 + (int)(30 * pulse));
-            UI_RoundRect(cx - 2, fy - 2, cellW + 4, cellH + 4, 12, glow);
-            UI_RoundFrame(cx, fy, cellW, cellH, 10, bg, border);
+            UI_RoundRect(cx - 2, fy - 2, cellW + 4, cellH + 4, radius + 2, glow);
         }
+        UI_RoundFrame(cx, fy, cellW, cellH, radius, bg, border);
         char digit[2] = { cp->hex_input[i], '\0' };
-        UI_TextCenter(buf, NULL, digit, cx + cellW * 0.5f, fy + (cellH - 20) * 0.5f,
-                      0.42f, 0.42f, sel ? g_theme.textPrimary : g_theme.textSecondary);
+        UI_TextCenter(buf, NULL, digit, cx + cellW * 0.5f, fy + (cellH - 18) * 0.5f,
+                      0.38f, 0.38f, sel ? g_theme.textPrimary : g_theme.textSecondary);
     }
 
     /* preview da cor -- somente leitura (sem hit-test em colorPickerInput),

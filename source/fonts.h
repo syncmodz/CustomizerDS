@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include "input.h"
 
-#define MAX_CUSTOM_FONTS 4
+#define MAX_CUSTOM_FONTS 8
 
 typedef struct {
     C2D_Font fonts[MAX_CUSTOM_FONTS];
@@ -22,8 +22,8 @@ void fontsInit(void);
 void fontsSystemInit(void);
 void fontsSystemCleanup(void);
 void fontsUpdate(const AppInput* in, int* currentScreen);
-void fontsRenderTop(C2D_TextBuf buf, float transVal);
-void fontsRenderBottom(C2D_TextBuf buf, float transVal);
+void fontsRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
+void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
 C2D_Font fontsCurrent(void);
 C2D_Font fontsGetFont(int index);
 const char* fontsCurrentName(void);
