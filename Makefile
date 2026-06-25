@@ -157,6 +157,9 @@ $(APP_RSF):
 	@echo '' >> $@
 	@echo 'SystemControlInfo:' >> $@
 	@echo '  StackSize: 0x40000' >> $@
+	@echo '' >> $@
+	@echo 'RomFs:' >> $@
+	@echo '  RootPath: $(DATA)' >> $@
 
 # Saida crua do mkromfs3ds (so romfs_header + tabelas, sem hash tree): e o
 # formato que romfs_dev.c do libctru espera direto no offset 0 ao montar a
@@ -173,14 +176,15 @@ $(ROMFS_RAW): $(DATA) $(EXTRA_T3X)
 	@mkdir -p $(BUILD)
 	$(MKROMFS) $(DATA) $@
 
-# So o .cia (via makerom) passa pelo NCCH/IVFC com hash tree de verificacao;
-# por isso o wrapper IVFC e gerado a partir da romfs crua so para esse alvo.
-$(ROMFS_BIN): $(ROMFS_RAW)
-	python3 scripts/mk_ivfc_romfs.py $(ROMFS_RAW) $@
-
-$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(ROMFS_BIN)
+# BUGFIX v1.1: o .cia agora deixa o PROPRIO makerom construir a RomFS a partir
+# da pasta romfs/ (via "RomFs: RootPath" no RSF) -- o metodo padrao/correto.
+# O wrapper IVFC artesanal (mk_ivfc_romfs.py) gerava uma RomFS que o makerom
+# aceitava mas o 3DS nao conseguia ler -> icones/fontes sumiam SO no .cia (o
+# .3dsx usa o romfs cru direto e sempre funcionou). O .t3x tem que existir
+# antes do makerom varrer a pasta, dai a dependencia em EXTRA_T3X.
+$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(EXTRA_T3X)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
-	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER) -romfs $(ROMFS_BIN)
+	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER)
 
 PREVIEW_3DSX := $(BUILD)/$(TARGET)_preview.3dsx
 
