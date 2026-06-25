@@ -4,15 +4,17 @@
 #include <stdlib.h>
 
 /* Duracoes da tabela da secao 3 (todas 260-420ms). */
+/* v1.2: durações um tico maiores nas mais "secas" pra dar um assentamento mais
+ * suave/premium sem ficar lento (sweet spot ~320-380ms pra troca de tela). */
 static const float DURATIONS[TRANS_COUNT] = {
-    0.32f, /* 1  PUSH_H */
+    0.34f, /* 1  PUSH_H        (era 0.32) */
     0.36f, /* 2  COVER_V */
-    0.28f, /* 3  CROSSFADE */
-    0.30f, /* 4  ZOOM_THROUGH */
-    0.30f, /* 5  POP */
+    0.32f, /* 3  CROSSFADE     (era 0.28) */
+    0.34f, /* 4  ZOOM_THROUGH  (era 0.30) */
+    0.32f, /* 5  POP           (era 0.30) */
     0.38f, /* 6  RADIAL_WIPE */
     0.36f, /* 7  DIAGONAL_WIPE */
-    0.30f, /* 8  SLIDE_UP */
+    0.34f, /* 8  SLIDE_UP      (era 0.30) */
     0.36f, /* 9  DEPTH_FLIP */
     0.38f, /* 10 DISSOLVE */
 };
@@ -29,8 +31,8 @@ float transDuration(TransitionID id) {
 }
 
 static const char* EASES[TRANS_COUNT] = {
-    "IN_OUT_CUBIC", "OUT_QUINT", "OUT_SINE", "OUT_CUBIC", "OUT_BACK 0.95",
-    "OUT_CUBIC wipe", "OUT_CUBIC wipe", "OUT_CUBIC", "IN_OUT_CUBIC", "SPRING+SINE"
+    "IN_OUT_CUBIC", "OUT_QUINT", "OUT_SINE", "OUT_QUINT", "OUT_BACK 0.95",
+    "OUT_CUBIC wipe", "OUT_CUBIC wipe", "OUT_QUINT", "IN_OUT_CUBIC", "SPRING+SINE"
 };
 
 const char* transName(TransitionID id) {
@@ -93,8 +95,9 @@ void transEval(TransitionID id, float t, int navDir, float W, float H, Transitio
             break;
         }
         case TRANS_ZOOM_THROUGH: {
-            /* tabela 4: velha cresce 1.0->1.06 sumindo; nova 0.94->1.0 surgindo. */
-            float p = easeFunc(t01, EASE_OUT_CUBIC);
+            /* tabela 4: velha cresce 1.0->1.06 sumindo; nova 0.94->1.0 surgindo.
+             * v1.2: OUT_QUINT (era OUT_CUBIC) -- desaceleracao mais suave/premium. */
+            float p = easeFunc(t01, EASE_OUT_QUINT);
             float so = lerpf(1.0f, 1.06f, p);
             out->oldL.scaleX = so; out->oldL.scaleY = so;
             out->oldL.alpha = 1.0f - p;
@@ -116,12 +119,12 @@ void transEval(TransitionID id, float t, int navDir, float W, float H, Transitio
         }
         case TRANS_SLIDE_UP: {
             /* tabela 8: parallax de saida -- velha sobe 20px sumindo, nova
-             * vem 28px de baixo, alpha nos 1os 50% (OUT_CUBIC). */
-            float p = easeFunc(t01, EASE_OUT_CUBIC);
+             * vem 28px de baixo, alpha nos 1os 50%. v1.2: OUT_QUINT (mais suave). */
+            float p = easeFunc(t01, EASE_OUT_QUINT);
             out->oldL.y = -20.0f * p;
             out->oldL.alpha = 1.0f - p;
             out->newL.y = 28.0f * (1.0f - p);
-            out->newL.alpha = easeFunc(clampf(t01 / 0.5f, 0.0f, 1.0f), EASE_OUT_CUBIC);
+            out->newL.alpha = easeFunc(clampf(t01 / 0.5f, 0.0f, 1.0f), EASE_OUT_QUINT);
             break;
         }
         case TRANS_DISSOLVE: {
