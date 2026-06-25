@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0] — 2026-06-24
+
+### 🐛 Fixed (crítico)
+- **Ícones e fontes sumiam no `.cia`** (romfs não era lido) — o wrapper IVFC artesanal gerava uma RomFS que o 3DS não conseguia ler. Agora o **makerom constrói a RomFS** a partir da pasta (`RomFs: RootPath`), método padrão/correto. O `.3dsx` sempre funcionou; o bug era só no `.cia`.
+- **LED sumia ao fechar o app** — o app não apaga mais o LED ao sair; o padrão continua até reboot/notificação.
+
+### ✨ Added / Changed
+- **9ª fonte: Super Mario 64**; **"Padrão do Sistema"** de volta como 1ª opção (10 itens).
+- LED **reaplica a cor salva ao abrir o app**.
+- Home: pílulas (Fontes/Tema/LED) descidas pro centro da tela de baixo; ícones de cima afastados do ícone do app.
+- Tema: rótulo **"HEX"** legível no swatch; fundo da tela de baixo **sem bicolor**; lista de fontes **rolável** com indicador "em uso".
+- Fluidez: 1º frame da transição otimizado (sem o soluço de abertura).
+- Docs: `SYSTEM_FONT.md` e `LED_PERSIST.md` (métodos provados + settings da Luma); `ANTIBRICK.md` encolhido.
+- README resumido + **QR code** pra instalar o `.cia` pelo FBI.
+
 ## [1.0.0] — 2026-06-24
 
 ### ✨ Added
