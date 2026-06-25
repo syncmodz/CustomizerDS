@@ -1,53 +1,30 @@
-# LED de Notificação Persistente no 3DS (CustomizerDS)
+# Keeping the LED on
 
-> **Resumo dos 3 níveis de persistência:**
-> 1. **Enquanto o app roda:** ao vivo (MCU) — sempre funciona.
-> 2. **Depois de fechar o app (v1.1):** o app **não apaga mais** o LED ao sair,
->    então o padrão **continua** até um reboot ou uma notificação do sistema.
-> 3. **Depois de reiniciar o console:** precisa de um **patch da Luma** no
->    módulo de notificações `0004013000003502` (reaplicado todo boot). **LED é
->    MCU, não NAND → risco de brick ~nulo**; patch ruim no máximo trava o boot e
->    reverte **apagando o `.ips`**.
+The LED control in the app is live (it talks to the MCU). There are three
+levels of "staying on":
 
-## ✅ O QUE ATIVAR NA LUMA (obrigatório pra persistência via reboot)
-Entre na config da Luma (segure **SELECT** no boot) e ligue:
-- [x] **Enable game patching**
-- [x] **Enable loading external FIRMs and modules**
+1. **While the app runs** — always works.
+2. **After you close the app** — the app no longer clears the LED on exit, so
+   the pattern stays until a reboot or a system notification.
+3. **After a reboot** — needs a Luma patch (below).
 
-Sem essas duas, o patch do módulo `0004013000003502` **não é aplicado** no boot.
-Depois de ligar, **reinicie**.
+## Surviving a reboot
 
-## Como o LED persistente funciona (método provado)
-Ferramentas de referência: **CtrRGBPAT2** (Golem642/FarmYard-Gaming) e
-**CustomRGBPattern** — ambas geram um **IPS** que a Luma aplica no módulo
-`0004013000003502` (news/notificações) todo boot.
+This uses a Luma patch on the notification module `0004013000003502`, applied
+on every boot. LED is MCU, not NAND, so it can't brick anything — a bad patch
+at worst stops the boot, and you fix it by deleting the file.
 
-- Arquivo do patch vai em **`/luma/titles/0004013000003502/code.ips`** (ou
-  `/luma/sysmodules/0004013000003502.ips`).
-- Requer, nas **configurações da Luma**: **"Enable game patching"** e
-  **"Enable loading external FIRMs and modules"** ligados.
-- Depois de copiar o patch + ligar essas opções → **reiniciar**. A Luma reaplica
-  o padrão de LED todo boot (inclusive os triggers de boot/saída de sleep).
-- **Reverter:** apague `/luma/titles/0004013000003502/code.ips` (e/ou
-  `/luma/sysmodules/0004013000003502.ips`) e reinicie.
+In Luma's config (hold SELECT at boot), turn on:
 
-## Estrutura do padrão
-O padrão RGB é o mesmo conceito do controle ao vivo: amostras R/G/B (32) +
-parâmetros de delay/smoothing/loop. O IPS escreve esses bytes no offset do
-módulo — **e esse offset depende da versão do firmware** do módulo de
-notificações, por isso ferramentas como a CtrRGBPAT2 mantêm os offsets certos
-por versão. **Gerar o IPS errado (offset de outra versão) pode travar o boot**
-(recuperável apagando o `.ips`).
+- **Enable game patching**
+- **Enable loading external FIRMs and modules**
 
-## O papel do CustomizerDS
-- **Ao vivo (hoje, seguro):** a aba LED aplica cor/modo na hora via MCU e
-  **restaura o LED ao sair** do app.
-- **Persistente:** por ser **dependente de versão** e **não testável** sem o seu
-  console, o app **não gera o IPS automaticamente às cegas** (um offset errado
-  trava o boot). O caminho seguro/provado é usar a **CtrRGBPAT2** (que mantém os
-  offsets por firmware) pra gerar o patch e ligar o game patching da Luma. Se
-  você quiser, dá pra integrar um gerador no app **depois** de fixarmos os
-  offsets da SUA versão e validarmos no seu 3DS.
+Then use **CtrRGBPAT2** (or CustomRGBPattern) to generate the patch — it knows
+the correct offsets per firmware version. The patch goes to
+`/luma/titles/0004013000003502/code.ips`. Reboot to apply.
 
-Refs: CtrRGBPAT2 (Golem642 / FarmYard-Gaming), CustomRGBPattern (GameBrew),
-Luma3DS game patching, 3dbrew `MCURTC:SetInfoLEDPattern`.
+The app doesn't generate this patch because the offset depends on the firmware
+version; a wrong one would just fail to boot until you delete it. To undo,
+delete `/luma/titles/0004013000003502/code.ips` and reboot.
+
+References: CtrRGBPAT2 (Golem642), CustomRGBPattern, Luma3DS game patching.
