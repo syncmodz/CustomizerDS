@@ -267,21 +267,35 @@ int main() {
 
         if (useComposite && transActive) {
             /* 1) snapshot da tela velha -> A, so no 1o frame (a velha e
-             *    estatica durante a transicao -- secao 2.2). */
+             *    estatica durante a transicao -- secao 2.2).
+             *    OTIMIZACAO de fluidez: no frame do snapshot NAO desenhamos B
+             *    tambem. Em t=0 a tela nova e sempre invisivel (alpha 0 ou
+             *    totalmente fora da tela em TODAS as transicoes), entao render
+             *    A(2 telas)+B(2 telas)+composicao num frame so era ~2x a carga
+             *    -> um soluco no inicio de cada transicao (o "nao-60fps"). Agora
+             *    o frame 0 desenha so A (2 telas) e os frames seguintes so B. */
+            bool snapFrame = transSnapPending;
             if (transSnapPending) {
                 drawScreenToTarget(compositorTop(true), true, transOldScreen, buf, bgTop);
                 drawScreenToTarget(compositorBot(true), false, transOldScreen, buf, bgBot);
                 transSnapPending = false;
+            } else {
+                /* 2) tela nova -> B, todo frame (neutra) -- exceto no frame do
+                 *    snapshot acima. */
+                drawScreenToTarget(compositorTop(false), true, currentScreen, buf, bgTop);
+                drawScreenToTarget(compositorBot(false), false, currentScreen, buf, bgBot);
             }
-
-            /* 2) tela nova -> B, todo frame (neutra). */
-            drawScreenToTarget(compositorTop(false), true, currentScreen, buf, bgTop);
-            drawScreenToTarget(compositorBot(false), false, currentScreen, buf, bgBot);
 
             /* 3) avalia a transicao por tela (W difere: 400 topo / 320 baixo). */
             TransitionFrame tfTop, tfBot;
             transEval(currentTrans, transClock, navDir, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT, &tfTop);
             transEval(currentTrans, transClock, navDir, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT, &tfBot);
+            /* No frame do snapshot B nao foi redesenhada (textura velha/lixo);
+             * como transClock ja avancou ~1dt, alguma transicao poderia desenhar
+             * B com alpha minimo. Forcamos B 100% invisivel nesse 1 frame -- e
+             * imperceptivel (em t~0 ela ja seria quase invisivel) e evita um
+             * flash de lixo. */
+            if (snapFrame) { tfTop.newL.alpha = 0.0f; tfBot.newL.alpha = 0.0f; }
 
             /* 4) compoe A+B nos alvos reais. */
             C2D_SceneBegin(topTarget);

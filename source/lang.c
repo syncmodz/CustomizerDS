@@ -59,6 +59,7 @@ static const char* STRINGS[LANG_COUNT][STR_COUNT] = {
         [STR_STATE] = "Estado",
         [STR_REALTIME] = "Tempo real",
         [STR_SIMULATED] = "Simulado",
+        [STR_FONT_SYSTEM] = "Padrao do Sistema",
         [STR_STARTUP_SLOGAN] = "personalize seu console com estilo",
     },
     /* ===================== LANG_EN ===================== */
@@ -114,6 +115,7 @@ static const char* STRINGS[LANG_COUNT][STR_COUNT] = {
         [STR_STATE] = "State",
         [STR_REALTIME] = "Real time",
         [STR_SIMULATED] = "Simulated",
+        [STR_FONT_SYSTEM] = "System Default",
         [STR_STARTUP_SLOGAN] = "personalize your console in style",
     },
     /* ===================== LANG_ES ===================== */
@@ -169,6 +171,7 @@ static const char* STRINGS[LANG_COUNT][STR_COUNT] = {
         [STR_STATE] = "Estado",
         [STR_REALTIME] = "Tiempo real",
         [STR_SIMULATED] = "Simulado",
+        [STR_FONT_SYSTEM] = "Predeterminada",
         [STR_STARTUP_SLOGAN] = "personaliza tu consola con estilo",
     },
 };

@@ -12,6 +12,24 @@
 FontSystem g_fonts;
 
 static int s_selected = 0;
+static int s_scrollTop = 0; /* §5/§7: lista rolavel (9 fontes nao cabem todas) */
+
+/* Geometria da lista de fontes (render + toque devem usar as MESMAS). */
+#define FL_TOP      8.0f
+#define FL_ROWH     32.0f
+#define FL_ROWINNER 28.0f
+#define FL_X        10.0f
+#define FL_W        300.0f
+#define FL_VISIBLE  6
+
+/* Mantem s_scrollTop de forma que s_selected fique sempre visivel na janela. */
+static void fontsClampScroll(void) {
+    int n = fontsCount();
+    if (s_selected < s_scrollTop) s_scrollTop = s_selected;
+    if (s_selected >= s_scrollTop + FL_VISIBLE) s_scrollTop = s_selected - FL_VISIBLE + 1;
+    int maxTop = (n > FL_VISIBLE) ? (n - FL_VISIBLE) : 0;
+    s_scrollTop = clampi(s_scrollTop, 0, maxTop);
+}
 /* Popup de confirmacao "tem certeza?" (spec v4 4.2) -- aplicar uma fonte so
  * acontece depois do usuario confirmar A no popup, nunca direto no toque. */
 static PopupModal s_popup;
@@ -28,6 +46,7 @@ static const char* FONT_LABELS[] = {
     "Comic Sans MS3",
     "Minecraftia",
     "Patterns & Dots",
+    "Super Mario 64",
 };
 
 /* Caminho dentro da romfs (arquivos .bcfnt em romfs/fonts, gerados com mkbcfnt
@@ -41,6 +60,7 @@ static const char* FONT_PATHS[MAX_CUSTOM_FONTS] = {
     "romfs:/fonts/comic_sans_ms3.bcfnt",
     "romfs:/fonts/minecraftia.bcfnt",
     "romfs:/fonts/patterns_dots.bcfnt",
+    "romfs:/fonts/super_mario_64.bcfnt",
 };
 
 int fontsSelected(void) { return s_selected; }
@@ -48,9 +68,13 @@ int fontsSelected(void) { return s_selected; }
 /* Nunca retorna NULL: se o .bcfnt de um indice nao carregou (arquivo ausente,
  * romfs nao montada etc.), cai pra fonte de sistema em vez de travar -- essa
  * falta de fallback era exatamente o que crashava a tela de Fontes antes. */
+/* index 0 = FONTE DO SISTEMA (sempre disponivel); 1..N = fontes custom em
+ * g_fonts.fonts[index-1]. Cai pra system font se um .bcfnt nao carregar. */
 C2D_Font fontsGetFont(int index) {
     index = clampi(index, 0, fontsCount() - 1);
-    if (index < MAX_CUSTOM_FONTS && g_fonts.fonts[index]) return g_fonts.fonts[index];
+    if (index == 0) return g_fonts.systemFont;
+    int ci = index - 1;
+    if (ci < MAX_CUSTOM_FONTS && g_fonts.fonts[ci]) return g_fonts.fonts[ci];
     return g_fonts.systemFont;
 }
 
@@ -117,13 +141,16 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
     if (in->up) s_selected = (s_selected - 1 + fontsCount()) % fontsCount();
 
     if (in->touchDown) {
-        for (int i = 0; i < fontsCount(); i++) {
-            float by = 8.0f + i * 25.0f; /* deve bater com fontsRenderBottom */
-            if (in->touchPY >= by && in->touchPY < by + 22 &&
-                in->touchPX >= 10 && in->touchPX < 310) {
+        /* mesma janela rolavel do render (FL_*), mapeando o toque ao item visivel. */
+        fontsClampScroll();
+        int n = fontsCount();
+        for (int v = 0; v < FL_VISIBLE && (s_scrollTop + v) < n; v++) {
+            float by = FL_TOP + v * FL_ROWH;
+            if (in->touchPY >= by && in->touchPY < by + FL_ROWINNER &&
+                in->touchPX >= FL_X && in->touchPX < FL_X + FL_W) {
                 /* Toque so seleciona/previa -- aplicar sempre passa pelo
                  * popup de confirmacao (A), nunca direto no toque. */
-                s_selected = i;
+                s_selected = s_scrollTop + v;
                 return;
             }
         }
@@ -135,15 +162,18 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
 }
 
 static const char* previewLine(int index) {
+    /* index 0 = sistema; 1..9 = fontes custom (na ordem de FONT_LABELS). */
     switch (index) {
-        case 0: return "round friendly interface";
-        case 1: return "ROUND FRIENDLY BOLD";
-        case 2: return "sleek future display";
-        case 3: return "SLEEK FUTURE BOLD";
-        case 4: return "lovely handwritten style";
-        case 5: return "casual comic lettering";
-        case 6: return "blocky pixel typeface";
-        case 7: return "dingbat symbols & dots"; /* §10.3: dingbat -> vira simbolos */
+        case 0: return "system default preview";
+        case 1: return "round friendly interface";
+        case 2: return "ROUND FRIENDLY BOLD";
+        case 3: return "sleek future display";
+        case 4: return "SLEEK FUTURE BOLD";
+        case 5: return "lovely handwritten style";
+        case 6: return "casual comic lettering";
+        case 7: return "blocky pixel typeface";
+        case 8: return "dingbat symbols & dots"; /* dingbat -> vira simbolos */
+        case 9: return "ITS A ME MARIO 123";      /* charset de jogo, limitado */
         default: return "system default preview";
     }
 }
@@ -206,14 +236,11 @@ void fontsRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, 
      * caixa em 32..368 fecha com margem 16 simetrica dos dois lados. */
     UI_RoundFrame(32 + slideX, boxY, 336, boxH, 14, previewBg, (ColorRGBA){255, 255, 255, 12});
 
-    bool bold = (s_selected == 1 || s_selected == 3);
-    bool alt = (s_selected == 2 || s_selected == 3);
-    UI_Text(buf, f, previewLine(s_selected), 48 + slideX, boxY + 14,
-            alt ? 0.40f : 0.36f, bold ? 0.44f : 0.36f, g_theme.textPrimary);
-    UI_Text(buf, f, "Aa Bb Cc 123", 48 + slideX, boxY + 46,
-            alt ? 0.48f : 0.44f, bold ? 0.52f : 0.44f, g_theme.accent);
-    UI_Text(buf, f, "0123456789 !?", 48 + slideX, boxY + 84,
-            alt ? 0.30f : 0.28f, bold ? 0.32f : 0.28f, g_theme.textSecondary);
+    /* Tamanhos uniformes (o "bold/alt" por indice fixo saiu -- com a fonte do
+     * sistema no indice 0 os indices mudaram e aquilo viraria bug). */
+    UI_Text(buf, f, previewLine(s_selected), 48 + slideX, boxY + 14, 0.36f, 0.36f, g_theme.textPrimary);
+    UI_Text(buf, f, "Aa Bb Cc 123", 48 + slideX, boxY + 46, 0.44f, 0.44f, g_theme.accent);
+    UI_Text(buf, f, "0123456789 !?", 48 + slideX, boxY + 84, 0.28f, 0.28f, g_theme.textSecondary);
 
     if (fadeA < 0.999f) {
         ColorRGBA veil = g_theme.backgroundTop;
@@ -231,18 +258,21 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
      * bicolor reclamado. Aqui a tela toda fica numa cor so. */
     UI_TouchBarBackground();
 
-    /* §7b/§9: lista das 8 fontes. Com 8 linhas o passo antigo (34px desde
-     * y=56) estourava a tela (ultimas linhas caiam atras da help bar); passo
-     * 25px desde y=8 cabe as 8 e ainda preenche o vao que sobrava com 5. */
-    for (int i = 0; i < fontsCount(); i++) {
-        float by = 8.0f + i * 25.0f + offset;
-        /* Stagger 3.2 exato: 40ms entre linhas, 260ms cada, easeOutCubic. */
-        float ap = UI_StaggerT(i, 0.04f, 0.26f);
+    /* §5/§7: lista ROLAVEL das 9 fontes (mostra FL_VISIBLE por vez). Nomes
+     * MAIORES (0.30, na propria fonte) e a fonte EM USO marcada por uma
+     * bolinha Reva (ICON_SWATCH_THIN tint success) em vez do selo de texto. */
+    fontsClampScroll();
+    int n = fontsCount();
+    for (int v = 0; v < FL_VISIBLE && (s_scrollTop + v) < n; v++) {
+        int i = s_scrollTop + v;
+        float by = FL_TOP + v * FL_ROWH + offset;
+        float ap = UI_StaggerT(v, 0.04f, 0.26f);
         if (ap <= 0.0f) continue;
         float slide = (1.0f - ap) * 10.0f;
 
-        bool selected = (i == s_selected);
-        bool isCurrent = (i == g_fonts.currentIndex);
+        bool selected = (i == s_selected);   /* foco (D-pad) */
+        bool isCurrent = (i == g_fonts.currentIndex); /* em uso */
+        float rx = FL_X + slide + slideX;
 
         ColorRGBA bg = selected
             ? themeCardSelBg()
@@ -250,18 +280,28 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         ColorRGBA border = selected
             ? g_theme.accent
             : (themeIsDark() ? (ColorRGBA){255, 255, 255, 8} : (ColorRGBA){0, 0, 0, 8});
-        if (selected) border.a = 80;
+        if (selected) border.a = 110; /* realce de FOCO accent visivel (§6) */
 
-        if (selected) UI_Shadow(10 + slide + slideX, by + slide, 300, 22, 11, 30, 1.5f);
-        UI_RoundFrame(10 + slide + slideX, by + slide, 300, 22, 11, bg, border);
+        if (selected) UI_Shadow(rx, by + slide, FL_W, FL_ROWINNER, 14, 30, 1.5f);
+        UI_RoundFrame(rx, by + slide, FL_W, FL_ROWINNER, 14, bg, border);
 
         ColorRGBA textCol = selected ? g_theme.textPrimary : g_theme.textSecondary;
-        /* nome de cada fonte renderizado na PROPRIA fonte (preview real, §9). */
-        UI_Text(buf, fontsGetFont(i), FONT_LABELS[i], 20 + slide + slideX, by + 3 + slide, 0.24f, 0.24f, textCol);
+        UI_Text(buf, fontsGetFont(i), fontsLabel(i), rx + 14, by + 5 + slide, 0.30f, 0.30f, textCol);
 
         if (isCurrent) {
-            UI_Badge(buf, 262 + slideX, by + 3 + slide, T(STR_IN_USE), g_theme.success);
+            /* bolinha Reva "em uso" (success) na ponta direita do item. */
+            iconsDraw(ICON_SWATCH_THIN, rx + FL_W - 18, by + FL_ROWINNER * 0.5f + slide, 18.0f, g_theme.success, 1.0f);
         }
+    }
+
+    /* scrollbar arredondada na borda direita (font-safe, sem glifos unicode). */
+    if (n > FL_VISIBLE) {
+        float sbX = SCREEN_BOT_WIDTH - 6.0f, sbTop = FL_TOP + offset, sbH = FL_VISIBLE * FL_ROWH;
+        ColorRGBA track = g_theme.textHint; track.a = 40;
+        UI_RoundRect(sbX, sbTop, 3.0f, sbH, 1.5f, track);
+        float thumbH = sbH * (float)FL_VISIBLE / (float)n;
+        float thumbY = sbTop + sbH * (float)s_scrollTop / (float)n;
+        UI_RoundRect(sbX, thumbY, 3.0f, thumbH, 1.5f, g_theme.accent);
     }
 
     UI_HelpBar(buf, T(STR_HELP_FONTS_L), T(STR_SAIR));
@@ -284,14 +324,18 @@ const char* fontsCurrentName(void) {
 
 const char* fontsLabel(int index) {
     index = clampi(index, 0, fontsCount() - 1);
-    return FONT_LABELS[index];
+    if (index == 0) return T(STR_FONT_SYSTEM); /* §A v10: 1a opcao = sistema */
+    return FONT_LABELS[index - 1];
 }
 
 int fontsCount(void) {
-    return (int)(sizeof(FONT_LABELS) / sizeof(FONT_LABELS[0]));
+    /* 1 (Padrao do Sistema) + N fontes custom. */
+    return 1 + (int)(sizeof(FONT_LABELS) / sizeof(FONT_LABELS[0]));
 }
 
 bool fontsLoaded(int index) {
-    if (index < 0 || index >= MAX_CUSTOM_FONTS) return true; /* fonte de sistema */
-    return g_fonts.fonts[index] != NULL;
+    if (index == 0) return true; /* sistema sempre disponivel */
+    int ci = index - 1;
+    if (ci < 0 || ci >= MAX_CUSTOM_FONTS) return true;
+    return g_fonts.fonts[ci] != NULL;
 }

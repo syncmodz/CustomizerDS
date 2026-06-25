@@ -156,6 +156,12 @@ void ledInit(void) {
     s_lastResult = mcuHwcInit();
     s_mcuReady = R_SUCCEEDED(s_lastResult);
     initSliderTweens();
+    /* §9: reaplica o LED salvo JA no boot do app (antes so carregava a config
+     * e esperava o usuario interagir). Assim a cor/padrao escolhidos voltam
+     * sempre que o app abre -- persistencia "a nivel de app". A persistencia
+     * REAL atraves de reboot do console e via patch da Luma (docs/LED_PERSIST.md),
+     * que e dependente de versao e nao geramos as cegas. */
+    applyLed();
 }
 
 void ledEnter(void) {
@@ -166,11 +172,12 @@ void ledEnter(void) {
 
 void ledExit(void) {
     if (s_mcuReady) {
-        /* §14.3: restaura o LED ao sair -- limpa nosso padrao customizado
-         * (apaga, estado ocioso) pra nao deixar a cor do usuario "presa". O
-         * LED de notificacao e MCU, NAO NAND: nenhum risco de brick, e um
-         * reboot ja reverteria de qualquer forma. */
-        setPatternSolid(0, 0, 0);
+        /* v1.1: NAO limpamos mais o LED ao sair. O dono quer que a cor/padrao
+         * CONTINUE depois de fechar o app -- o MCU mantem o ultimo padrao
+         * ate um reboot ou uma notificacao do sistema. (Antes a gente apagava
+         * de proposito; era isso que fazia "o led sumir ao sair do app".)
+         * Persistencia ATRAVES de reboot e via patch da Luma -- ver
+         * docs/LED_PERSIST.md. */
         mcuHwcExit();
         s_mcuReady = false;
     }

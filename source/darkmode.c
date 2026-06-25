@@ -685,12 +685,13 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         iconsDraw(ICON_SWATCH_THIN, scx, scy, drawSz, ac, 1.0f);
 
         if (i == themeAccentCount()) {
-            /* swatch HEX: rotulo "HEX" por cima pra distinguir dos presets.
-             * Agora o swatch e um anel de miolo TRANSLUCIDO, entao o texto fica
-             * sobre o fundo da tela (nao sobre a cor solida) -- por isso usamos
-             * g_theme.textPrimary (alto contraste com o fundo) em vez de
-             * themeContrastText(cor), que sumia. */
-            UI_TextCenter(buf, NULL, "HEX", scx, scy - 6, 0.21f, 0.21f, g_theme.textPrimary);
+            /* swatch HEX: "HEX" SEMPRE legivel. O swatch e um anel de miolo
+             * translucido, entao o texto antes sumia/transbordava (era maior que
+             * a bolinha). Agora vai numa pilula escura arredondada + "HEX" branco
+             * pequeno, centrado -> legivel sobre qualquer cor/tema. */
+            float lw = 24.0f, lh = 13.0f;
+            UI_RoundRect(scx - lw * 0.5f, scy - lh * 0.5f, lw, lh, lh * 0.5f, (ColorRGBA){0, 0, 0, 165});
+            UI_TextCenter(buf, NULL, "HEX", scx, scy - 5.0f, 0.16f, 0.16f, (ColorRGBA){255, 255, 255, 255});
         }
     }
 

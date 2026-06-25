@@ -68,6 +68,8 @@ typedef enum {
     STR_STATE,
     STR_REALTIME,
     STR_SIMULATED,
+    /* fontes */
+    STR_FONT_SYSTEM,
     /* startup */
     STR_STARTUP_SLOGAN,
     STR_COUNT

@@ -529,50 +529,22 @@ void UI_ABBadge(float cx, float cy, float r, bool isA, float alpha) {
 /* ==================== BOTTOM SCREEN (Touch Bar) ==================== */
 
 void UI_BottomBackground(void) {
+    /* §2 (v10): fundo UNIFORME. Antes desenhava uma faixa "Touch Bar" quase-preta
+     * (50px no topo) + um painel de conteudo de tom diferente embaixo -- a emenda
+     * desses dois tons era o "bicolor" reclamado. Agora a tela de baixo inteira
+     * usa g_theme.background como base e os controles (pilulas/segmented/cards)
+     * ficam por cima com fundo proprio arredondado. O wipe radial de tema
+     * continua. */
     ThemeWipe* wp = themeWipeGet();
-
-    /* Faixa de controles = Touch Bar real: praticamente preta, nao cinza-azulada.
-     * Os chips nao-selecionados (UI_PillButton etc) usam um cinza bem mais claro
-     * que isso de proposito, pra terem contraste real contra a faixa. */
-    ColorRGBA touchBarBg = themeIsDark()
-        ? (ColorRGBA){10, 10, 11, 255}
-        : (ColorRGBA){242, 242, 242, 255};
-    ColorRGBA contentBg = themeIsDark()
-        ? (ColorRGBA){24, 24, 26, 255}
-        : (ColorRGBA){247, 247, 247, 255};
-
     if (wp->active) {
-        /* Transicao yin-yang (spec v5 6): wipe radial real na camada base
-         * (que e o que de fato fica visivel atras das bandas, na faixa de
-         * ajuda no rodape). As bandas touch-bar/conteudo cobrem quase toda
-         * a tela e citro2d nao tem clipping circular (so scissor
-         * rectangular via GPU, arriscado de calibrar sem emulador p/
-         * validar a transformacao de coordenadas) -- entao elas crossfadem
-         * old->novo na MESMA janela de tempo do wipe em vez de cortar com a
-         * forma radial exata. Combinado ao wipe real da tela de cima e ao
-         * icone girando, ainda comunica claramente "tema antigo sendo
-         * engolido pelo novo a partir do icone". */
         UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT, wp->oldBgBot);
         float t = clampf(wp->t / THEME_WIPE_DUR, 0.0f, 1.0f);
         float radius = easeFunc(t, EASE_OUT_CUBIC) *
             wipeMaxRadius(wp->originBotX, wp->originBotY, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT);
         C2D_DrawCircleSolid(wp->originBotX, wp->originBotY, 0.0f, radius, themeColor(g_theme.background));
-
-        ColorRGBA oldTouchBarBg = wp->wasDark
-            ? (ColorRGBA){10, 10, 11, 255} : (ColorRGBA){242, 242, 242, 255};
-        ColorRGBA oldContentBg = wp->wasDark
-            ? (ColorRGBA){24, 24, 26, 255} : (ColorRGBA){247, 247, 247, 255};
-        float ce = easeFunc(t, EASE_OUT_CUBIC);
-        touchBarBg = themeMix(oldTouchBarBg, touchBarBg, ce);
-        contentBg = themeMix(oldContentBg, contentBg, ce);
     } else {
         UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT, g_theme.background);
     }
-
-    UI_Fill(0, 0, SCREEN_BOT_WIDTH, 50, touchBarBg);
-    ColorRGBA stripDiv = {255, 255, 255, themeIsDark() ? 14 : 20};
-    UI_Fill(0, 50, SCREEN_BOT_WIDTH, 1, stripDiv);
-    UI_Fill(0, 50, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT - 50 - 26, contentBg);
 }
 
 void UI_TouchBarBackground(void) {

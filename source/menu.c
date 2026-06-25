@@ -149,7 +149,7 @@ void menuUpdate(const AppInput* in, int* currentScreen) {
     if (s_selected != prevSelected) pillFocusChange(prevSelected, s_selected);
 
     if (in->touchDown) {
-        float tbY = 12.0f;
+        float tbY = 60.0f; /* deve bater com menuRenderBottom */
         float btnW = 90.0f;
         float btnH = 32.0f;
         float gap = 12.0f;
@@ -167,7 +167,7 @@ void menuUpdate(const AppInput* in, int* currentScreen) {
                 return;
             }
         }
-        float descY = 92.0f; /* deve bater com menuRenderBottom */
+        float descY = 110.0f; /* deve bater com menuRenderBottom */
         if (in->touchPY >= descY && in->touchPY < descY + 70 &&
             in->touchPX >= 20 && in->touchPX < 300) {
             *currentScreen = ITEMS[s_selected].target;
@@ -318,7 +318,10 @@ void menuRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA
     float et = UI_EnterProgress();
     UI_BottomBackground();
 
-    float tbY = 12.0f + offset;
+    /* As 3 pilulas (Fontes/Tema/LED) e o card de info DESCEM juntos pro
+     * centro-baixo da tela de baixo (feedback: descer "font/app theme/rgb led",
+     * nao so o card). Antes as pilulas ficavam coladas no topo (y=12). */
+    float tbY = 60.0f + offset;
     float btnW = 90.0f * scaleM;
     float btnH = 32.0f;
     float gap = 12.0f;
@@ -340,10 +343,8 @@ void menuRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA
                             i == s_selected, appearT, pressScale, focusScale);
     }
 
-    /* Centralizado no MEIO da tela de baixo (feedback do dono): o card de
-     * info desce de 56 pra 92, ficando no centro da area abaixo da faixa de
-     * pilulas em vez de colado no topo com um vao enorme embaixo. */
-    float descY = 92.0f + offset;
+    /* Card de info logo abaixo das pilulas (que agora estao em y=60). */
+    float descY = 110.0f + offset;
     float descAp = clampf((et * 2.0f - 0.15f), 0.0f, 1.0f);
     float da = easeOutCubic(descAp);
     ColorRGBA descBg = themeIsDark()
