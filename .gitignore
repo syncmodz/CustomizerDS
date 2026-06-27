@@ -9,6 +9,19 @@ build/
 bin/
 dist/
 
+# Exceção: header NCCH vendorizado p/ gerar os .cia de fonte de sistema
+# (make sysfont). É fonte, não artefato -- precisa ser versionado.
+!scripts/sysfont/ncchheader.bin
+
+# Fonte de sistema STOCK extraída da NAND do dono + .cia de fonte embutidos:
+# são dados de fonte do console (Nintendo) -- NÃO versionar / NÃO publicar.
+scripts/sysfont/stock/
+romfs/sysfont/
+# TTFs/OTFs fonte do merge (terceiros / "personal use") + venv do freetype:
+# NÃO versionar / NÃO publicar.
+scripts/sysfont/ttf/
+scripts/sysfont/.venv/
+
 # IDE / Editor
 .vscode/
 .idea/

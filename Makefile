@@ -8,6 +8,7 @@ DEVKITARM := $(DEVKITPRO)/devkitARM
 
 BANNERTOOL := /home/chicharito/bin/bannertool
 MAKEROM := /home/chicharito/bin/makerom
+THREEDSTOOL := /home/chicharito/bin/3dstool
 3DSXTOOL := /opt/devkitpro/tools/bin/3dsxtool
 MKROMFS := /opt/devkitpro/tools/bin/mkromfs3ds
 TEX3DS := /opt/devkitpro/tools/bin/tex3ds
@@ -48,12 +49,36 @@ SMDH := $(BUILD)/$(TARGET).smdh
 ROMFS_BIN := $(BUILD)/romfs.bin
 ROMFS_RAW := $(BUILD)/romfs_raw.bin
 
+# PROMPT v14 §4 (hardware) -- .cia de fonte de sistema EMBUTIDOS na romfs
+# (romfs/sysfont/), instalados in-app na CTRNAND via AM. Um por fonte custom
+# (mesma ordem do app; ui_comfortaa_bold e a fonte do chrome, fica de fora) +
+# o STOCK (fonte original extraida da NAND do dono). Gerados por
+# scripts/mk_sysfont_cia.py (3dstool+makerom+ncchheader.bin). romfs/sysfont/ e
+# scripts/sysfont/stock/ sao gitignored (contem fonte do console = Nintendo).
+SYSFONT_HDR := scripts/sysfont/ncchheader.bin
+SYSFONT_STOCK_LZ := scripts/sysfont/stock/cbf_std.bcfnt.lz
+SYSFONT_STOCK_BCFNT := scripts/sysfont/stock/cbf_std.bcfnt
+SYSFONT_TTF_DIR := scripts/sysfont/ttf
+SYSFONT_DIR := $(DATA)/sysfont
+SYSFONT_FONTS := comfortaa_regular comfortaa_bold made_evolve_regular made_evolve_bold love_house comic_sans_ms3 super_mario_64
+# python com freetype-py p/ o merge (venv do projeto); cai pra python3 se faltar.
+PYFT := $(if $(wildcard scripts/sysfont/.venv/bin/python),scripts/sysfont/.venv/bin/python,python3)
+# CRITICO: a fonte de sistema custom e feita por MERGE na STOCK (mk_sysfont_merge.py)
+# -- NUNCA por mkbcfnt cru (95 glifos -> crasha/brick). So embute a fonte cujo
+# TTF/OTF existe localmente (gitignored); STOCK so se o .lz existir. Clone publico
+# (sem fontes) builda o app sem essas .cia, sem quebrar.
+SYSFONT_EMBED_CIAS :=
+$(foreach f,$(SYSFONT_FONTS),$(if $(wildcard $(SYSFONT_TTF_DIR)/$(f).*),$(eval SYSFONT_EMBED_CIAS += $(SYSFONT_DIR)/SystemFont_$(f).cia)))
+ifneq ($(wildcard $(SYSFONT_STOCK_LZ)),)
+SYSFONT_EMBED_CIAS += $(SYSFONT_DIR)/SystemFont_STOCK.cia
+endif
+
 all: $(3DSX) $(CIA)
 
 $(3DSX): $(ELF) $(SMDH) $(ROMFS_RAW)
 	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_RAW)
 
-$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o $(BUILD)/transitions.o $(BUILD)/compositor.o $(BUILD)/lang.o
+$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o $(BUILD)/transitions.o $(BUILD)/compositor.o $(BUILD)/lang.o $(BUILD)/sysfont.o
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 $(BUILD)/%.o: $(SOURCES)/%.c
@@ -106,6 +131,7 @@ $(APP_RSF):
 	@echo '   - hid:USER' >> $@
 	@echo '   - apt:u' >> $@
 	@echo '   - am:APP' >> $@
+	@echo '   - am:net' >> $@
 	@echo '   - ac:u' >> $@
 	@echo '   - pxi:dev' >> $@
 	@echo '   - mcu::HWC' >> $@
@@ -172,7 +198,7 @@ EXTRA_T3X := $(DATA)/gfx/extra.t3x
 $(EXTRA_T3X): $(EXTRA_T3S) $(DATA)/gfx/swatch_ring_thick_3x.png $(DATA)/gfx/swatch_ring_thin_3x.png $(DATA)/gfx/icon_256.png
 	$(TEX3DS) -i $(EXTRA_T3S) -o $(EXTRA_T3X) -H source/extra_gen.h
 
-$(ROMFS_RAW): $(DATA) $(EXTRA_T3X)
+$(ROMFS_RAW): $(DATA) $(EXTRA_T3X) $(SYSFONT_EMBED_CIAS)
 	@mkdir -p $(BUILD)
 	$(MKROMFS) $(DATA) $@
 
@@ -182,7 +208,7 @@ $(ROMFS_RAW): $(DATA) $(EXTRA_T3X)
 # aceitava mas o 3DS nao conseguia ler -> icones/fontes sumiam SO no .cia (o
 # .3dsx usa o romfs cru direto e sempre funcionou). O .t3x tem que existir
 # antes do makerom varrer a pasta, dai a dependencia em EXTRA_T3X.
-$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(EXTRA_T3X)
+$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(EXTRA_T3X) $(SYSFONT_EMBED_CIAS)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
 	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER)
 
@@ -193,7 +219,35 @@ preview3dsx: $(PREVIEW_3DSX)
 $(PREVIEW_3DSX): $(ELF) $(SMDH) $(ROMFS_RAW)
 	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_RAW)
 
+# .cia de fonte de sistema embutidos -- gerados pelo `all` (prereq de ROMFS_RAW/
+# CIA); `make sysfont` regenera so eles. Custom = MERGE na STOCK; STOCK = do .lz.
+sysfont: $(SYSFONT_EMBED_CIAS)
+	@echo "Fontes de sistema (merge) em $(SYSFONT_DIR)/ (STOCK = fonte original do console)."
+
+# STOCK descomprimida = input do merge (a partir do .lz original).
+$(SYSFONT_STOCK_BCFNT): $(SYSFONT_STOCK_LZ)
+	$(THREEDSTOOL) -uvf $< --compress-type lzex --compress-out $@
+
+# Regra de MERGE por fonte: STOCK + TTF/OTF -> .bcfnt merge (glyph set completo,
+# Latin re-estilizado) -> .cia. mk_sysfont_merge.py precisa de freetype ($(PYFT)).
+define SYSFONT_MERGE_RULE
+$(SYSFONT_DIR)/SystemFont_$(1).cia: $(wildcard $(SYSFONT_TTF_DIR)/$(1).*) $(SYSFONT_STOCK_BCFNT) $(SYSFONT_HDR) scripts/mk_sysfont_merge.py scripts/mk_sysfont_cia.py
+	@mkdir -p $(SYSFONT_DIR) $(BUILD)/mergedfonts
+	$(PYFT) scripts/mk_sysfont_merge.py $(SYSFONT_STOCK_BCFNT) $$(firstword $$(wildcard $(SYSFONT_TTF_DIR)/$(1).*)) $(BUILD)/mergedfonts/$(1).bcfnt
+	python3 scripts/mk_sysfont_cia.py $(BUILD)/mergedfonts/$(1).bcfnt $$@ --header $(SYSFONT_HDR) --3dstool $(THREEDSTOOL) --makerom $(MAKEROM)
+endef
+$(foreach f,$(SYSFONT_FONTS),$(eval $(call SYSFONT_MERGE_RULE,$(f))))
+
+# Fonte STOCK -> .cia direto do .lz original (fiel, sem recomprimir, --lz).
+$(SYSFONT_DIR)/SystemFont_STOCK.cia: $(SYSFONT_STOCK_LZ) $(SYSFONT_HDR) scripts/mk_sysfont_cia.py
+	@mkdir -p $(SYSFONT_DIR)
+	python3 scripts/mk_sysfont_cia.py $< $@ --lz --header $(SYSFONT_HDR) --3dstool $(THREEDSTOOL) --makerom $(MAKEROM)
+
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all clean preview3dsx
+# Remove tambem os .cia de fonte embutidos (artefatos em romfs/).
+clean-sysfont:
+	rm -rf $(SYSFONT_DIR)
+
+.PHONY: all clean clean-sysfont preview3dsx sysfont

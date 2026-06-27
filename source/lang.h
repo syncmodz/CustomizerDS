@@ -70,6 +70,12 @@ typedef enum {
     STR_SIMULATED,
     /* fontes */
     STR_FONT_SYSTEM,
+    STR_SYSFONT_CONFIRM,  /* popup A/B ao aplicar como fonte do sistema */
+    STR_SYSFONT_RESTORE,  /* popup A/B ao restaurar a fonte original */
+    STR_SYSFONT_DONE,     /* instalado, reiniciando */
+    STR_SYSFONT_FAIL,     /* falhou (tamanho/escrita) */
+    STR_SYSFONT_INSTALLING, /* tela de progresso do install */
+    STR_HELP_FONTS_X,     /* "X fonte do sistema" */
     /* startup */
     STR_STARTUP_SLOGAN,
     STR_COUNT

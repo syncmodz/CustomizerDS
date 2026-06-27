@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include "input.h"
 
-#define MAX_CUSTOM_FONTS 9
+#define MAX_CUSTOM_FONTS 7
 
 typedef struct {
     C2D_Font fonts[MAX_CUSTOM_FONTS];
