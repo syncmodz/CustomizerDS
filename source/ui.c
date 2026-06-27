@@ -11,6 +11,25 @@ float g_enterT = 1.0f;
 float g_frame = 0.0f;
 ScreenTransition g_trans;
 
+/* v1.0.2 §2: fonte global do CHROME = Comfortaa Bold (gordinha, legivel no
+ * console -- a fonte de sistema fina era ilegivel em 240px). Tem acentos
+ * Latinos, entao PT/EN/ES seguem ok. So o chrome usa ela (font==NULL); o
+ * preview da aba Fontes passa a fonte explicita e nao e afetado. Se nao
+ * carregar, parse() cai na fonte de sistema (nunca trava). */
+static C2D_Font g_uiFont = NULL;
+/* UI_TEXT_SCALE vem de ui.h (publico). Aplicado so quando font==NULL (chrome),
+ * nunca no preview de fonte. */
+
+void UI_FontInit(void) {
+    /* ui_comfortaa_bold.bcfnt = Comfortaa Bold gerada com whitelist ASCII +
+     * Latin-1 (0x20-0x7E, 0xA0-0xFF) -> tem os acentos PT/ES. A
+     * comfortaa_bold.bcfnt original (so ASCII) continua intacta pro preview. */
+    if (!g_uiFont) g_uiFont = C2D_FontLoad("romfs:/fonts/ui_comfortaa_bold.bcfnt");
+}
+void UI_FontExit(void) {
+    if (g_uiFont) { C2D_FontFree(g_uiFont); g_uiFont = NULL; }
+}
+
 void uiFrameTick(float dt) {
     if (dt <= 0.0f || dt > 0.25f) dt = 1.0f / 60.0f;
     s_dt = dt;
@@ -257,15 +276,48 @@ void UI_GradientH(float x, float y, float w, float h, ColorRGBA left, ColorRGBA 
 
 static C2D_Text parse(C2D_Text* out, C2D_TextBuf buf, C2D_Font font, const char* text) {
     if (!text || !text[0]) return *out;
-    if (font) C2D_TextFontParse(out, font, buf, text);
-    else C2D_TextParse(out, buf, text);
+    C2D_Font use = font ? font : g_uiFont; /* chrome usa Comfortaa Bold (g_uiFont) */
+    if (use) C2D_TextFontParse(out, use, buf, text);
+    else C2D_TextParse(out, buf, text);   /* fallback: fonte de sistema */
     C2D_TextOptimize(out);
     return *out;
+}
+
+/* §2: o chrome (font==NULL) ganha +25% de tamanho pra legibilidade no console;
+ * o preview de fonte (font explicita) fica no tamanho original. */
+static inline float uiChromeScale(C2D_Font font) { return font ? 1.0f : UI_TEXT_SCALE; }
+
+/* §3: ANEL DE FOCO accent animado (pulsa), desenhado ATRAS do elemento focado
+ * -- chamar ANTES de desenhar o elemento. Distinto da selecao/aplicado: e o
+ * halo accent ao redor do que o D-pad esta apontando agora. */
+void UI_FocusRing(float x, float y, float w, float h, float r) {
+    /* §redesign: indicador de foco LIMPO e ESTATICO (sem o halo pulsante que
+     * poluia). Um glow accent suave e estavel atras do elemento focado +
+     * uma borda nitida fina -- coerente em todo o app. */
+    /* Desenhado ATRAS do elemento focado (o elemento cobre o centro), entao
+     * dois retangulos accent = glow suave + aro nitido em volta. */
+    ColorRGBA glow = g_theme.accent; glow.a = 70;
+    UI_RoundRect(x - 4.0f, y - 4.0f, w + 8.0f, h + 8.0f, r + 4.0f, glow);
+    ColorRGBA edge = g_theme.accent; edge.a = 235;
+    UI_RoundRect(x - 2.0f, y - 2.0f, w + 4.0f, h + 4.0f, r + 2.0f, edge);
+}
+
+/* Largura REAL do texto como sera desenhado (fonte/escala do chrome) -- pra
+ * dimensionar caixas (badges) sem o texto transbordar. */
+float UI_TextWidth(C2D_TextBuf buf, C2D_Font font, const char* text, float sx) {
+    if (!text || !text[0]) return 0.0f;
+    float k = uiChromeScale(font);
+    C2D_Text t;
+    parse(&t, buf, font, text);
+    float tw = 0.0f;
+    C2D_TextGetDimensions(&t, sx * k, sx * k, &tw, NULL);
+    return tw;
 }
 
 void UI_Text(C2D_TextBuf buf, C2D_Font font, const char* text,
              float x, float y, float sx, float sy, ColorRGBA color) {
     if (!text || !text[0]) return;
+    float k = uiChromeScale(font); sx *= k; sy *= k;
     C2D_Text t;
     parse(&t, buf, font, text);
     C2D_DrawText(&t, C2D_WithColor, x, y, 0.0f, sx, sy, u32c(color));
@@ -274,6 +326,7 @@ void UI_Text(C2D_TextBuf buf, C2D_Font font, const char* text,
 void UI_TextRight(C2D_TextBuf buf, C2D_Font font, const char* text,
                   float right, float y, float sx, float sy, ColorRGBA color) {
     if (!text || !text[0]) return;
+    float k = uiChromeScale(font); sx *= k; sy *= k;
     C2D_Text t;
     parse(&t, buf, font, text);
     float tw = 0.0f;
@@ -284,6 +337,7 @@ void UI_TextRight(C2D_TextBuf buf, C2D_Font font, const char* text,
 void UI_TextCenter(C2D_TextBuf buf, C2D_Font font, const char* text,
                    float centerX, float y, float sx, float sy, ColorRGBA color) {
     if (!text || !text[0]) return;
+    float k = uiChromeScale(font); sx *= k; sy *= k;
     C2D_Text t;
     parse(&t, buf, font, text);
     float tw = 0.0f;
@@ -299,6 +353,7 @@ void UI_TextCenterFit(C2D_TextBuf buf, C2D_Font font, const char* text,
                       float centerX, float y, float sxMax, float sxMin,
                       float maxW, ColorRGBA color) {
     if (!text || !text[0]) return;
+    float k = uiChromeScale(font); sxMax *= k; sxMin *= k; /* §2: chrome +25% */
     C2D_Text t;
     parse(&t, buf, font, text);
     float tw = 0.0f;
@@ -788,21 +843,27 @@ void UI_HelpBar(C2D_TextBuf buf, const char* left, const char* right) {
     UI_Fill(0, hy, SCREEN_BOT_WIDTH, 26, barBg);
     ColorRGBA div = {255, 255, 255, themeIsDark() ? 4 : 6};
     UI_Fill(0, hy, SCREEN_BOT_WIDTH, 1, div);
-    if (left) UI_Text(buf, NULL, left, 9, hy + 5, 0.22f, 0.22f, g_theme.textSecondary);
-    if (right) UI_TextRight(buf, NULL, right, SCREEN_BOT_WIDTH - 9, hy + 5, 0.22f, 0.22f, g_theme.textSecondary);
+    /* §2: com o chrome +25% e em Bold, esquerda+direita podiam colidir no meio.
+     * Medimos as duas (no tamanho real) e, se nao couberem, encolhemos as duas
+     * juntas ate caber -- legivel e sem invadir uma a outra. */
+    float base = 0.22f;
+    float lw = left ? UI_TextWidth(buf, NULL, left, base) : 0.0f;
+    float rw = right ? UI_TextWidth(buf, NULL, right, base) : 0.0f;
+    float avail = (float)SCREEN_BOT_WIDTH - 18.0f - 10.0f; /* margens 9+9 + folga */
+    if (lw + rw > avail && (lw + rw) > 0.0f) base *= avail / (lw + rw);
+    if (left) UI_Text(buf, NULL, left, 9, hy + 5, base, base, g_theme.textSecondary);
+    if (right) UI_TextRight(buf, NULL, right, SCREEN_BOT_WIDTH - 9, hy + 5, base, base, g_theme.textSecondary);
 }
 
 void UI_Badge(C2D_TextBuf buf, float x, float y, const char* text, ColorRGBA bg) {
     if (!text || !text[0]) return;
     float tw = 0.0f;
     C2D_Text tmp;
-    C2D_TextParse(&tmp, buf, text);
-    C2D_TextOptimize(&tmp);
-    C2D_TextGetDimensions(&tmp, 0.22f, 0.22f, &tw, NULL);
-    /* Margem de seguranca + minimo por numero de caracteres: badges com texto
-     * mais longo ("led ativo", "A para aplicar") estavam saindo da caixa --
-     * a largura medida sozinha nao bastava, entao garantimos um piso. */
-    float minW = (float)strlen(text) * 7.5f;
+    parse(&tmp, buf, NULL, text); /* mede com a fonte/escala REAL do chrome */
+    /* §2: mede no tamanho DESENHADO (0.22 * UI_TEXT_SCALE) -- UI_TextCenter
+     * abaixo aplica o mesmo fator, senao o texto saia maior que a pilula. */
+    C2D_TextGetDimensions(&tmp, 0.22f * UI_TEXT_SCALE, 0.22f * UI_TEXT_SCALE, &tw, NULL);
+    float minW = (float)strlen(text) * 7.5f * UI_TEXT_SCALE;
     float pw = fmaxf(tw, minW) + 18.0f;
     ColorRGBA textCol = ((int)bg.r + (int)bg.g + (int)bg.b > 430)
         ? (ColorRGBA){10, 12, 16, 255}
@@ -996,42 +1057,112 @@ void UI_MiniWindow(float x, float y, float w, float h, bool dark) {
  * easeOutBack, 420ms; titulo+tagline 100ms depois do logo, sobe 12px+fade,
  * easeOutCubic, 360ms. Os 3 cards (stagger 600/680/760ms) ficam em
  * menuRenderStartupPills, na tela de baixo. */
+/* Duracao total da boot (deve casar com STARTUP_DURATION em main.c). */
+#define BOOT_DUR 3.4f
+
+/* Bolinha "glass" da boot: aro accent-ish + miolo translucido da cor (estilo
+ * cakeOS), desenhada por cima do bg_base. */
+static void bootGlassBall(float cx, float cy, float r, ColorRGBA col, float a) {
+    if (a <= 0.003f || r <= 0.5f) return;
+    ColorRGBA border = col; border.a = (u8)(235.0f * a);
+    C2D_DrawCircleSolid(cx, cy, 0.0f, r, u32c(border));
+    ColorRGBA hole = g_theme.backgroundTop; hole.a = (u8)(255.0f * a);
+    C2D_DrawCircleSolid(cx, cy, 0.0f, r - 3.0f, u32c(hole));
+    ColorRGBA fill = col; fill.a = (u8)(110.0f * a);
+    C2D_DrawCircleSolid(cx, cy, 0.0f, r - 3.0f, u32c(fill));
+}
+
+/* §1/§2: emblema compartilhado (3 bolinhas glass) usado na home (com float
+ * idle + glow respirando) e no handoff boot->home (so reposicionado/escalado).
+ * Reusa bootGlassBall; as posicoes de repouso em scale 1.0 batem EXATAMENTE
+ * com os alvos das bolinhas da boot (UI_StartupLogo) -> emenda sem pulo.
+ * Perf (apendice A): 1 so circulo de glow de raio modesto, sem rotacao. */
+#define EMBLEM_TWO_PI 6.28318531f
+void UI_Emblem(float cx, float cy, float scale, float idleT, float alpha) {
+    if (alpha <= 0.003f || scale <= 0.01f) return;
+    const float R = 24.0f * scale;
+
+    /* glow rosa atras "respira": alpha ~18->40 num ciclo de ~3s (1 circulo). */
+    float breath = 0.5f + 0.5f * sinf(idleT * (EMBLEM_TWO_PI / 3.0f));
+    ColorRGBA glow = (ColorRGBA){255, 95, 135, (u8)((18.0f + 22.0f * breath) * alpha)};
+    C2D_DrawCircleSolid(cx, cy, 0.0f, R * 1.55f, u32c(glow));
+
+    /* 3 bolinhas com float idle: seno lento, fase/amp/periodo diferentes
+     * (amp 1.8-2.5px, periodo 2.7-3.4s) -- so translacao vertical (leve). */
+    struct { float ox, oy, amp, per, ph; ColorRGBA col; } b[3] = {
+        {  0.0f, -15.0f, 2.5f, 3.4f, 0.0f, {255,  95, 135, 255} }, /* rosa  */
+        {-19.0f, +11.0f, 1.8f, 2.7f, 1.7f, { 90, 200, 230, 255} }, /* ciano */
+        {+19.0f, +11.0f, 2.2f, 3.0f, 3.1f, { 95, 215, 130, 255} }, /* verde */
+    };
+    for (int i = 0; i < 3; i++) {
+        float fy = b[i].amp * sinf(idleT * (EMBLEM_TWO_PI / b[i].per) + b[i].ph);
+        bootGlassBall(cx + b[i].ox * scale, cy + b[i].oy * scale + fy, R, b[i].col, alpha);
+    }
+}
+
+/* §1 (1.0.2): boot animada "se construindo" -- fundo acende + wipe radial, 3
+ * bolinhas glass voam de 3 pontos com spring e se encaixam formando o emblema
+ * (glow no encaixe), wordmark se forma (Comfortaa Bold, fade+slide), slogan.
+ * Os ultimos 0.35s tudo esmaece pro bg pra emendar suave na Home (a Home entra
+ * com seu proprio stagger). Pulavel: main pula direto pra Home. 60fps (poucos
+ * draws, sem particulas). */
 void UI_StartupLogo(C2D_TextBuf buf, float t) {
-    float lx = SCREEN_TOP_WIDTH * 0.5f;
-    float sy = 100.0f;
+    float lx = SCREEN_TOP_WIDTH * 0.5f; /* 200 */
+    float cy = 86.0f;                   /* centro do emblema */
 
-    /* Fundo: comeca preto, "acende" para bg_base em 250ms. */
-    float bgT = easeFunc(clampf(t / 0.25f, 0.0f, 1.0f), EASE_OUT_CUBIC);
-    ColorRGBA blackOverlay = {0, 0, 0, (u8)(255 * (1.0f - bgT))};
-    UI_Fill(0, 0, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT, blackOverlay);
+    /* §2: SEM esmaecimento de saida -- a boot agora entrega o emblema/wordmark
+     * em opacidade cheia pro handoff shared-element (menuRenderTopHandoff), que
+     * desliza o emblema pra pose da Home enquanto o resto da Home faz fade-in.
+     * (Antes esmaecia tudo nos ultimos 0.35s pra emendar no stagger de aba, que
+     * foi removido -- ver main.c.) */
+    float gA = 1.0f;
 
-    /* Logo "CDS": escala 0.85->1.0 + opacidade 0->1, easeOutBack, 420ms. */
-    float logoT = clampf(t / 0.42f, 0.0f, 1.0f);
-    float logoEase = easeFunc(logoT, EASE_OUT_BACK);
-    float scale = lerpf(0.85f, 1.0f, logoEase);
-    float logoAlpha = easeFunc(logoT, EASE_OUT_CUBIC); /* opacidade sobe suave, sem overshoot de alpha (que daria >255) */
+    /* 1) fundo "acende" do preto pro bg em 0.4s. */
+    float lit = easeFunc(clampf(t / 0.40f, 0.0f, 1.0f), EASE_OUT_CUBIC);
+    UI_Fill(0, 0, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT, (ColorRGBA){0, 0, 0, (u8)(255 * (1.0f - lit))});
 
-    ColorRGBA badge = themeMix((ColorRGBA){18, 22, 34, 245}, g_theme.accent, 0.12f);
-    badge.a = (u8)((float)badge.a * logoAlpha);
-    ColorRGBA badgeBorder = g_theme.accent;
-    badgeBorder.a = (u8)(255 * logoAlpha);
-    float bw = 80 * scale, bh = 40 * scale;
-    UI_RoundFrame(lx - bw * 0.5f, sy - bh * 0.5f, bw, bh, 20 * scale, badge, badgeBorder);
-    ColorRGBA cdsC = g_theme.textPrimary;
-    cdsC.a = (u8)(255 * logoAlpha);
-    UI_TextCenter(buf, NULL, "CDS", lx, sy - 5 * scale, 0.48f * scale, 0.48f * scale, cdsC);
+    /* wipe radial accent saindo do centro (0-0.7s), some sozinho. */
+    float wT = clampf(t / 0.70f, 0.0f, 1.0f);
+    if (wT < 1.0f) {
+        float wr = easeFunc(wT, EASE_OUT_CUBIC) * 300.0f;
+        ColorRGBA wc = g_theme.accent; wc.a = (u8)(55.0f * (1.0f - wT));
+        C2D_DrawCircleSolid(lx, cy, 0.0f, wr, u32c(wc));
+    }
 
-    /* Titulo + tagline: 100ms depois do logo, sobe 12px + fade, easeOutCubic, 360ms. */
-    float titleT = clampf((t - 0.10f) / 0.36f, 0.0f, 1.0f);
-    if (titleT > 0.0f) {
-        float ta = easeFunc(titleT, EASE_OUT_CUBIC);
-        float titleSlide = (1.0f - ta) * 12.0f;
-        ColorRGBA titleC = g_theme.textPrimary;
-        titleC.a = (u8)(255 * ta);
-        UI_TextCenter(buf, NULL, "CustomizerDS", lx, sy + 28 + titleSlide, 0.44f, 0.44f, titleC);
+    /* glow rosa no "encaixe" das bolinhas (~1.0-1.4s), pulso que some. */
+    float glowT = clampf((t - 0.95f) / 0.45f, 0.0f, 1.0f);
+    if (glowT > 0.0f && glowT < 1.0f) {
+        ColorRGBA glow = (ColorRGBA){255, 95, 135, (u8)(130.0f * (1.0f - glowT) * gA)};
+        C2D_DrawCircleSolid(lx, cy, 0.0f, 28.0f + glowT * 46.0f, u32c(glow));
+    }
 
-        ColorRGBA subC = g_theme.textSecondary;
-        subC.a = (u8)((float)subC.a * ta);
-        UI_TextCenter(buf, NULL, T(STR_STARTUP_SLOGAN), lx, sy + 48 + titleSlide, 0.26f, 0.26f, subC);
+    /* 2) 3 bolinhas glass voam de 3 pontos e se encaixam (spring, 1 oscilacao). */
+    const float R = 24.0f;
+    struct { float tx, ty, sx, sy, delay; ColorRGBA col; } balls[3] = {
+        { lx,         cy - 15.0f, lx,                       -60.0f,                        0.25f, {255, 95, 135, 255} }, /* rosa, de cima */
+        { lx - 19.0f, cy + 11.0f, -70.0f,                   SCREEN_TOP_HEIGHT + 60.0f,     0.33f, { 90, 200, 230, 255} }, /* ciano, baixo-esq */
+        { lx + 19.0f, cy + 11.0f, SCREEN_TOP_WIDTH + 70.0f, SCREEN_TOP_HEIGHT + 60.0f,     0.41f, { 95, 215, 130, 255} }, /* verde, baixo-dir */
+    };
+    for (int i = 0; i < 3; i++) {
+        float bt = clampf((t - balls[i].delay) / 0.78f, 0.0f, 1.0f);
+        float e = easeSpringAmp(bt, 0.62f); /* spring suave: 1 oscilacao discreta */
+        float bx = lerpf(balls[i].sx, balls[i].tx, e);
+        float by = lerpf(balls[i].sy, balls[i].ty, e);
+        bootGlassBall(bx, by, R, balls[i].col, gA);
+    }
+
+    /* 3) wordmark "CustomizerDS" se forma (fade + slide-da-esquerda), Comfortaa Bold. */
+    float wmT = clampf((t - 1.10f) / 0.60f, 0.0f, 1.0f);
+    if (wmT > 0.0f) {
+        float e = easeFunc(wmT, EASE_OUT_QUINT);
+        ColorRGBA wc = g_theme.textPrimary; wc.a = (u8)(255 * e * gA);
+        /* bases compensam o UI_TEXT_SCALE do chrome (~*1.5) -> efetivo ~0.51. */
+        UI_TextCenter(buf, NULL, "CustomizerDS", lx - (1.0f - e) * 16.0f, cy + 52.0f, 0.34f, 0.34f, wc);
+    }
+    /* slogan, 0.6s depois, fade. */
+    float slT = clampf((t - 1.70f) / 0.45f, 0.0f, 1.0f);
+    if (slT > 0.0f) {
+        ColorRGBA sc = g_theme.accent; sc.a = (u8)(255 * easeFunc(slT, EASE_OUT_CUBIC) * gA);
+        UI_TextCenter(buf, NULL, T(STR_STARTUP_SLOGAN), lx, cy + 84.0f, 0.19f, 0.19f, sc);
     }
 }

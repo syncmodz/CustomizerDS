@@ -11,6 +11,8 @@ void ledInit(void);
 void ledEnter(void);
 void ledExit(void);
 void ledUpdate(const AppInput* in, float dt, int* currentScreen);
+/* §4.1: re-aplica o LED salvo a cada ~2s (chamar todo frame, qualquer aba). */
+void ledTick(float dt);
 void ledRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
 void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM);
 int ledSelected(void);

@@ -99,6 +99,7 @@ int main() {
     themeInit();
     fontsSystemInit();
     iconsInit();
+    UI_FontInit(); /* §2: Comfortaa Bold como fonte global do chrome */
 
     /* i18n (§i18n.4/5): idioma salvo (reserved[0]) tem prioridade; se for o
      * sentinela CFG_LANG_UNSET, langInit pega o idioma do sistema via CFGU. */
@@ -128,7 +129,14 @@ int main() {
 
     bool startupDone = false;
     float startupT = 0.0f;
-    const float STARTUP_DURATION = 1.15f; /* spec 3.1: ultimo card em 760ms + 340ms = 1100ms + folga */
+    const float STARTUP_DURATION = 3.4f; /* §1 (1.0.2): boot animada (deve casar com BOOT_DUR em ui.c) */
+
+    /* §2: handoff shared-element boot->home. Ao fim da boot NAO disparamos mais
+     * o stagger de aba (uiScreenEnter); entramos numa janela curta em que o
+     * emblema/wordmark deslizam da pose da boot pra da home (menuRenderTopHandoff). */
+    bool handoffActive = false;
+    float handoffT = 0.0f;
+    const float HANDOFF_DUR = 0.45f;
 
     /* Pool de transicoes (spec v6 secao 2): navDir +1 = abrir funcao
      * (direita), -1 = voltar ao menu (esquerda). transClock e um relogio
@@ -174,7 +182,19 @@ int main() {
                 startupT += dt;
                 if (startupT >= STARTUP_DURATION) startupDone = true;
             }
-            if (startupDone) uiScreenEnter();
+            if (startupDone) {
+                /* §2: handoff em vez de uiScreenEnter() (que reiniciava o
+                 * stagger de aba -- o "abrir aba" feio). g_enterT ja chegou a
+                 * 1.0 durante a boot, entao a Home renderiza ASSENTADA; o
+                 * handoff so desliza o emblema/wordmark pra pose final. */
+                handoffActive = true;
+                handoffT = 0.0f;
+                menuInit();
+            }
+        } else if (handoffActive) {
+            /* §2: durante o handoff a Home se assenta sozinha -- sem navegacao
+             * (evita re-disparar slides/transicoes no meio da emenda). */
+            if (in.start) break;
         } else {
             if (in.start) break;
 
@@ -250,10 +270,17 @@ int main() {
         }
 
         uiFrameTick(dt);
+        ledTick(dt); /* §4.1: mantem o LED escolhido vivo em qualquer aba */
 
         if (transActive) {
             transClock += dt;
             if (transClock >= transDuration(currentTrans)) transActive = false;
+        }
+
+        /* §2: relogio do handoff boot->home. */
+        if (handoffActive) {
+            handoffT += dt;
+            if (handoffT >= HANDOFF_DUR) handoffActive = false;
         }
 
         u32 bgTop = C2D_Color32(g_theme.backgroundTop.r, g_theme.backgroundTop.g,
@@ -321,7 +348,11 @@ int main() {
 
             C2D_SceneBegin(topTarget);
             C2D_ViewReset();
-            if (startupDone) {
+            if (handoffActive) {
+                /* §2: handoff shared-element (boot->home) na tela de cima. A de
+                 * baixo ja segue assentada (pilulas pousaram em y=60). */
+                menuRenderTopHandoff(buf, handoffT / HANDOFF_DUR);
+            } else if (startupDone) {
                 renderTopScreen(currentScreen, buf, 1.0f, 0.0f, 1.0f, 1.0f);
             } else {
                 UI_TopBackground();
@@ -349,6 +380,7 @@ int main() {
     }
 
     C2D_TextBufDelete(buf);
+    UI_FontExit();
     compositorExit();
     iconsExit();
     fontsSystemCleanup();

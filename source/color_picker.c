@@ -2,6 +2,7 @@
 #include "theme.h"
 #include "ui.h"
 #include "common.h"
+#include "lang.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -115,7 +116,7 @@ void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float y) {
     float py = fy + cellH + 16;
     float pw = 80.0f, ph = 36.0f;
     float px = (SCREEN_BOT_WIDTH - pw) * 0.5f;
-    UI_TextCenter(buf, NULL, "Preview", SCREEN_BOT_WIDTH * 0.5f, py - 13, 0.20f, 0.20f, g_theme.textHint);
+    UI_TextCenter(buf, NULL, T(STR_PREVIEW), SCREEN_BOT_WIDTH * 0.5f, py - 13, 0.20f, 0.20f, g_theme.textHint);
     ColorRGBA frameBorder = themeIsDark() ? (ColorRGBA){255, 255, 255, 30} : (ColorRGBA){20, 24, 34, 30};
     UI_RoundFrame(px - 2, py - 2, pw + 4, ph + 4, 13, previewC, frameBorder);
     ColorRGBA textOnPreview = themeContrastText(previewC);

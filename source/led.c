@@ -170,6 +170,20 @@ void ledEnter(void) {
     initSliderTweens();
 }
 
+/* §4.1: re-aplica o padrao atual a cada ~2s. O sistema (PTM) sobrescreve o LED
+ * em sleep/notificacao/carga -- por isso ele "apagava depois de uns minutos".
+ * Chamado TODO frame por main.c (independente da aba), pra o LED escolhido
+ * sobreviver enquanto o app roda. */
+static float s_reassertT = 0.0f;
+void ledTick(float dt) {
+    if (!s_mcuReady) return;
+    s_reassertT += dt;
+    if (s_reassertT >= 2.0f) {
+        s_reassertT = 0.0f;
+        applyLed();
+    }
+}
+
 void ledExit(void) {
     if (s_mcuReady) {
         /* v1.1: NAO limpamos mais o LED ao sair. O dono quer que a cor/padrao
@@ -468,9 +482,13 @@ void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA,
 
     const char* modeLabels[LED_MODE_COUNT];
     for (int i = 0; i < LED_MODE_COUNT; i++) modeLabels[i] = modeNameI(i);
+    /* §3: anel de foco no seletor de modo (item 0) e no slider focado. */
+    if (s_selected == 0) UI_FocusRing(10 + slideX, 8 + offset, 300, 28, 14);
     UI_TouchBarSegmented(buf, 10 + slideX, 8 + offset, 300, 28, modeLabels, LED_MODE_COUNT, s_mode, &s_segTween);
 
     if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
+        if (s_selected >= 1 && s_selected <= 4)
+            UI_FocusRing(10 + slideX, (56 + (s_selected - 1) * 32) + offset, 300, 26, 13);
         UI_TouchBarSliderDrag(buf, 10 + slideX, 56 + offset, 300, "R", s_r, 0, 255, s_selected == 1,
                               (ColorRGBA){s_r, 40, 40, 255}, tweenValue(&s_thumbTween[1]), tweenValue(&s_valTween[1]));
         UI_TouchBarSliderDrag(buf, 10 + slideX, 88 + offset, 300, "G", s_g, 0, 255, s_selected == 2,
@@ -480,6 +498,7 @@ void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA,
         UI_TouchBarSliderDrag(buf, 10 + slideX, 152 + offset, 300, T(STR_SPEED_SHORT), s_speed, 1, 5, s_selected == 4,
                               g_theme.accent, tweenValue(&s_thumbTween[4]), tweenValue(&s_valTween[4]));
     } else {
+        if (s_selected == 1) UI_FocusRing(10 + slideX, 56 + offset, 300, 26, 13);
         UI_TouchBarSliderDrag(buf, 10 + slideX, 56 + offset, 300, T(STR_SPEED_SHORT), s_speed, 1, 5, s_selected == 1,
                               g_theme.accent, tweenValue(&s_thumbTween[1]), tweenValue(&s_valTween[1]));
     }

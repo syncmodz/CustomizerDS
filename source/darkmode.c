@@ -278,8 +278,22 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
         return;
     }
 
-    if (in->downNav) s_selected = (s_selected + 1) % total;
-    if (in->up) s_selected = (s_selected - 1 + total) % total;
+    /* §redesign: navegacao por SECAO. Cima/baixo troca de secao
+     * (0=Aparencia, 1=Accent, 2=Idioma) pousando no valor ATIVO da secao;
+     * esquerda/direita escolhe DENTRO da secao (blocos abaixo). Acaba com o
+     * indice linear que percorria cor-por-cor misturado com os toggles. */
+    {
+        int curSec = (s_selected < 2) ? 0 : (s_selected < langSlot ? 1 : 2);
+        int newSec = curSec;
+        if (in->downNav) newSec = (curSec + 1) % 3;
+        else if (in->up) newSec = (curSec + 2) % 3;
+        if (newSec != curSec) {
+            if (newSec == 0)      s_selected = themeIsDark() ? 1 : 0;
+            else if (newSec == 1) s_selected = 2 + (themeAccentIsCustom() ? themeAccentCount() : themeGetAccentIndex());
+            else                  s_selected = langSlot;
+        }
+    }
+    (void)total;
 
     if (in->left && s_selected < 2) {
         s_selected = s_selected == 0 ? 1 : 0;
@@ -617,13 +631,34 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         return;
     }
 
-    /* segmentedLozenge compartilhado (v3 3.3) -- mesma logica do LED, cada
-     * tela com seu proprio Tween (s_segTween), sem mais codigo bespoke. */
+    /* §redesign: 3 SECOES com container -- a focada ACENDE (bg + tint + barra
+     * accent), as outras esmaecem (scrim no fim da funcao). As faixas y batem
+     * com o conteudo desenhado abaixo. Substitui os aneis de foco soltos. */
+    int dmLangSlot = 2 + (themeAccentCount() + 1);
+    int focSec = (s_selected < 2) ? 0 : (s_selected < dmLangSlot ? 1 : 2);
+    const struct { float y, h; } secR[3] = { {2.0f, 46.0f}, {50.0f, 86.0f}, {132.0f, 52.0f} };
+    for (int si = 0; si < 3; si++) {
+        float cx = 12.0f + slideX, cy = secR[si].y + offset;
+        float cw = SCREEN_BOT_WIDTH - 24.0f, ch = secR[si].h;
+        ColorRGBA bg = themeIsDark() ? (ColorRGBA){255, 255, 255, (u8)(si == focSec ? 16 : 7)}
+                                     : (ColorRGBA){0, 0, 0, (u8)(si == focSec ? 14 : 7)};
+        UI_RoundRect(cx, cy, cw, ch, 14.0f, bg);
+        if (si == focSec) {
+            ColorRGBA tint = g_theme.accent; tint.a = 24;
+            UI_RoundRect(cx, cy, cw, ch, 14.0f, tint);
+            ColorRGBA bar = g_theme.accent; bar.a = 255;
+            UI_RoundRect(cx, cy + 9.0f, 4.0f, ch - 18.0f, 2.0f, bar);
+        }
+    }
+
+    /* segmentedLozenge compartilhado (v3 3.3) -- o lozenge ja marca o valor; a
+     * secao focada (container acima) marca "onde voce esta" -> sem anel solto. */
     const char* modeLabels[] = { T(STR_LIGHT), T(STR_DARK) };
     UI_TouchBarSegmented(buf, 60.0f + slideX, 8.0f + offset, 200.0f, 32.0f,
                          modeLabels, 2, themeIsDark() ? 1 : 0, &s_segTween);
 
     int accentTotal = themeAccentCount() + 1;
+    int langSlot = 2 + accentTotal; /* mesmo calculo do darkmodeUpdate */
     float swSize = 32.0f, gap = 10.0f, startX = accentRowStartX(accentTotal) + slideX, sy = 58.0f + offset;
     int activeIdx = themeAccentIsCustom() ? themeAccentCount() : themeGetAccentIndex();
 
@@ -642,15 +677,10 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
     float ringX = tweenValue(&s_ringTween);
     float ringY = sy + swSize * 0.5f;
 
-    /* Halo pulsante 3.4: opacidade 0.25<->0.4, 1.4s, loop, easeInOut, +
-     * escala 1.0->1.03 (circulo perfeito w==h, caminho seguro de UI_RoundRect). */
-    float haloPhase = fmodf(uiFrameTime(), 1.4f) / 1.4f;
-    float haloTri = (haloPhase < 0.5f) ? (haloPhase * 2.0f) : (2.0f - haloPhase * 2.0f);
-    float haloWave = easeFunc(haloTri, EASE_IN_OUT_CUBIC);
-    float ringScale = lerpf(1.0f, 1.03f, haloWave);
-    ColorRGBA ring = g_theme.accent;
-    ring.a = (u8)(lerpf(0.25f, 0.4f, haloWave) * 255.0f);
-    float ringSize = (swSize + 8) * ringScale;
+    /* §redesign: anel da accent APLICADA -- estatico e nitido (sem pulsar). O
+     * cursor (foco do D-pad) tem seu proprio aro limpo no loop abaixo. */
+    ColorRGBA ring = g_theme.accent; ring.a = 90;
+    float ringSize = swSize + 8.0f;
     UI_RoundRect(ringX - ringSize * 0.5f, ringY - ringSize * 0.5f, ringSize, ringSize, ringSize * 0.5f, ring);
 
     for (int i = 0; i < accentTotal; i++) {
@@ -681,6 +711,10 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
          * -- borda limpa, sem mancha. Desenhada ~86% do slot (32px) pra ficar
          * MENOR (§7c). O realce da selecionada e o anel accent atras
          * (s_ringTween), ja desenhado antes do loop. */
+        /* §3: anel de FOCO no swatch que o D-pad aponta -- inclui o HEX
+         * (i == themeAccentCount()), que antes nunca aparecia focado. */
+        if (s_selected - 2 == i)
+            UI_FocusRing(scx - swSize * 0.5f, scy - swSize * 0.5f, swSize, swSize, swSize * 0.5f);
         float drawSz = swSize * bounceScale * 0.86f;
         iconsDraw(ICON_SWATCH_THIN, scx, scy, drawSz, ac, 1.0f);
 
@@ -711,8 +745,18 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
     const char* langLabels[LANG_COUNT] = { "PT", "EN", "ES" };
     UI_Text(buf, NULL, T(STR_LANGUAGE), LANG_SEG_X + slideX, LANG_SEG_Y - 16 + offset,
             0.22f, 0.22f, g_theme.textHint);
+    /* §redesign: foco do idioma vem do container da secao (acima) + o lozenge
+     * do segmented marca o idioma ativo -- sem anel solto. */
     UI_TouchBarSegmented(buf, LANG_SEG_X + slideX, LANG_SEG_Y + offset, LANG_SEG_W, LANG_SEG_H,
                          langLabels, LANG_COUNT, (int)langGet(), &s_langSegTween);
+
+    /* §redesign: esmaece as secoes NAO focadas -- so a ativa fica viva. */
+    for (int si = 0; si < 3; si++) {
+        if (si == focSec) continue;
+        ColorRGBA sc = g_theme.background; sc.a = 120;
+        UI_RoundRect(12.0f + slideX, secR[si].y + offset, SCREEN_BOT_WIDTH - 24.0f,
+                     secR[si].h, 14.0f, sc);
+    }
 
     UI_HelpBar(buf, T(STR_HELP_THEME2_L), T(STR_HELP_THEME2_R));
 

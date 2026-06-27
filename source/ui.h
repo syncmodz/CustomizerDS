@@ -12,6 +12,20 @@ extern float g_enterT;
 extern float g_frame;
 extern ScreenTransition g_trans;
 
+/* §2 (1.0.2): carrega/descarrega a fonte global do chrome (Comfortaa Bold).
+ * Chamar UI_FontInit apos romfs/C2D prontos e UI_FontExit no cleanup. */
+void UI_FontInit(void);
+void UI_FontExit(void);
+
+/* §2: multiplicador de tamanho aplicado ao texto do CHROME (font==NULL) pra
+ * legibilidade no console. Publico pra quem MEDE texto pra dimensionar uma
+ * caixa (badges) medir no mesmo tamanho que sera desenhado. */
+#define UI_TEXT_SCALE 1.5f
+/* Largura do texto como sera desenhado (fonte+escala do chrome). */
+float UI_TextWidth(C2D_TextBuf buf, C2D_Font font, const char* text, float sx);
+/* §3: anel de foco accent (chamar antes de desenhar o elemento focado). */
+void UI_FocusRing(float x, float y, float w, float h, float r);
+
 void uiFrameTick(float dt);
 float uiFrameTime(void);
 float uiFrameDt(void);
@@ -145,6 +159,14 @@ void UI_PillButtonPress(C2D_TextBuf buf, float x, float y, float w, float h,
                         const char* label, const char* icon, int iconImg,
                         bool selected, float appearT, float pressScale, float focusScale);
 void UI_StartupLogo(C2D_TextBuf buf, float t);
+
+/* §1/§2: emblema compartilhado das 3 bolinhas glass (boot, home e handoff),
+ * extraido do bootGlassBall. (cx,cy) = centro; scale 1.0 = R24 com offsets
+ * rosa(0,-15) ciano(-19,+11) verde(+19,+11); idleT alimenta o float idle
+ * (seno lento, fase/amp diferentes) e o glow rosa que respira atras; alpha
+ * global. Passe um idleT crescente (uiFrameTime()) na home; o mesmo emblema
+ * e usado na boot/handoff so reposicionado/escalado. */
+void UI_Emblem(float cx, float cy, float scale, float idleT, float alpha);
 
 /* Chip pequeno "rotulo + valor" com um ponto colorido indicador -- usado para
  * preencher os cards de cima com dados reais em vez de espaco vazio. */
