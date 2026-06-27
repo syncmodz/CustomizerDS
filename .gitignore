@@ -53,3 +53,6 @@ devkitARM/
 .*.swp
 *.log
 proto/**/node_modules/
+
+# helper local de build/run (nao versionar)
+test.sh

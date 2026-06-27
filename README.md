@@ -15,7 +15,9 @@ Homebrew Launcher and emulators.
 
 ## What it does
 
-- 9 bundled fonts (plus the system default) used inside the app
+- 7 bundled fonts (plus the system default) used inside the app
+- Apply a font as the **3DS system font** (installs on the console and reboots;
+  "System Default" restores the original) — make a NAND backup first
 - 3 languages: English, Portuguese, Spanish (follows the console language)
 - Light/dark theme with an accent color (presets or a HEX picker)
 - RGB notification LED: solid, pulse, rainbow. The color comes back when you
@@ -34,14 +36,19 @@ START   exit
 
 ## Notes
 
-- The font you pick only changes how this app looks. Replacing the whole 3DS
-  system font is a separate, manual job — see [docs/SYSTEM_FONT.md](docs/SYSTEM_FONT.md).
+- A font you pick changes how this app looks, and you can also apply it as the
+  whole **3DS system font** (Fonts tab → X): it installs the font on the console
+  and reboots to apply; "System Default" puts the original back. This writes to
+  system memory, so keep a **NAND backup** — details in
+  [docs/SYSTEM_FONT.md](docs/SYSTEM_FONT.md).
 - Keeping the LED on after a reboot needs a Luma patch — see
   [docs/LED_PERSIST.md](docs/LED_PERSIST.md).
 
 ## Build
 
-Needs devkitPro (libctru, citro2d), `tex3ds`, `mkbcfnt` and `makerom`.
+Needs devkitPro (libctru, citro2d), `tex3ds`, `mkbcfnt`, `makerom` and
+`3dstool`. (The bundled fonts and the system-font files are not in the repo, so
+a clean clone builds the app without the system-font option.)
 
 ```
 make

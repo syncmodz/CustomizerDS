@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0
+- You can now apply a bundled font as the whole **3DS system font**: pick a font
+  in the Fonts tab and press X. It shows an install screen and reboots to apply;
+  "System Default" restores the original. Make a NAND backup first.
+- The system fonts are built by merging the design into the original font, so the
+  full glyph set is kept and the Home Menu doesn't crash.
+- Home screen: the app emblem is now animated, and the boot screen flows into the
+  home instead of popping in.
+- Theme tab: navigate by section with the D-pad and a cleaner selection
+  indicator (no more pulsing halo).
+- Fixed the D-pad moving twice per press on the emulator (hardware was fine).
+- Removed Minecraftia and Patterns & Dots (hard to read as a system font) — 7
+  bundled fonts now.
+
 ## 1.2.0
 - Smoother, faster tab transitions. The incoming screen is now drawn once and
   reused each frame instead of being redrawn every frame, so transitions hold
