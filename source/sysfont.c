@@ -104,6 +104,19 @@ void sysfontReboot(void) {
     APT_HardwareResetAsync();
 }
 
+/* 1.4.0 PART 4.1: copia um .cia embutido (romfs) pro SD se ainda nao existir. */
+bool sysfontCopyToSDIfAbsent(const char* romfsPath, const char* sdPath) {
+    if (!romfsPath || !sdPath) return false;
+    FILE* chk = fopen(sdPath, "rb");
+    if (chk) { fclose(chk); return true; } /* ja existe -- nao recopia */
+    unsigned int sz = 0;
+    unsigned char* buf = readFile(romfsPath, &sz);
+    if (!buf) return false;
+    bool ok = writeFile(sdPath, buf, sz);
+    free(buf);
+    return ok;
+}
+
 /* v14 §4 (hardware): instala um .cia de fonte na CTRNAND via AM, igual a FBI.
  * O sysmodule 'am' e quem escreve na NAND; o app so precisa do servico am:net
  * (declarado no exheader/RSF) e passar os bytes do .cia pelo handle de install.

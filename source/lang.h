@@ -77,6 +77,8 @@ typedef enum {
     STR_SYSFONT_INSTALLING, /* tela de progresso do install */
     STR_SYSFONT_KEEPON,   /* 1.4.0: tela de baixo durante install ("nao desligue") */
     STR_SYSFONT_REBOOT_END, /* 1.4.0: subtitulo ("reiniciando ao concluir...") */
+    STR_SYSFONT_EMU_DONE, /* 1.4.0 PART4: titulo do install simulado no Azahar */
+    STR_SYSFONT_EMU_NOTE, /* 1.4.0 PART4: aviso honesto (so aplica no console) */
     STR_HELP_FONTS_X,     /* "X fonte do sistema" */
     /* startup */
     STR_STARTUP_SLOGAN,

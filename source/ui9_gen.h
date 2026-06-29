@@ -8,3 +8,4 @@
 #define ui9_gen_glow_radial_3x_idx 4
 #define ui9_gen_check_3x_idx 5
 #define ui9_gen_ring9_3x_idx 6
+#define ui9_gen_ring_circle_3x_idx 7

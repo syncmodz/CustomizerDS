@@ -312,10 +312,11 @@ void ledUpdate(const AppInput* in, float dt, int* currentScreen) {
     }
 
     if (in->touchDown || (in->touchHeld && s_draggingSlider >= 0)) {
-        if (!dragging && in->touchPY >= 8 && in->touchPY < 8 + 28 &&
-            in->touchPX >= 10 && in->touchPX < 310) {
-            float segItemW = 300.0f / (float)LED_MODE_COUNT;
-            int newMode = (int)((in->touchPX - 10) / segItemW);
+        /* segmented de modo (16,18,288,38) -- deve bater com ledRenderBottom. */
+        if (!dragging && in->touchPY >= 18 && in->touchPY < 56 &&
+            in->touchPX >= 16 && in->touchPX < 304) {
+            float segItemW = 288.0f / (float)LED_MODE_COUNT;
+            int newMode = (int)((in->touchPX - 16) / segItemW);
             newMode = clampi(newMode, 0, LED_MODE_COUNT - 1);
             if (in->touchDown) {
                 s_selected = 0;
@@ -324,40 +325,40 @@ void ledUpdate(const AppInput* in, float dt, int* currentScreen) {
             return;
         }
 
+        float barX = 44.0f, barW = 236.0f, rowH = 30.0f;
         if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
-            /* y/x devem bater exatamente com UI_TouchBarSlider em ledRenderBottom:
-             * linhas em y=56,88,120 (passo 32) e a barra interna comeca em x+36 (label ocupa 0-36). */
-            float slY = 56.0f, rowH = 28.0f, barX = 46.0f, barW = 226.0f;
+            /* R/G/B em y=78,118,158; velocidade em y=198 (bate com ledRenderBottom). */
+            const float ys[4] = { 78.0f, 118.0f, 158.0f, 198.0f };
             for (int i = 0; i < 3; i++) {
-                float sy = slY + i * 32.0f;
+                float sy = ys[i];
                 if ((dragging && s_draggingSlider == 1 + i) ||
-                    (!dragging && in->touchPY >= sy && in->touchPY < sy + rowH &&
+                    (!dragging && in->touchPY >= sy - 6 && in->touchPY < sy + rowH &&
                      in->touchPX >= barX && in->touchPX < barX + barW)) {
                     if (in->touchDown || (dragging && s_draggingSlider == 1 + i)) {
                         u8* ch = (i == 0) ? &s_r : (i == 1) ? &s_g : &s_b;
-                        *ch = (u8)sliderValueFromTouch(in, 1 + i, barX, sy + 9, barW, 0, 255);
+                        *ch = (u8)sliderValueFromTouch(in, 1 + i, barX, sy + 8, barW, 0, 255);
                         commitSliderChange();
                     }
                     return;
                 }
             }
-            float spY = 152.0f;
+            float spY = ys[3];
             if ((dragging && s_draggingSlider == 4) ||
-                (!dragging && in->touchPY >= spY && in->touchPY < spY + rowH &&
+                (!dragging && in->touchPY >= spY - 6 && in->touchPY < spY + rowH &&
                  in->touchPX >= barX && in->touchPX < barX + barW)) {
                 if (in->touchDown || (dragging && s_draggingSlider == 4)) {
-                    s_speed = sliderValueFromTouch(in, 4, barX, spY + 9, barW, 1, 5);
+                    s_speed = sliderValueFromTouch(in, 4, barX, spY + 8, barW, 1, 5);
                     commitSliderChange();
                 }
                 return;
             }
         } else {
-            float barX = 46.0f, barW = 226.0f, spY = 56.0f;
+            float spY = 78.0f;
             if ((dragging && s_draggingSlider == 1) ||
-                (!dragging && in->touchPY >= spY && in->touchPY < spY + 28 &&
+                (!dragging && in->touchPY >= spY - 6 && in->touchPY < spY + rowH &&
                  in->touchPX >= barX && in->touchPX < barX + barW)) {
                 if (in->touchDown || (dragging && s_draggingSlider == 1)) {
-                    s_speed = sliderValueFromTouch(in, 1, barX, spY + 9, barW, 1, 5);
+                    s_speed = sliderValueFromTouch(in, 1, barX, spY + 8, barW, 1, 5);
                     commitSliderChange();
                 }
                 return;
@@ -390,115 +391,78 @@ static ColorRGBA previewColor(void) {
 ColorRGBA ledPreviewColor(void) { return previewColor(); }
 
 void ledRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
-    /* Parallax 3 camadas (Travel Motion), igual as outras telas. */
-    float offsetRaw = (1.0f - transVal);
-    float offset = offsetRaw * 40.0f;
-    float offsetFg = offsetRaw * 18.0f;
+    (void)transVal; (void)scaleM;
     UI_TopBackground();
-    UI_TopMenuBar(T(STR_TAB_LED), buf);
+    UI_ScreenHeader(buf, T(STR_TAB_LED));
 
-    /* Blobs decorativos de fundo removidos (mesma causa do bug "bolas
-     * sobrepostas" da Inicio): caiam dentro do retangulo do card, que tem
-     * alpha 235 (nao 255) e deixava-os espiar por tras. */
+    /* Espec v20: anel grande (200,128) r42, contorno AA + fill cor@40%, SEM
+     * glow + label de modo (200,~182). */
     ColorRGBA c = previewColor();
+    float cx = 200.0f + slideX, cy = 128.0f;
+    ColorRGBA fill = c; fill.a = 102;                 /* ~40% */
+    UI_RoundRect(cx - 40.0f, cy - 40.0f, 80.0f, 80.0f, 40.0f, fill);
+    ColorRGBA ring = c; ring.a = 255;
+    UI_RingCircle(cx, cy, 86.0f, ring);
 
-    /* Transicao 3.2: card desliza/escala a partir do centro; fade real
-     * (cobre tambem UI_StatChip/UI_Badge sem alpha proprio) vem do veu. */
-    float cardBaseX = 16, cardBaseY = 30 + offset, cardBaseW = 368, cardBaseH = 196;
-    float cardW = cardBaseW * scaleM, cardH = cardBaseH * scaleM;
-    float cardX = cardBaseX + slideX + (cardBaseW - cardW) * 0.5f;
-    float cardY = cardBaseY + (cardBaseH - cardH) * 0.5f;
-    UI_Card(cardX, cardY, cardW, cardH, RADIUS_CARD, g_theme.surface);
-
-    UI_Text(buf, NULL, modeNameI(s_mode), 32 + slideX, 50 + offsetFg, 0.40f, 0.40f, g_theme.textPrimary);
-    UI_Badge(buf, 32 + slideX, 80 + offsetFg,
-             s_mcuReady ? T(STR_LED_ACTIVE) : T(STR_LED_SIM),
-             s_mcuReady ? g_theme.success : g_theme.warning);
-
-    /* Swatch grande com a cor real que esta sendo aplicada agora. */
-    float lx = 266.0f + slideX, ly = 50 + offsetFg;
-    ColorRGBA previewBg = themeIsDark() ? (ColorRGBA){8, 8, 9, 255} : (ColorRGBA){225, 228, 238, 255};
-    UI_RoundFrame(lx, ly, 88, 64, 16, previewBg, (ColorRGBA){255, 255, 255, 12});
-    /* 1.4.0 §SEM-GLOW: removido o glow da cor atras do swatch -- so o swatch solido. */
-    UI_RoundRect(lx + 4, ly + 4, 80, 56, 12, c);
-
-    /* Grade de stat chips preenchendo o card -- substitui a lista de texto
-     * solto (Off / led ativo / RGB / instrucoes) por dados reais legiveis. */
-    float chipY = 116.0f + offsetFg;
-    float chipH = 64.0f;
-    float chipGap = 8.0f;
-    float chipW = (336.0f - chipGap * 2.0f) / 3.0f;
-    char valBuf[3][12];
-    const char* labels[3];
-    ColorRGBA dots[3];
-    int numChips;
-
-    if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
-        numChips = 3;
-        labels[0] = T(STR_RED); labels[1] = T(STR_GREEN); labels[2] = T(STR_BLUE);
-        snprintf(valBuf[0], sizeof(valBuf[0]), "%d", s_r);
-        snprintf(valBuf[1], sizeof(valBuf[1]), "%d", s_g);
-        snprintf(valBuf[2], sizeof(valBuf[2]), "%d", s_b);
-        dots[0] = (ColorRGBA){255, 80, 80, 255};
-        dots[1] = (ColorRGBA){80, 220, 110, 255};
-        dots[2] = (ColorRGBA){90, 140, 255, 255};
-    } else {
-        numChips = 2;
-        labels[0] = T(STR_SPEED); labels[1] = T(STR_STATE);
-        snprintf(valBuf[0], sizeof(valBuf[0]), "%d / 5", s_speed);
-        snprintf(valBuf[1], sizeof(valBuf[1]), "%s", s_mcuReady ? T(STR_REALTIME) : T(STR_SIMULATED));
-        dots[0] = g_theme.accent;
-        dots[1] = s_mcuReady ? g_theme.success : g_theme.warning;
-    }
-
-    for (int i = 0; i < numChips; i++) {
-        /* Stagger 3.2 exato: 40ms entre chips, 260ms cada, easeOutCubic. */
-        float ca = UI_StaggerT(i, 0.04f, 0.26f);
-        if (ca <= 0.0f) continue;
-        float slide = (1.0f - ca) * 10.0f;
-        float cx = 32.0f + slideX + i * (chipW + chipGap);
-        UI_StatChip(buf, cx, chipY + slide, chipW, chipH, labels[i], valBuf[i], dots[i]);
-    }
-
-    if (R_FAILED(s_lastResult)) {
-        char err[32];
-        snprintf(err, sizeof(err), "erro: 0x%08lX", (unsigned long)s_lastResult);
-        UI_Text(buf, NULL, err, 32 + slideX, chipY + chipH + 6, 0.20f, 0.20f, g_theme.textHint);
-    }
+    UI_TextCenter(buf, NULL, modeNameI(s_mode), cx, 178.0f, 0.38f, 0.38f, g_theme.textPrimary);
+    ColorRGBA st = s_mcuReady ? g_theme.success : g_theme.warning;
+    UI_TextCenter(buf, NULL, s_mcuReady ? T(STR_LED_ACTIVE) : T(STR_LED_SIM),
+                  cx, 200.0f, 0.24f, 0.24f, st);
 
     if (fadeA < 0.999f) {
         ColorRGBA veil = g_theme.backgroundTop;
         veil.a = (u8)(255 * (1.0f - clampf(fadeA, 0.0f, 1.0f)));
-        UI_Fill(0, 25, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT - 25, veil);
+        UI_Fill(0, 0, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT, veil);
     }
 }
 
+/* Slider PLANO (espec v20, SEM glow): label (x24) + trilho fino x44..280 h12
+ * + preenchimento na cor do canal + thumb circulo solido r8. focado = anel
+ * accent no trilho; numero animado a direita. */
+static void drawFlatSlider(C2D_TextBuf buf, const char* label, int displayValue,
+                           int value, int min, int max, float y, ColorRGBA chan,
+                           bool focused, float slideX) {
+    ColorRGBA lblC = focused ? g_theme.textPrimary : g_theme.textSecondary;
+    UI_Text(buf, NULL, label, 24.0f + slideX, y - 5.0f, 0.27f, 0.27f, lblC);
+
+    float barX = 44.0f + slideX, barW = 236.0f, barY = y + 2.0f, barH = 12.0f;
+    if (focused) UI_FocusRing(barX, barY, barW, barH, barH * 0.5f);
+    ColorRGBA track = {255, 255, 255, 18}; /* ~7% */
+    if (UI_AssetsReady()) UI_NinePill(barX, barY, barW, barH, track);
+    else UI_RoundRect(barX, barY, barW, barH, barH * 0.5f, track);
+
+    float t = (max > min) ? (float)(value - min) / (float)(max - min) : 0.0f;
+    t = clampf(t, 0.0f, 1.0f);
+    if (t > 0.001f) {
+        if (UI_AssetsReady()) UI_NinePill(barX, barY, fmaxf(barH, barW * t), barH, chan);
+        else UI_RoundRect(barX, barY, fmaxf(barH, barW * t), barH, barH * 0.5f, chan);
+    }
+    float knobX = barX + barW * t, knobCy = barY + barH * 0.5f;
+    UI_RoundRect(knobX - 8.0f, knobCy - 8.0f, 16.0f, 16.0f, 8.0f, chan); /* thumb solido */
+
+    char v[8]; snprintf(v, sizeof(v), "%d", displayValue);
+    UI_TextRight(buf, NULL, v, barX + barW, y - 5.0f, 0.22f, 0.22f, g_theme.textHint);
+}
+
 void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
-    float offset = (1.0f - transVal) * 30.0f;
-    (void)scaleM;
+    (void)transVal; (void)scaleM;
     UI_BottomBackground();
 
+    /* segmented de modo (16,18,288,38). */
     const char* modeLabels[LED_MODE_COUNT];
     for (int i = 0; i < LED_MODE_COUNT; i++) modeLabels[i] = modeNameI(i);
-    /* §3: anel de foco no seletor de modo (item 0) e no slider focado. */
-    if (s_selected == 0) UI_FocusRing(10 + slideX, 8 + offset, 300, 28, 14);
-    UI_TouchBarSegmented(buf, 10 + slideX, 8 + offset, 300, 28, modeLabels, LED_MODE_COUNT, s_mode, &s_segTween);
+    if (s_selected == 0) UI_FocusRing(16.0f + slideX, 18.0f, 288.0f, 38.0f, 19.0f);
+    UI_TouchBarSegmented(buf, 16.0f + slideX, 18.0f, 288.0f, 38.0f, modeLabels, LED_MODE_COUNT, s_mode, &s_segTween);
 
+    /* sliders nas cores dos canais (R rosa / G verde / B azul). */
+    ColorRGBA chR = {255, 86, 120, 255}, chG = {95, 215, 130, 255}, chB = {10, 132, 255, 255};
     if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
-        if (s_selected >= 1 && s_selected <= 4)
-            UI_FocusRing(10 + slideX, (56 + (s_selected - 1) * 32) + offset, 300, 26, 13);
-        UI_TouchBarSliderDrag(buf, 10 + slideX, 56 + offset, 300, "R", s_r, 0, 255, s_selected == 1,
-                              (ColorRGBA){s_r, 40, 40, 255}, tweenValue(&s_thumbTween[1]), tweenValue(&s_valTween[1]));
-        UI_TouchBarSliderDrag(buf, 10 + slideX, 88 + offset, 300, "G", s_g, 0, 255, s_selected == 2,
-                              (ColorRGBA){40, s_g, 40, 255}, tweenValue(&s_thumbTween[2]), tweenValue(&s_valTween[2]));
-        UI_TouchBarSliderDrag(buf, 10 + slideX, 120 + offset, 300, "B", s_b, 0, 255, s_selected == 3,
-                              (ColorRGBA){40, 40, s_b, 255}, tweenValue(&s_thumbTween[3]), tweenValue(&s_valTween[3]));
-        UI_TouchBarSliderDrag(buf, 10 + slideX, 152 + offset, 300, T(STR_SPEED_SHORT), s_speed, 1, 5, s_selected == 4,
-                              g_theme.accent, tweenValue(&s_thumbTween[4]), tweenValue(&s_valTween[4]));
+        drawFlatSlider(buf, "R", (int)(tweenValue(&s_valTween[1]) + 0.5f), s_r, 0, 255, 78.0f,  chR, s_selected == 1, slideX);
+        drawFlatSlider(buf, "G", (int)(tweenValue(&s_valTween[2]) + 0.5f), s_g, 0, 255, 118.0f, chG, s_selected == 2, slideX);
+        drawFlatSlider(buf, "B", (int)(tweenValue(&s_valTween[3]) + 0.5f), s_b, 0, 255, 158.0f, chB, s_selected == 3, slideX);
+        drawFlatSlider(buf, T(STR_SPEED_SHORT), (int)(tweenValue(&s_valTween[4]) + 0.5f), s_speed, 1, 5, 198.0f, g_theme.accent, s_selected == 4, slideX);
     } else {
-        if (s_selected == 1) UI_FocusRing(10 + slideX, 56 + offset, 300, 26, 13);
-        UI_TouchBarSliderDrag(buf, 10 + slideX, 56 + offset, 300, T(STR_SPEED_SHORT), s_speed, 1, 5, s_selected == 1,
-                              g_theme.accent, tweenValue(&s_thumbTween[1]), tweenValue(&s_valTween[1]));
+        drawFlatSlider(buf, T(STR_SPEED_SHORT), (int)(tweenValue(&s_valTween[1]) + 0.5f), s_speed, 1, 5, 78.0f, g_theme.accent, s_selected == 1, slideX);
     }
 
     UI_HelpBar(buf, T(STR_HELP_LED_L), T(STR_SAIR));
@@ -506,6 +470,6 @@ void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA,
     if (fadeA < 0.999f) {
         ColorRGBA veil = g_theme.background;
         veil.a = (u8)(255 * (1.0f - clampf(fadeA, 0.0f, 1.0f)));
-        UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT - 26, veil);
+        UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT, veil);
     }
 }

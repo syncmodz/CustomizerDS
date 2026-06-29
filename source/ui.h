@@ -72,6 +72,10 @@ void UI_Ring(float x, float y, float w, float h, float r, ColorRGBA tint);
  * sucesso, ambos tintados/centrados. */
 void UI_Glow(float cx, float cy, float diameter, ColorRGBA tint);
 void UI_Check(float cx, float cy, float size, ColorRGBA tint);
+/* 1.4.0 PART3: anel circular cakeOS (contorno, sem glow) e header large-title
+ * macOS (mini-emblema + eyebrow "CustomizerDS" + titulo grande à esquerda). */
+void UI_RingCircle(float cx, float cy, float diameter, ColorRGBA tint);
+void UI_ScreenHeader(C2D_TextBuf buf, const char* title);
 
 void UI_RoundRect(float x, float y, float w, float h, float r, ColorRGBA color);
 void UI_RoundFrame(float x, float y, float w, float h, float r, ColorRGBA fill, ColorRGBA border);

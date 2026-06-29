@@ -1,12 +1,17 @@
 # Changelog
 
 ## 1.4.0
-- Removed the purple glow/halo behind focused and selected items. Focus and
-  selection are now a clean accent ring or a solid pill — no more bloom.
-- Smooth rounded corners: cards, pills and the focus ring use anti-aliased
-  sprites instead of faceted triangles, so nothing looks jagged.
-- Softer motion: popups pop in with a gentle scale + fade and the focus ring
-  slides between items, using desktop-style easing curves.
+- Redesigned interface on all four screens (Home, Fonts, Theme, LED): a large
+  macOS-style title on each screen, flat cakeOS cards, a grouped font list,
+  ring swatches, and a clean LED ring.
+- Removed the purple glow/halo behind everything. Focus and selection are now a
+  crisp accent ring (it slides between items) or a solid pill — no more bloom.
+- Smooth anti-aliased rounded corners — nothing looks jagged anymore.
+- Softer, springier motion (pop-in and a sliding focus ring) like a desktop UI.
+- New system-font install screen: a clean progress bar with the app emblem and
+  a check, then reboot. It now also plays in the emulator (simulated, with an
+  honest "real console only" note) instead of just failing.
+- The bundled fonts are copied to sdmc:/3ds/CustomizerDS/fonts/ on first run.
 - Fonts tab: X applies the font to the system, A is just a preview.
 
 ## 1.3.0

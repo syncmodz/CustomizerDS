@@ -29,7 +29,6 @@ static int s_selected = 0;
 /* §1: o emblema da Home virou as 3 bolinhas glass da boot (UI_Emblem). Em
  * scale 1.0 o conjunto tem ~74px de altura; 0.70 -> ~52px, o mesmo footprint
  * do antigo appicon (iconsDrawFixed 52px). */
-#define HOME_EMBLEM_SCALE 0.70f
 /* §2: ligado durante o handoff boot->home -- enquanto true, menuRenderTop NAO
  * desenha emblema/wordmark (menuRenderTopHandoff os desenha deslizando). */
 static bool s_emblemSuppressed = false;
@@ -66,20 +65,6 @@ static void pillFocusChange(int oldSel, int newSel) {
     tweenStart(&s_pillFocusTween[newSel], tweenValue(&s_pillFocusTween[newSel]), 1.08f, 0.16f, EASE_IN_OUT_CUBIC);
 }
 
-/* Home (PROMPT v8 secao 5): a tela de CIMA mostra UMA funcao por vez,
- * deslizando suave ao navegar item<->item -- o carrossel estilo Xbox (3
- * camadas com peek/parallax) saiu. s_dispSelected e o item exibido (assenta
- * em s_selected ao fim do slide); s_slideT 0->1; s_slideDir +1 (novo entra
- * pela direita) / -1 (esquerda); s_slideFrom e o item saindo. A tela de BAIXO
- * (menuRenderBottom) fica IGUAL. A entrada NA aba Home (vinda de outra tela) e
- * do compositor (secao 2/3) -- este slide e so navegacao interna da Home. */
-static int s_dispSelected = 0;
-static int s_slideFrom = 0;
-static int s_slideDir = 0;
-static float s_slideT = 1.0f;   /* 1 = assentado */
-#define HOME_SLIDE_DUR 0.26f    /* secao 5: dt/0.26 */
-#define HOME_SLIDE_W 368.0f     /* largura do conteudo = distancia do slide */
-
 /* Sol/lua dinamico: o item "Tema" mostra lua no Escuro e sol no Claro. O
  * crossfade do icone do carrossel saiu junto com o carrossel (secao 5); a
  * animacao "grande" de troca de tema (sol girando/morfando) e separada e vive
@@ -90,33 +75,9 @@ static IconID resolveIcon(int idx) {
     return (idx == 1) ? themeIconCurrent() : (IconID)ITEMS[idx].iconImg;
 }
 
-/* Conteudo "vitrine" de UM item da Home (secao 5): icone grande + titulo +
- * valor, centrado em (cx,cy). alpha 0..1 modula tudo (usado durante o slide). */
-static void drawHomeShowcase(C2D_TextBuf buf, IconID icon, const char* title,
-                             const char* value, float cx, float cy, float alpha) {
-    float a = clampf(alpha, 0.0f, 1.0f);
-    ColorRGBA tc = g_theme.textPrimary; tc.a = (u8)((float)tc.a * a);
-    ColorRGBA vc = g_theme.accent;       vc.a = (u8)((float)vc.a * a);
-    /* §3b: lua = prata #E8EAF0 (nao-sticker aqui, senao fica preta no escuro);
-     * sol/appicon = cor propria (sticker); Aa/raio = ACCENT. Resolve a tela de
-     * cima nos 2 modos. */
-    ColorRGBA silver = {232, 234, 240, 255};
-    float cyIcon = cy - 24.0f, sz = 32.0f;
-    if (icon == ICON_THEME)       iconsDraw(icon, cx, cyIcon, sz, silver, a);
-    else if (iconIsSticker(icon)) iconsDrawFixed(icon, cx, cyIcon, sz, a);
-    else                          iconsDraw(icon, cx, cyIcon, sz, g_theme.accent, a);
-    UI_TextCenter(buf, NULL, title, cx, cy - 2.0f, 0.5f, 0.5f, tc);
-    /* §6: valor (nome da fonte pode ser longo) com auto-shrink ate caber no card. */
-    UI_TextCenterFit(buf, NULL, value, cx, cy + 26.0f, 0.30f, 0.22f, 330.0f, vc);
-}
-
 int menuSelected(void) { return s_selected; }
 void menuInit(void) {
     s_selected = 0;
-    s_dispSelected = 0;
-    s_slideFrom = 0;
-    s_slideDir = 0;
-    s_slideT = 1.0f;
     pillFocusInit();
 }
 
@@ -138,48 +99,25 @@ void menuUpdate(const AppInput* in, int* currentScreen) {
      * Cima/baixo nao tem mais efeito aqui: nao ha um segundo eixo de foco
      * nesta tela (so a fileira de cards), entao decidimos deixa-los sem
      * acao em vez de inventar um significado artificial pra eles. */
-    /* Travado durante a animacao (igual ao prototipo web: "if (animating)
-     * return") -- evita reentrar o slot-permutation a meio de uma troca. */
-    /* So aceita nova navegacao quando o slide anterior assentou (s_slideT>=1),
-     * igual ao "if (animating) return" do proto -- evita reentrar no meio. */
-    if (in->right && s_slideT >= 1.0f) {
-        s_slideFrom = s_dispSelected;
-        s_slideDir = 1;
-        s_slideT = 0.0f;
-        s_selected = (s_selected + 1) % 3;
-    }
-    if (in->left && s_slideT >= 1.0f) {
-        s_slideFrom = s_dispSelected;
-        s_slideDir = -1;
-        s_slideT = 0.0f;
-        s_selected = (s_selected - 1 + 3) % 3;
-    }
+    /* Espec v20: 3 tiles numa fileira -- esquerda/direita move o foco; o anel
+     * accent desliza entre eles (UI_FocusRing/§FLUIDEZ) e a micro-escala anima
+     * via pillFocusChange. */
+    if (in->right) s_selected = (s_selected + 1) % 3;
+    if (in->left)  s_selected = (s_selected - 1 + 3) % 3;
     if (s_selected != prevSelected) pillFocusChange(prevSelected, s_selected);
 
     if (in->touchDown) {
-        float tbY = 60.0f; /* deve bater com menuRenderBottom */
-        float btnW = 90.0f;
-        float btnH = 32.0f;
-        float gap = 12.0f;
-        float totalW = btnW * 3 + gap * 2;
-        float startX = (SCREEN_BOT_WIDTH - totalW) * 0.5f;
+        /* tiles 92x150, y=30, x=22/128/234 (deve bater com menuRenderBottom). */
+        const float tileW = 92.0f, tileH = 150.0f, tileY = 30.0f;
+        const float tileX[3] = { 22.0f, 128.0f, 234.0f };
         for (int i = 0; i < 3; i++) {
-            float bx = startX + i * (btnW + gap);
-            if (in->touchPY >= tbY && in->touchPY < tbY + btnH &&
-                in->touchPX >= bx && in->touchPX < bx + btnW) {
+            if (in->touchPX >= tileX[i] && in->touchPX < tileX[i] + tileW &&
+                in->touchPY >= tileY && in->touchPY < tileY + tileH) {
                 if (i != s_selected) pillFocusChange(s_selected, i);
                 s_selected = i;
-                s_pillPressIdx = i;
-                tweenStart(&s_pillPressTween, tweenValue(&s_pillPressTween), 0.96f, 0.09f, EASE_OUT_CUBIC);
-                *currentScreen = ITEMS[i].target;
+                *currentScreen = ITEMS[i].target; /* toca o tile = abre */
                 return;
             }
-        }
-        float descY = 110.0f; /* deve bater com menuRenderBottom */
-        if (in->touchPY >= descY && in->touchPY < descY + 70 &&
-            in->touchPX >= 20 && in->touchPX < 300) {
-            *currentScreen = ITEMS[s_selected].target;
-            return;
         }
     }
 
@@ -193,145 +131,60 @@ void menuUpdate(const AppInput* in, int* currentScreen) {
  * com spring leve, escalonadas; slogan aparece embaixo. As pilulas pousam
  * exatamente onde a Home as desenha (y=60) -> emenda suave com a Home. */
 void menuRenderStartupPills(C2D_TextBuf buf, float startupT) {
-    UI_TouchBarBackground();
-    /* §2: as pilulas tambem NAO esmaecem mais no fim da boot -- elas ja pousam
-     * em y=60 (mesma pose da Home), entao o handoff entrega a tela de baixo
-     * inteira sem pulo (ver main.c / menuRenderTopHandoff). */
-    float gA = 1.0f;
-
-    float btnW = 90.0f, btnH = 32.0f, gap = 12.0f;
-    float totalW = btnW * 3 + gap * 2;
-    float startX = (SCREEN_BOT_WIDTH - totalW) * 0.5f;
-    float landY = 60.0f; /* mesma posicao das pilulas da Home (menuRenderBottom) */
+    UI_BottomBackground();
+    /* §2 + espec v20: os 3 TILES da Home sobem/aparecem em cascata no fim da
+     * boot, ja na pose final (y=30, x=22/128/234) -> o handoff entrega a tela
+     * de baixo sem pulo. */
+    const float tileW = 92.0f, tileH = 150.0f, tileY = 30.0f;
+    const float tileX[3] = { 22.0f, 128.0f, 234.0f };
+    const ColorRGBA sect[3] = {
+        {255, 86, 120, 255}, {86, 200, 235, 255}, {95, 215, 130, 255}
+    };
 
     for (int i = 0; i < 3; i++) {
-        float p = clampf((startupT - (1.20f + i * 0.08f)) / 0.62f, 0.0f, 1.0f);
+        float p = clampf((startupT - (1.20f + i * 0.10f)) / 0.55f, 0.0f, 1.0f);
         if (p <= 0.0f) continue;
-        float e = easeSpringAmp(p, 0.62f);          /* spring: desliza e assenta */
-        float slideUp = (1.0f - e) * 40.0f;         /* vem 40px de baixo */
-        float a = clampf(easeFunc(clampf(p * 1.6f, 0.0f, 1.0f), EASE_OUT_CUBIC), 0.0f, 1.0f) * gA;
-        u8 au = (u8)(255 * a);
+        float e = easeFunc(p, EASE_EMPH_DECEL);
+        float slideUp = (1.0f - e) * 40.0f;
+        u8 au = (u8)(255 * e);
 
-        float bx = startX + i * (btnW + gap);
-        float by = landY + slideUp;
-        ColorRGBA bg = themeIsDark() ? (ColorRGBA){58, 58, 60, au} : (ColorRGBA){226, 226, 230, au};
-        UI_RoundRect(bx, by, btnW, btnH, 14, bg);
+        float x = tileX[i], y = tileY + slideUp;
+        float cx = x + tileW * 0.5f;
+        ColorRGBA bg = g_theme.surface; bg.a = au;
+        if (UI_AssetsReady()) UI_NineCard(x, y, tileW, tileH, 16.0f, bg);
+        else UI_RoundRect(x, y, tileW, tileH, 16.0f, bg);
 
-        float cx = bx + btnW * 0.5f, cy = by + btnH * 0.5f;
-        ColorRGBA textCol = g_theme.textSecondary;
-        textCol.a = (u8)(((float)textCol.a / 255.0f) * a);
-        ColorRGBA iconCol = textCol; iconCol.a = au;
-        iconsDrawAuto(resolveIcon(i), cx, cy - 6.0f, 14.0f, iconCol, a);
-        /* base compensa o UI_TEXT_SCALE (~*1.5). */
-        UI_TextCenter(buf, NULL, T(ITEMS[i].titleId), cx, cy + 2.0f, 0.14f, 0.14f, textCol);
-    }
-
-    /* slogan embaixo (fade), 0.8s depois do inicio da cascata. */
-    float slT = clampf((startupT - 2.0f) / 0.45f, 0.0f, 1.0f);
-    if (slT > 0.0f) {
-        ColorRGBA sc = g_theme.textHint;
-        sc.a = (u8)((float)sc.a * easeFunc(slT, EASE_OUT_CUBIC) * gA);
-        UI_TextCenter(buf, NULL, T(STR_HOME_SLOGAN), SCREEN_BOT_WIDTH * 0.5f, 150.0f, 0.18f, 0.18f, sc);
+        ColorRGBA rc = sect[i]; rc.a = au;
+        UI_RingCircle(cx, y + 50.0f, 40.0f, rc);
+        iconsDrawAuto(resolveIcon(i), cx, y + 50.0f, 18.0f, rc, e);
+        ColorRGBA nc = g_theme.textSecondary; nc.a = (u8)((float)nc.a * e);
+        UI_TextCenter(buf, NULL, T(ITEMS[i].titleId), cx, y + 102.0f, 0.35f, 0.35f, nc);
     }
 }
 
 void menuRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
-    /* Parallax de 3 camadas (Travel Motion): o fundo "atrasa" mais que o
-     * card, e o conteudo dentro do card se acomoda primeiro que o card. */
-    float offsetRaw = (1.0f - transVal);
-    float offset = offsetRaw * 40.0f;
-    float offsetFg = offsetRaw * 18.0f;
+    (void)scaleM;
+    float offsetFg = (1.0f - transVal) * 18.0f;
     UI_TopBackground();
-    UI_TopMenuBar(T(STR_TAB_HOME), buf);
+    UI_ScreenHeader(buf, T(STR_TAB_HOME));
 
-    float et = UI_EnterProgress();
-
-    /* Os 3 blobs ambiente decorativos que ficavam aqui (desenhados no fundo
-     * ANTES do card) foram removidos: g_theme.surface tem alpha 235 (nao
-     * 255), entao o card por cima deixava esses blobs translucidos
-     * espiarem por tras -- exatamente as "3-4 bolas sobrepostas" reportadas
-     * dentro do card da vitrine (confirmado no screenshot da Inicio). Como
-     * ficavam quase inteiramente cobertos pelo card mesmo quando "corretos",
-     * nao tinham valor visual que justificasse o risco de ghosting. */
-    float cascadeT = clampf((et * 2.0f - 0.0f), 0.0f, 1.0f);
-    float cascadeOffset = (1.0f - easeOutCubic(cascadeT)) * 20.0f;
-
-    /* Transicao 3.2: card desliza/escala a partir do ponto central -- o
-     * fade real (cobre tudo que ja foi desenhado, ate widgets sem alpha
-     * proprio como UI_StatChip) e aplicado por um veu no final da funcao. */
-    float cardBaseX = 16, cardBaseY = 30 + offset + cascadeOffset, cardBaseW = 368, cardBaseH = 196;
-    float cardW = cardBaseW * scaleM, cardH = cardBaseH * scaleM;
-    float cardX = cardBaseX + slideX + (cardBaseW - cardW) * 0.5f;
-    float cardY = cardBaseY + (cardBaseH - cardH) * 0.5f;
-    UI_Card(cardX, cardY, cardW, cardH, RADIUS_CARD, g_theme.surface);
-
-    /* §1: o emblema do app virou as 3 bolinhas glass da boot (UI_Emblem), com
-     * float idle + glow rosa respirando -- mesmo centro/footprint do antigo
-     * appicon 52px (iconsDrawFixed centra em x,y). Suprimido durante o handoff
-     * (menuRenderTopHandoff desenha o emblema deslizante por cima). */
-    if (!s_emblemSuppressed)
-        UI_Emblem(62 + slideX, 78 + offsetFg + cascadeOffset,
-                  HOME_EMBLEM_SCALE, uiFrameTime(), 1.0f);
-
+    /* Hero centrado (espec v20): emblema grande centro (200,116) r34 com bob
+     * idle +-2px (seno 3.2s), wordmark (200,~168) e subtitulo (200,~194).
+     * Suprimido durante o handoff boot->home (os shared-elements deslizam em
+     * menuRenderTopHandoff). */
     if (!s_emblemSuppressed) {
-        /* §1: respiracao sutil do wordmark (+-6% de alpha, ciclo ~3.2s). */
-        float wmBreath = 0.94f + 0.06f * (0.5f + 0.5f * sinf(uiFrameTime() * (6.28318531f / 3.2f)));
-        ColorRGBA wmCol = g_theme.textPrimary;
-        wmCol.a = (u8)((float)wmCol.a * wmBreath);
-        UI_Text(buf, NULL, "CustomizerDS", 104 + slideX, 50 + offsetFg + cascadeOffset, 0.54f, 0.54f, wmCol);
-    }
-    UI_Text(buf, NULL, T(STR_HOME_SLOGAN), 104 + slideX, 76 + offsetFg + cascadeOffset, 0.24f, 0.24f, g_theme.accent);
-
-    /* 3 cards de navegacao estilo end4-Monet (v3 3.1): icone Reva + label
-     * curto + valor atual, raio RADIUS_CARD, halo contido no selecionado
-     * (substitui o antigo UI_StatChip + anel solido por fora). */
-    ColorRGBA accentC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
-    const char* NAV_SHORT[3] = { T(STR_NAV_FONTS), T(STR_NAV_THEME), T(STR_NAV_LED) };
-    /* §6: nome COMPLETO da fonte (auto-shrink na vitrine, ver drawHomeShowcase). */
-    const char* chipValues[3] = { fontsCurrentName(), themeIsDark() ? T(STR_DARK) : T(STR_LIGHT), ledModeName() };
-    ColorRGBA chipDots[3] = { g_theme.accent, accentC, ledPreviewColor() };
-
-    /* +24px (era 112): desce a vitrine (icone+nome da opcao) pra nao encostar
-     * no icone do app la em cima (feedback do dono). */
-    float chipY = 136.0f + offsetFg + cascadeOffset;
-    float chipH = 56.0f;
-    /* Vitrine de UMA funcao por vez (secao 5): o conteudo (icone+titulo+valor)
-     * e desenhado UMA vez quando assentado; durante o slide e desenhado DUAS
-     * vezes -- o que sai (s_slideFrom) e o que entra (s_selected) -- como um
-     * unico bloco coeso deslizando (sem parallax/cascade, sem 3 camadas). A
-     * moldura/header acima fica parada; so o conteudo desliza. */
-    if (s_slideT < 1.0f) {
-        s_slideT += uiFrameDt() / HOME_SLIDE_DUR;
-        if (s_slideT >= 1.0f) { s_slideT = 1.0f; s_dispSelected = s_selected; }
+        float bob = 2.0f * sinf(uiFrameTime() * (6.28318531f / 3.2f));
+        UI_Emblem(200.0f + slideX, 116.0f + offsetFg + bob, 34.0f / 24.0f, uiFrameTime(), 1.0f);
+        UI_TextCenter(buf, NULL, "CustomizerDS", 200.0f + slideX, 168.0f + offsetFg,
+                      0.54f, 0.54f, g_theme.textPrimary);
+        UI_TextCenter(buf, NULL, T(STR_HOME_SLOGAN), 200.0f + slideX, 194.0f + offsetFg,
+                      0.32f, 0.32f, g_theme.textSecondary);
     }
 
-    float rowCx = 200.0f + slideX;
-    float showcaseY = chipY + chipH * 0.5f; /* mesmo centro vertical de antes */
-
-    if (s_slideT >= 1.0f) {
-        drawHomeShowcase(buf, resolveIcon(s_dispSelected), NAV_SHORT[s_dispSelected],
-                         chipValues[s_dispSelected], rowCx, showcaseY, 1.0f);
-    } else {
-        float e = easeOutCubic(s_slideT);
-        float dir = (float)s_slideDir;
-        float xExit = rowCx - HOME_SLIDE_W * e * dir;        /* sai p/ o lado oposto */
-        float xEnter = rowCx + HOME_SLIDE_W * (1.0f - e) * dir; /* entra do lado de dir */
-        drawHomeShowcase(buf, resolveIcon(s_slideFrom), NAV_SHORT[s_slideFrom],
-                         chipValues[s_slideFrom], xExit, showcaseY, 1.0f);
-        drawHomeShowcase(buf, resolveIcon(s_selected), NAV_SHORT[s_selected],
-                         chipValues[s_selected], xEnter, showcaseY, 1.0f);
-    }
-
-    /* §5: os 3 pontinhos indicadores da home (top) foram removidos -- a
-     * vitrine de 1 item ja deixa claro onde voce esta, e eles poluiam. */
-
-    /* Veu de fade real (3.2): cobre TUDO que foi desenhado no card, mesmo
-     * widgets sem alpha proprio (UI_StatChip), sem precisar repassar fadeA
-     * por dentro de cada um -- em fadeA=1 o veu e invisivel (alpha 0). */
     if (fadeA < 0.999f) {
         ColorRGBA veil = g_theme.backgroundTop;
         veil.a = (u8)(255 * (1.0f - clampf(fadeA, 0.0f, 1.0f)));
-        UI_Fill(0, 25, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT - 25, veil);
+        UI_Fill(0, 0, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT, veil);
     }
 }
 
@@ -357,19 +210,15 @@ void menuRenderTopHandoff(C2D_TextBuf buf, float h) {
     }
 
     /* 3) emblema: BOOT (centro 200,86 scale 1.0; ver UI_StartupLogo) -> HOME
-     *    (centro 62,78 scale HOME_EMBLEM_SCALE). Opaco, por cima do veu. */
-    UI_Emblem(lerpf(200.0f, 62.0f, e), lerpf(86.0f, 78.0f, e),
-              lerpf(1.0f, HOME_EMBLEM_SCALE, e), uiFrameTime(), 1.0f);
+     *    (centro 200,116 scale 34/24). Ambos centrados em x=200 (espec v20). */
+    UI_Emblem(200.0f, lerpf(86.0f, 116.0f, e),
+              lerpf(1.0f, 34.0f / 24.0f, e), uiFrameTime(), 1.0f);
 
-    /* 4) wordmark: BOOT = centrado em (200,138) base 0.34; HOME = ancorado a
-     *    esquerda em (104,50) base 0.54. Convertendo a pose da Home pra centro
-     *    (104 + largura/2) o glide aterrissa EXATO no que a Home desenha depois
-     *    -> sem pulo ao entregar pro render normal. */
-    float wmHomeCx = 104.0f + UI_TextWidth(buf, NULL, "CustomizerDS", 0.54f) * 0.5f;
+    /* 4) wordmark: BOOT centrado (200,138) base 0.34 -> HOME centrado (200,168)
+     *    base 0.54 -- aterrissa EXATO no que a Home desenha depois (sem pulo). */
     float wmS = lerpf(0.34f, 0.54f, e);
     UI_TextCenter(buf, NULL, "CustomizerDS",
-                  lerpf(200.0f, wmHomeCx, e), lerpf(138.0f, 50.0f, e),
-                  wmS, wmS, g_theme.textPrimary);
+                  200.0f, lerpf(138.0f, 168.0f, e), wmS, wmS, g_theme.textPrimary);
 
     /* libera a supressao -> quando o handoff acabar, o render normal volta a
      * desenhar emblema/wordmark na MESMA pose final (continuidade). */
@@ -377,63 +226,47 @@ void menuRenderTopHandoff(C2D_TextBuf buf, float h) {
 }
 
 void menuRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
-    float offset = (1.0f - transVal) * 30.0f;
-    float et = UI_EnterProgress();
+    (void)transVal; (void)fadeA; (void)scaleM;
     UI_BottomBackground();
 
-    /* As 3 pilulas (Fontes/Tema/LED) e o card de info DESCEM juntos pro
-     * centro-baixo da tela de baixo (feedback: descer "font/app theme/rgb led",
-     * nao so o card). Antes as pilulas ficavam coladas no topo (y=12). */
-    float tbY = 60.0f + offset;
-    float btnW = 90.0f * scaleM;
-    float btnH = 32.0f;
-    float gap = 12.0f;
-    float totalW = btnW * 3 + gap * 2;
-    float startX = (SCREEN_BOT_WIDTH - totalW) * 0.5f + slideX;
+    /* Espec v20: 3 tiles 92x150, y=30, x=22/128/234. Cada tile = card (foco =
+     * card-foco #1F1E26 + anel accent + micro-escala) com anel cakeOS na cor da
+     * secao (cx,80) r20 + icone + nome (cx,140). */
+    const float tileW = 92.0f, tileH = 150.0f, tileY = 30.0f;
+    const float tileX[3] = { 22.0f, 128.0f, 234.0f };
+    const ColorRGBA sect[3] = {
+        {255, 86, 120, 255},  /* Fontes = rosa  */
+        { 86, 200, 235, 255}, /* Tema   = ciano */
+        { 95, 215, 130, 255}, /* LED    = verde */
+    };
 
     for (int i = 0; i < 3; i++) {
-        float bx = startX + i * (btnW + gap);
-        /* Stagger 3.2: 40ms entre pilulas, 260ms cada (UI_PillButton aplica
-         * easeOutCubic por dentro, entao passamos o progresso linear bruto). */
-        float appearT = clampf((UI_EnterSeconds() - i * 0.04f) / 0.26f, 0.0f, 1.0f);
-        /* spec v7 Parte C: focusScale por pilula (Tween 1.0<->1.08, ver
-         * pillFocusChange acima); pressScale so a pilula sendo apertada
-         * (s_pillPressIdx) usa o Tween de press, as outras ficam em 1.0. */
-        float focusScale = (s_pillFocusInit) ? tweenValue(&s_pillFocusTween[i]) : ((i == s_selected) ? 1.08f : 1.0f);
-        float pressScale = (i == s_pillPressIdx) ? tweenValue(&s_pillPressTween) : 1.0f;
-        /* §3: anel de foco accent na pilula focada (D-pad). */
-        if (i == s_selected) UI_FocusRing(bx, tbY, btnW, btnH, btnH * 0.5f);
-        UI_PillButtonPress(buf, bx, tbY, btnW, btnH,
-                            T(ITEMS[i].titleId), NULL, resolveIcon(i),
-                            i == s_selected, appearT, pressScale, focusScale);
+        bool sel = (i == s_selected);
+        /* pop-in escalonado (EZ_DECEL 92->100%) ao entrar na aba. */
+        float ap = easeFunc(clampf((UI_EnterSeconds() - i * 0.04f) / 0.26f, 0.0f, 1.0f), EASE_EMPH_DECEL);
+        /* micro-escala de foco ~1.03 (do Tween 1.0<->1.08 suavizado). */
+        float fscale = (s_pillFocusInit) ? tweenValue(&s_pillFocusTween[i]) : (sel ? 1.08f : 1.0f);
+        float micro = 1.0f + (fscale - 1.0f) * 0.4f;
+        float popS = lerpf(0.92f, 1.0f, ap) * micro;
+
+        float cx = tileX[i] + tileW * 0.5f + slideX;
+        float cy = tileY + tileH * 0.5f;
+        float w = tileW * popS, h = tileH * popS;
+        float x = cx - w * 0.5f, y = cy - h * 0.5f;
+
+        ColorRGBA bg = sel ? (ColorRGBA){0x1F, 0x1E, 0x26, 255} : g_theme.surface;
+        UI_Shadow(x, y, w, h, 16.0f, sel ? 45 : 24, 2.0f);
+        if (UI_AssetsReady()) UI_NineCard(x, y, w, h, 16.0f, bg);
+        else UI_RoundFrame(x, y, w, h, 16.0f, bg, (ColorRGBA){255, 255, 255, themeIsDark() ? 12 : 24});
+        if (sel) UI_FocusRing(x, y, w, h, 16.0f); /* anel accent nitido (desliza) */
+
+        float ringCy = cy + (80.0f - cy) * (h / tileH);
+        float nameCy = cy + (140.0f - cy) * (h / tileH);
+        UI_RingCircle(cx, ringCy, 40.0f * popS, sect[i]);
+        iconsDrawAuto(resolveIcon(i), cx, ringCy, 18.0f, sect[i], 1.0f);
+        ColorRGBA nameC = sel ? g_theme.textPrimary : g_theme.textSecondary;
+        UI_TextCenter(buf, NULL, T(ITEMS[i].titleId), cx, nameCy - 8.0f, 0.35f, 0.35f, nameC);
     }
-
-    /* Card de info logo abaixo das pilulas (que agora estao em y=60). */
-    float descY = 110.0f + offset;
-    float descAp = clampf((et * 2.0f - 0.15f), 0.0f, 1.0f);
-    float da = easeOutCubic(descAp);
-    ColorRGBA descBg = themeIsDark()
-        ? (ColorRGBA){20, 22, 30, 240}
-        : (ColorRGBA){240, 242, 248, 240};
-    descBg.a = (u8)((float)descBg.a * da);
-    UI_RoundFrame(20 + slideX, descY, 280, 70, 14, descBg, (ColorRGBA){255, 255, 255, (u8)(8 * da)});
-
-    UI_RoundRect(32 + slideX, descY + 8, 36, 36, 10, g_theme.accent);
-    ColorRGBA iconText = themeContrastText(g_theme.accent);
-    iconText.a = (u8)(255 * da);
-    iconsDrawAuto(resolveIcon(s_selected), 50 + slideX, descY + 26, 18.0f, iconText, da);
-
-    ColorRGBA titleC = g_theme.textPrimary;
-    titleC.a = (u8)(255 * da);
-    UI_Text(buf, NULL, T(ITEMS[s_selected].titleId), 80 + slideX, descY + 8, 0.34f, 0.34f, titleC);
-    ColorRGBA subC = g_theme.textSecondary;
-    subC.a = (u8)(255 * da);
-    UI_Text(buf, NULL, T(ITEMS[s_selected].subId), 80 + slideX, descY + 30, 0.24f, 0.24f, subC);
-
-    ColorRGBA hintC = g_theme.textHint;
-    hintC.a = (u8)(180 * da);
-    UI_TextCenter(buf, NULL, T(STR_HOME_HINT),
-                  160 + slideX, descY + 54, 0.22f, 0.22f, hintC);
 
     UI_HelpBar(buf, T(STR_HELP_HOME_L), T(STR_SAIR));
 

@@ -196,6 +196,26 @@ void UI_Check(float cx, float cy, float size, ColorRGBA tint) {
     C2D_DrawImageAt(img, cx - size * 0.5f, cy - size * 0.5f, 0.0f, &tn, scale, scale);
 }
 
+/* 1.4.0 PART3: anel circular cakeOS (ring_circle = contorno, centro
+ * transparente, sem glow) centrado e tintado -- swatches/LED/emblema. */
+void UI_RingCircle(float cx, float cy, float diameter, ColorRGBA tint) {
+    C2D_Image img = ui9img(ui9_gen_ring_circle_3x_idx);
+    if (!img.tex || !img.subtex || diameter <= 0.0f) return;
+    C2D_ImageTint tn;
+    C2D_PlainImageTint(&tn, C2D_Color32(tint.r, tint.g, tint.b, tint.a), 1.0f);
+    float scale = diameter / (float)img.subtex->width;
+    C2D_DrawImageAt(img, cx - diameter * 0.5f, cy - diameter * 0.5f, 0.0f, &tn, scale, scale);
+}
+
+/* 1.4.0 PART3: header macOS large-title de TODA tela de cima (espec numerica
+ * v20): mini-emblema centro (28,26) r9 + eyebrow "CustomizerDS" (x46) + o
+ * large-title da tela (x24, ~26px, a esquerda). Cores via tema. */
+void UI_ScreenHeader(C2D_TextBuf buf, const char* title) {
+    UI_Emblem(28.0f, 26.0f, 9.0f / 24.0f, 0.0f, 1.0f);
+    UI_Text(buf, NULL, "CustomizerDS", 46.0f, 16.0f, 0.30f, 0.30f, g_theme.textHint);
+    if (title) UI_Text(buf, NULL, title, 24.0f, 40.0f, 0.70f, 0.70f, g_theme.textPrimary);
+}
+
 /* spec v7 Parte A (causa-raiz): a versao antiga montava o round-rect em 2
  * retangulos + 4 circulos SOBREPOSTOS -- os 2 retangulos (vertical cheio +
  * horizontal cheio) se cruzavam na regiao central, e cada circulo de canto

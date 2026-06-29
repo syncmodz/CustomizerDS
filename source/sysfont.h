@@ -65,4 +65,9 @@ bool sysfontRestore(void);
 /* Reinicia o console pra aplicar (APT_HardwareResetAsync). */
 void sysfontReboot(void);
 
+/* 1.4.0 PART 4.1: copia romfsPath -> sdPath SE sdPath ainda nao existe (nao
+ * recopia todo boot). true = ja existia ou copiou ok; false = falha. Nao trava
+ * o app (caller ignora o retorno). */
+bool sysfontCopyToSDIfAbsent(const char* romfsPath, const char* sdPath);
+
 #endif

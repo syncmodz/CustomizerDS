@@ -14,10 +14,11 @@ static int s_selected = 0;
 static Tween s_segTween;
 /* §i18n.6: seletor de idioma PT|EN|ES na aba Tema (segmented proprio). */
 static Tween s_langSegTween;
-#define LANG_SEG_X 85.0f
-#define LANG_SEG_Y 150.0f
-#define LANG_SEG_W 150.0f
-#define LANG_SEG_H 28.0f
+/* espec v20: card de idioma na linha de baixo (196,132,108,32). */
+#define LANG_SEG_X 196.0f
+#define LANG_SEG_Y 132.0f
+#define LANG_SEG_W 108.0f
+#define LANG_SEG_H 32.0f
 /* Tween do anel de selecao dos swatches de accent (desliza em X, v3 3.3). */
 static Tween s_ringTween;
 static bool s_hexEditing = false;
@@ -77,17 +78,6 @@ static void setLang(Lang l) {
 static void triggerSwatchBounce(int idx) {
     s_swatchBounceIdx = idx;
     s_swatchBounceT = 0.0f;
-}
-
-/* Centraliza a fileira de swatches de accent na tela de baixo (320px) --
- * antes comecava num x fixo (18) que so por coincidencia "colava" no canto
- * direito do segmented Claro/Escuro acima (60..260), deixando a fileira
- * visivelmente puxada pra esquerda (margem 18 vs 60 do lado direito) --
- * spec v6 secao 3: "conteudo das telas de baixo centralizado". */
-static float accentRowStartX(int accentTotal) {
-    float swSize = 32.0f, gap = 10.0f;
-    float totalW = (float)accentTotal * swSize + (float)(accentTotal - 1) * gap;
-    return (SCREEN_BOT_WIDTH - totalW) * 0.5f;
 }
 
 /* Centro do MiniWindow de preview na tela de cima (winX=32,winW=160,
@@ -328,10 +318,10 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
     }
 
     if (in->touchDown || in->touchHeld) {
-        float segX = 60.0f, segY = 8.0f, segW = 100.0f, segH = 32.0f; /* deve bater com segH=32 do darkmodeRenderBottom */
-        if (in->touchPY >= segY && in->touchPY < segY + segH &&
-            in->touchPX >= segX && in->touchPX < segX + segW * 2) {
-            bool isDark = (in->touchPX >= segX + segW);
+        /* segmented Claro/Escuro (16,18,288,38) -- Escuro = metade direita. */
+        if (in->touchPY >= 18.0f && in->touchPY < 56.0f &&
+            in->touchPX >= 16.0f && in->touchPX < 304.0f) {
+            bool isDark = (in->touchPX >= 160.0f);
             if (in->touchDown) {
                 s_selected = isDark ? 1 : 0;
                 applyThemeWithWipe(isDark);
@@ -339,12 +329,12 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
             return;
         }
 
+        /* swatches cakeOS (centros 40+i*44, 102). */
         int accentTotal = themeAccentCount() + 1;
-        float swSize = 32.0f, gap = 10.0f, startX = accentRowStartX(accentTotal), sy = 58.0f;
         for (int i = 0; i < accentTotal; i++) {
-            float sx = startX + i * (swSize + gap);
-            if (in->touchPY >= sy && in->touchPY < sy + swSize &&
-                in->touchPX >= sx && in->touchPX < sx + swSize) {
+            float scx = 40.0f + i * 44.0f, scy = 102.0f;
+            if (in->touchPY >= scy - 18.0f && in->touchPY < scy + 18.0f &&
+                in->touchPX >= scx - 20.0f && in->touchPX < scx + 20.0f) {
                 if (in->touchDown) {
                     s_selected = 2 + i;
                     triggerSwatchBounce(i);
@@ -352,8 +342,8 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
                     else {
                         ColorRGBA cur = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
                         enterHexEdit(cur);
-                        s_hexOriginX = sx;
-                        s_hexOriginY = sy;
+                        s_hexOriginX = scx - 16.0f;
+                        s_hexOriginY = scy - 16.0f;
                         s_hexEditing = true;
                         s_hexEnterT = 0.0f;
                     }
@@ -362,7 +352,18 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
             }
         }
 
-        /* §i18n.6: toque nos 3 segmentos PT|EN|ES. */
+        /* card HEX (16,132,168,32) -> abre o editor de cor custom. */
+        if (in->touchDown && in->touchPY >= 132.0f && in->touchPY < 164.0f &&
+            in->touchPX >= 16.0f && in->touchPX < 184.0f) {
+            s_selected = 2 + themeAccentCount();
+            ColorRGBA cur = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
+            enterHexEdit(cur);
+            s_hexOriginX = 16.0f; s_hexOriginY = 132.0f;
+            s_hexEditing = true; s_hexEnterT = 0.0f;
+            return;
+        }
+
+        /* card idioma PT|EN|ES (LANG_SEG_*). */
         if (in->touchDown &&
             in->touchPY >= LANG_SEG_Y && in->touchPY < LANG_SEG_Y + LANG_SEG_H &&
             in->touchPX >= LANG_SEG_X && in->touchPX < LANG_SEG_X + LANG_SEG_W) {
@@ -384,11 +385,9 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
             else {
                 ColorRGBA cur = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
                 enterHexEdit(cur);
-                /* Mesma origem usada pelo toque (3.3): posicao real do swatch
-                 * HEX na grade, calculada com as mesmas constantes do render. */
-                float swSize = 32.0f, gap = 10.0f, startX = accentRowStartX(themeAccentCount() + 1), sy0 = 58.0f;
-                s_hexOriginX = startX + idx * (swSize + gap);
-                s_hexOriginY = sy0;
+                /* origem da animacao = centro do swatch HEX na grade (40+idx*44, 102). */
+                s_hexOriginX = (40.0f + idx * 44.0f) - 16.0f;
+                s_hexOriginY = 102.0f - 16.0f;
                 s_hexEditing = true;
                 s_hexEnterT = 0.0f;
             }
@@ -450,26 +449,15 @@ static void darkmodeRenderWipeIcon(bool isTopScreen) {
 }
 
 void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
-    /* Parallax 3 camadas (Travel Motion), igual as outras telas. */
-    float offsetRaw = (1.0f - transVal);
-    float offset = offsetRaw * 40.0f;
-    float offsetFg = offsetRaw * 18.0f;
+    (void)transVal; (void)scaleM;
+    float offsetFg = 0.0f;
     UI_TopBackground();
-    UI_TopMenuBar(T(STR_TAB_THEME), buf);
-
-    /* Blobs decorativos de fundo removidos (mesma causa do bug "bolas
-     * sobrepostas" da Inicio): caiam dentro do retangulo do card, que tem
-     * alpha 235 (nao 255) e deixava-os espiar por tras. */
-
-    /* Transicao 3.2: card desliza/escala a partir do centro; fade real vem
-     * do veu no final (cobre tambem o ramo s_hexEditing antes do return). */
-    float cardBaseX = 16, cardBaseY = 30 + offset, cardBaseW = 368, cardBaseH = 196;
-    float cardW = cardBaseW * scaleM, cardH = cardBaseH * scaleM;
-    float cardX = cardBaseX + slideX + (cardBaseW - cardW) * 0.5f;
-    float cardY = cardBaseY + (cardBaseH - cardH) * 0.5f;
-    UI_Card(cardX, cardY, cardW, cardH, RADIUS_CARD, g_theme.surface);
+    UI_ScreenHeader(buf, T(STR_TAB_THEME));
 
     if (s_hexEditing) {
+        /* editor de HEX: mantem o card-backdrop largo (cobre o header enquanto
+         * edita -- ok, o foco e o editor). */
+        UI_Card(16 + slideX, 30, 368, 196, RADIUS_CARD, g_theme.surface);
         /* Popup 3.3 (Travel Agency): scrim 0->55% em 220ms easeOutCubic,
          * card cresce 0.6->1.0 + opacidade 0.4->1.0 com easeOutBack(1.5),
          * 360ms. A tela de cima nao tem um "elemento que abriu" equivalente
@@ -530,36 +518,34 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
         return;
     }
 
-    UI_Text(buf, NULL, T(STR_APPEARANCE), 32 + slideX, 52 + offsetFg, 0.34f, 0.34f, g_theme.textPrimary);
+    /* Card de previa (espec v20): x24 y88 w352 h128 r16. */
+    float cardX2 = 24.0f + slideX;
+    if (UI_AssetsReady()) UI_NineCard(cardX2, 88.0f, 352.0f, 128.0f, 16.0f, g_theme.surface);
+    else UI_Card(cardX2, 88.0f, 352.0f, 128.0f, 16.0f, g_theme.surface);
+    UI_Text(buf, NULL, T(STR_PREVIEW), 44.0f + slideX, 106.0f, 0.24f, 0.24f, g_theme.textHint);
 
-    /* Esquerda: mini janela reconhecivel (titlebar+semaforos+conteudo na cor
-     * real do tema) -- preview honesto, nao um mock de "skeleton loading". */
-    float winX = 32.0f + slideX, winY = 84.0f + offsetFg, winW = 160.0f, winH = 116.0f;
-    UI_MiniWindow(winX, winY, winW, winH, themeIsDark());
-    UI_TextCenter(buf, NULL, themeIsDark() ? T(STR_DARK) : T(STR_LIGHT),
-                  winX + winW * 0.5f, winY + winH + 6, 0.24f, 0.24f, g_theme.textSecondary);
-
-    /* Direita: swatch de accent + nome + valor hex, centralizados na altura
-     * do card (preenche o espaco que antes ficava vazio). */
-    float colX = winX + winW + 24.0f;
-    float colCenterY = winY + winH * 0.5f;
     ColorRGBA accentC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
-    UI_Text(buf, NULL, T(STR_ACCENT), colX, winY, 0.22f, 0.22f, g_theme.textHint);
-    /* Halo contido: UI_RoundFrame com fill transparente NAO punch um buraco
-     * (ja descoberto na barra de espectro) -- aqui o bug era visivel de
-     * verdade, pois desenhava um retangulo translucido por CIMA do swatch
-     * inteiro. Corrigido com o mesmo padrao de 3 camadas do UI_NavCard:
-     * fundo solido do card, tint contido no proprio raio, swatch por cima. */
-    /* 1.4.0 §SEM-GLOW: removido o halo accent translucido por cima do swatch
-     * -- so o card de fundo + swatch accent solido. */
-    UI_RoundRect(colX - 4, colCenterY - 28, 56, 56, 28, g_theme.surface);
-    UI_RoundRect(colX, colCenterY - 24, 48, 48, 24, accentC);
 
+    /* mini-card de exemplo (44,136,150,76) r12: swatch accent r11 + nome + #hex
+     * + pilula accent. */
+    float mx = 44.0f + slideX, my = 136.0f;
+    if (UI_AssetsReady()) UI_NineCard(mx, my, 150.0f, 76.0f, 12.0f, (ColorRGBA){0x1F, 0x1E, 0x26, 255});
+    else UI_RoundRect(mx, my, 150.0f, 76.0f, 12.0f, (ColorRGBA){0x1F, 0x1E, 0x26, 255});
+    UI_RoundRect(72.0f - 11.0f + slideX, 164.0f - 11.0f, 22.0f, 22.0f, 11.0f, accentC);
     const char* accentLabel = themeAccentIsCustom() ? T(STR_CUSTOM) : themeAccentName(themeGetAccentIndex());
-    UI_Text(buf, NULL, accentLabel, colX + 60, colCenterY - 18, 0.28f, 0.28f, g_theme.textPrimary);
+    UI_Text(buf, NULL, accentLabel, 92.0f + slideX, 150.0f, 0.27f, 0.27f, g_theme.textPrimary);
     char hexStr[10];
     snprintf(hexStr, sizeof(hexStr), "#%02X%02X%02X", accentC.r, accentC.g, accentC.b);
-    UI_Text(buf, NULL, hexStr, colX + 60, colCenterY + 4, 0.24f, 0.24f, g_theme.textHint);
+    UI_Text(buf, NULL, hexStr, 92.0f + slideX, 170.0f, 0.24f, 0.24f, g_theme.textSecondary);
+    if (UI_AssetsReady()) UI_NinePill(60.0f + slideX, 196.0f, 80.0f, 14.0f, accentC);
+    else UI_RoundRect(60.0f + slideX, 196.0f, 80.0f, 14.0f, 7.0f, accentC);
+
+    /* icone de modo (sol/lua): anel ambar r22 (300,160) + label (300,~188). */
+    ColorRGBA amber = {0xF5, 0xBE, 0x46, 255};
+    UI_RingCircle(300.0f + slideX, 160.0f, 44.0f, amber);
+    iconsDrawAuto(themeIsDark() ? ICON_THEME : ICON_SUN, 300.0f + slideX, 160.0f, 22.0f, amber, 1.0f);
+    UI_TextCenter(buf, NULL, themeIsDark() ? T(STR_DARK) : T(STR_LIGHT),
+                  300.0f + slideX, 188.0f, 0.32f, 0.32f, g_theme.textSecondary);
 
     darkmodeRenderWipeIcon(true);
 
@@ -631,133 +617,66 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         return;
     }
 
-    /* §redesign: 3 SECOES com container -- a focada ACENDE (bg + tint + barra
-     * accent), as outras esmaecem (scrim no fim da funcao). As faixas y batem
-     * com o conteudo desenhado abaixo. Substitui os aneis de foco soltos. */
-    int dmLangSlot = 2 + (themeAccentCount() + 1);
-    int focSec = (s_selected < 2) ? 0 : (s_selected < dmLangSlot ? 1 : 2);
-    const struct { float y, h; } secR[3] = { {2.0f, 46.0f}, {50.0f, 86.0f}, {132.0f, 52.0f} };
-    for (int si = 0; si < 3; si++) {
-        float cx = 12.0f + slideX, cy = secR[si].y + offset;
-        float cw = SCREEN_BOT_WIDTH - 24.0f, ch = secR[si].h;
-        ColorRGBA bg = themeIsDark() ? (ColorRGBA){255, 255, 255, (u8)(si == focSec ? 16 : 7)}
-                                     : (ColorRGBA){0, 0, 0, (u8)(si == focSec ? 14 : 7)};
-        UI_RoundRect(cx, cy, cw, ch, 14.0f, bg);
-        if (si == focSec) {
-            ColorRGBA tint = g_theme.accent; tint.a = 24;
-            UI_RoundRect(cx, cy, cw, ch, 14.0f, tint);
-            ColorRGBA bar = g_theme.accent; bar.a = 255;
-            UI_RoundRect(cx, cy + 9.0f, 4.0f, ch - 18.0f, 2.0f, bar);
-        }
-    }
+    /* === espec v20: controles planos (segmented + swatches em anel + cards) === */
+    int accentTotal = themeAccentCount() + 1; /* 5 presets + HEX/custom */
 
-    /* segmentedLozenge compartilhado (v3 3.3) -- o lozenge ja marca o valor; a
-     * secao focada (container acima) marca "onde voce esta" -> sem anel solto. */
+    /* 1) segmented Claro/Escuro (16,18,288,38). */
+    if (s_selected < 2) UI_FocusRing(16.0f + slideX, 18.0f + offset, 288.0f, 38.0f, 19.0f);
     const char* modeLabels[] = { T(STR_LIGHT), T(STR_DARK) };
-    UI_TouchBarSegmented(buf, 60.0f + slideX, 8.0f + offset, 200.0f, 32.0f,
+    UI_TouchBarSegmented(buf, 16.0f + slideX, 18.0f + offset, 288.0f, 38.0f,
                          modeLabels, 2, themeIsDark() ? 1 : 0, &s_segTween);
 
-    int accentTotal = themeAccentCount() + 1;
-    int langSlot = 2 + accentTotal; /* mesmo calculo do darkmodeUpdate */
-    float swSize = 32.0f, gap = 10.0f, startX = accentRowStartX(accentTotal) + slideX, sy = 58.0f + offset;
+    /* 2) caption + 6 swatches cakeOS (centros y102, x=40..260 passo 44). */
+    UI_Text(buf, NULL, T(STR_ACCENT), 24.0f + slideX, 70.0f + offset, 0.24f, 0.24f, g_theme.textHint);
     int activeIdx = themeAccentIsCustom() ? themeAccentCount() : themeGetAccentIndex();
 
-    /* Anel de selecao desliza (v3 3.3) -- antes ele so "ligava/desligava" no
-     * swatch ativo, sem animar a posicao; agora UMA instancia de anel desliza
-     * em X de onde estava pro novo ativo, 180ms easeOutCubic (mesma curva da
-     * spec v2 pro anel de selecao generico). */
-    float ringTargetX = startX + activeIdx * (swSize + gap) + swSize * 0.5f;
+    for (int i = 0; i < accentTotal; i++) {
+        float scx = 40.0f + i * 44.0f + slideX, scy = 102.0f + offset;
+        ColorRGBA ac = (i < themeAccentCount()) ? themeAccentColor(i) : themeGetCustomAccent();
+        /* bounce 3.4 ao selecionar. */
+        float bounce = 1.0f;
+        if (i == s_swatchBounceIdx && s_swatchBounceT < 0.3f) {
+            float bt = clampf(s_swatchBounceT / 0.3f, 0.0f, 1.0f);
+            bounce = (bt < 0.5f) ? lerpf(1.0f, 1.15f, easeFunc(bt * 2.0f, EASE_OUT_CUBIC))
+                                 : lerpf(1.15f, 1.0f, easeFunc((bt - 0.5f) * 2.0f, EASE_OUT_BACK));
+        }
+        float d = 28.0f * bounce;
+        UI_RoundRect(scx - d * 0.5f, scy - d * 0.5f, d, d, d * 0.5f, ac); /* disco da cor */
+        UI_RingCircle(scx, scy, d + 6.0f, (ColorRGBA){255, 255, 255, 70}); /* aro fino cakeOS */
+        if (i == themeAccentCount()) {
+            /* 6o = HEX/custom: rotulo "HEX" legivel sobre a cor. */
+            UI_RoundRect(scx - 12.0f, scy - 6.5f, 24.0f, 13.0f, 6.5f, (ColorRGBA){0, 0, 0, 165});
+            UI_TextCenter(buf, NULL, "HEX", scx, scy - 5.0f, 0.16f, 0.16f, (ColorRGBA){255, 255, 255, 255});
+        }
+        if (s_selected - 2 == i) UI_FocusRing(scx - 17.0f, scy - 17.0f, 34.0f, 34.0f, 17.0f);
+    }
+
+    /* anel BRANCO nitido no swatch ativo, deslizando (END4) de um pro outro. */
+    float ringTargetX = 40.0f + activeIdx * 44.0f + slideX;
     if (s_ringTween.duration <= 0.0001f) {
         tweenStart(&s_ringTween, ringTargetX, ringTargetX, 0.001f, EASE_LINEAR);
         tweenUpdate(&s_ringTween, 1.0f);
     } else if (fabsf(s_ringTween.to - ringTargetX) > 0.5f) {
-        tweenStart(&s_ringTween, tweenValue(&s_ringTween), ringTargetX, 0.18f, EASE_OUT_CUBIC);
+        tweenStart(&s_ringTween, tweenValue(&s_ringTween), ringTargetX, 0.20f, EASE_EXPR_SPATIAL);
     }
     tweenUpdate(&s_ringTween, uiFrameDt());
-    float ringX = tweenValue(&s_ringTween);
-    float ringY = sy + swSize * 0.5f;
+    UI_RingCircle(tweenValue(&s_ringTween), 102.0f + offset, 38.0f, (ColorRGBA){255, 255, 255, 255});
 
-    /* §redesign + 1.4.0 §SEM-GLOW: anel da accent APLICADA = anel BRANCO NÍTIDO
-     * (ring9 AA, alpha 255), sem halo translucido. O cursor (foco do D-pad) tem
-     * seu proprio aro accent no loop abaixo. */
-    ColorRGBA ring = {255, 255, 255, 255};
-    float ringSize = swSize + 8.0f;
-    UI_Ring(ringX - ringSize * 0.5f, ringY - ringSize * 0.5f, ringSize, ringSize, ringSize * 0.5f, ring);
+    /* 3) card HEX (16,132,168,32) + card idioma (196,132,108,32). */
+    ColorRGBA curC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
+    if (UI_AssetsReady()) UI_NineCard(16.0f + slideX, 132.0f + offset, 168.0f, 32.0f, 10.0f, g_theme.surface);
+    else UI_RoundRect(16.0f + slideX, 132.0f + offset, 168.0f, 32.0f, 10.0f, g_theme.surface);
+    if (s_selected == 2 + themeAccentCount())
+        UI_FocusRing(16.0f + slideX, 132.0f + offset, 168.0f, 32.0f, 10.0f);
+    char hexStr[16];
+    snprintf(hexStr, sizeof(hexStr), "HEX %02X%02X%02X", curC.r, curC.g, curC.b);
+    UI_Text(buf, NULL, hexStr, 28.0f + slideX, 140.0f + offset, 0.27f, 0.27f, g_theme.textPrimary);
 
-    for (int i = 0; i < accentTotal; i++) {
-        float sx = startX + i * (swSize + gap);
-        /* Stagger 3.2 exato: 40ms entre swatches, 260ms cada, easeOutCubic. */
-        float sa = UI_StaggerT(i, 0.04f, 0.26f);
-        ColorRGBA ac;
-        if (i < themeAccentCount()) {
-            ac = themeAccentColor(i);
-        } else {
-            ac = themeGetCustomAccent();
-        }
-
-        /* Bounce 3.4: 1.0->1.15->1.0, 300ms, primeira metade easeOutCubic
-         * (cresce), segunda metade easeOutBack (acomoda com leve overshoot). */
-        float bounceScale = 1.0f;
-        if (i == s_swatchBounceIdx && s_swatchBounceT < 0.3f) {
-            float bt = clampf(s_swatchBounceT / 0.3f, 0.0f, 1.0f);
-            bounceScale = (bt < 0.5f)
-                ? lerpf(1.0f, 1.15f, easeFunc(bt * 2.0f, EASE_OUT_CUBIC))
-                : lerpf(1.15f, 1.0f, easeFunc((bt - 0.5f) * 2.0f, EASE_OUT_BACK));
-        }
-        float scx = sx + (1.0f - sa) * 6 + swSize * 0.5f;
-        float scy = sy + (1.0f - sa) * 6 + swSize * 0.5f;
-
-        /* §8: bolinha cakeOS via SPRITE (ICON_SWATCH_THIN, aro fino + miolo
-         * translucido tintado na cor) em vez de retangulos/sombras empilhados
-         * -- borda limpa, sem mancha. Desenhada ~86% do slot (32px) pra ficar
-         * MENOR (§7c). O realce da selecionada e o anel accent atras
-         * (s_ringTween), ja desenhado antes do loop. */
-        /* §3: anel de FOCO no swatch que o D-pad aponta -- inclui o HEX
-         * (i == themeAccentCount()), que antes nunca aparecia focado. */
-        if (s_selected - 2 == i)
-            UI_FocusRing(scx - swSize * 0.5f, scy - swSize * 0.5f, swSize, swSize, swSize * 0.5f);
-        float drawSz = swSize * bounceScale * 0.86f;
-        iconsDraw(ICON_SWATCH_THIN, scx, scy, drawSz, ac, 1.0f);
-
-        if (i == themeAccentCount()) {
-            /* swatch HEX: "HEX" SEMPRE legivel. O swatch e um anel de miolo
-             * translucido, entao o texto antes sumia/transbordava (era maior que
-             * a bolinha). Agora vai numa pilula escura arredondada + "HEX" branco
-             * pequeno, centrado -> legivel sobre qualquer cor/tema. */
-            float lw = 24.0f, lh = 13.0f;
-            UI_RoundRect(scx - lw * 0.5f, scy - lh * 0.5f, lw, lh, lh * 0.5f, (ColorRGBA){0, 0, 0, 165});
-            UI_TextCenter(buf, NULL, "HEX", scx, scy - 5.0f, 0.16f, 0.16f, (ColorRGBA){255, 255, 255, 255});
-        }
-    }
-
-    bool customActive = themeAccentIsCustom();
-    float labelX = customActive
-        ? (startX + themeAccentCount() * (swSize + gap) + swSize * 0.5f)
-        : (startX + themeGetAccentIndex() * (swSize + gap) + swSize * 0.5f);
-    const char* accentLabel = customActive ? T(STR_CUSTOM) : themeAccentName(themeGetAccentIndex());
-    UI_TextCenter(buf, NULL, accentLabel, labelX, 100 + offset, 0.22f, 0.22f, g_theme.accent);
-
-    ColorRGBA curC = customActive ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
-    char rgbStr[24];
-    snprintf(rgbStr, sizeof(rgbStr), "R%d G%d B%d", curC.r, curC.g, curC.b);
-    UI_Text(buf, NULL, rgbStr, startX, 118 + offset, 0.24f, 0.24f, g_theme.textHint);
-
-    /* §i18n.6: seletor de idioma PT|EN|ES (nomes proprios, nao traduzem). */
     const char* langLabels[LANG_COUNT] = { "PT", "EN", "ES" };
-    UI_Text(buf, NULL, T(STR_LANGUAGE), LANG_SEG_X + slideX, LANG_SEG_Y - 16 + offset,
-            0.22f, 0.22f, g_theme.textHint);
-    /* §redesign: foco do idioma vem do container da secao (acima) + o lozenge
-     * do segmented marca o idioma ativo -- sem anel solto. */
+    if (s_selected == 2 + accentTotal)
+        UI_FocusRing(LANG_SEG_X + slideX, LANG_SEG_Y + offset, LANG_SEG_W, LANG_SEG_H, 16.0f);
     UI_TouchBarSegmented(buf, LANG_SEG_X + slideX, LANG_SEG_Y + offset, LANG_SEG_W, LANG_SEG_H,
                          langLabels, LANG_COUNT, (int)langGet(), &s_langSegTween);
-
-    /* §redesign: esmaece as secoes NAO focadas -- so a ativa fica viva. */
-    for (int si = 0; si < 3; si++) {
-        if (si == focSec) continue;
-        ColorRGBA sc = g_theme.background; sc.a = 120;
-        UI_RoundRect(12.0f + slideX, secR[si].y + offset, SCREEN_BOT_WIDTH - 24.0f,
-                     secR[si].h, 14.0f, sc);
-    }
 
     UI_HelpBar(buf, T(STR_HELP_THEME2_L), T(STR_HELP_THEME2_R));
 
