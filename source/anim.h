@@ -20,7 +20,22 @@ typedef enum {
                      * com leve overshoot organico -- ver easeSpringAmp p/
                      * controlar o damping diretamente (carrossel, lozenge
                      * do LED, pop do icone sol/lua). */
+    /* 1.4.0 §FLUIDEZ: curvas EXATAS do END4 (Material 3 expressive, do
+     * general.conf do dots-hyprland), portadas via cubicBezier 4-pontos. As
+     * "expressive" tem Y>1 no meio (overshoot = a "molinha"). Padrao p/
+     * entrar/mover/focar = EMPH_DECEL; sair/fechar = EMPH_ACCEL; deslizamento
+     * espacial com molinha = EXPR_SPATIAL. */
+    EASE_EMPH_DECEL,     /* cubic-bezier(0.05,0.70,0.10,1.00) */
+    EASE_EMPH_ACCEL,     /* cubic-bezier(0.30,0.00,0.80,0.15) */
+    EASE_EXPR_SPATIAL,   /* cubic-bezier(0.38,1.21,0.22,1.00) overshoot leve */
+    EASE_EXPR_FAST,      /* cubic-bezier(0.42,1.67,0.21,0.90) overshoot forte */
+    EASE_MENU_DECEL,     /* cubic-bezier(0.10,1.00,0.00,1.00) abrir painel */
 } EaseType;
+
+/* Avaliador de cubic-bezier 4-pontos com P0=(0,0) e P3=(1,1) (igual CSS/
+ * Hyprland): recebe t=tempo (eixo x, 0..1), resolve o parametro e devolve y.
+ * y pode passar de 1 (overshoot das curvas expressive) -- proposital. */
+float cubicBezier(float p1x, float p1y, float p2x, float p2y, float t);
 
 float easeFunc(float t, EaseType type);
 float easeOutBackAmp(float t, float overshoot);

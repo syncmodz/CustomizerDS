@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+- Removed the purple glow/halo behind focused and selected items. Focus and
+  selection are now a clean accent ring or a solid pill — no more bloom.
+- Smooth rounded corners: cards, pills and the focus ring use anti-aliased
+  sprites instead of faceted triangles, so nothing looks jagged.
+- Softer motion: popups pop in with a gentle scale + fade and the focus ring
+  slides between items, using desktop-style easing curves.
+- Fonts tab: X applies the font to the system, A is just a preview.
+
 ## 1.3.0
 - You can now apply a bundled font as the whole **3DS system font**: pick a font
   in the Fonts tab and press X. It shows an install screen and reboots to apply;

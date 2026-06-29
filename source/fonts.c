@@ -46,6 +46,7 @@ static float s_instProg = 0.0f;
 static bool  s_instDone = false;
 static float s_instDoneT = 0.0f;
 static char  s_instName[40] = {0};
+static int   s_instIndex = 0; /* 1.4.0 §B1: fonte em instalacao (p/ marcar "em uso" so no sucesso real) */
 
 /* v9 §10: 8 fontes (nomes proprios -- NAO traduzem no i18n). A fonte de
  * sistema continua existindo como FALLBACK seguro (fontsGetFont cai nela se um
@@ -163,7 +164,11 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
             }
         } else {
             s_instDoneT += dt;
-            if (s_instDoneT >= 0.5f) {     /* segura 100%, depois reinicia */
+            /* 1.4.0 §B2: segura no 100% pro flourish (check + glow) respirar,
+             * depois fade -> reboot. Persiste a fonte como "em uso" SO agora
+             * (sucesso real -- nao finge sucesso se um Step falhar antes). */
+            if (s_instDoneT >= 1.1f) {
+                applyFont(s_instIndex, true);
                 sysfontInstallEnd(&s_inst);
                 sysfontReboot();
             }
@@ -177,26 +182,23 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
      * A/B/toque nos selos respondem), igual ao editor de hex em darkmode.c. */
     if (popupActive(&s_popup)) {
         if (popupConfirmInput(&s_popup, in) && s_popup.result == 1) {
-            if (s_sysfontPending) {
-                /* v14 §4 (hardware): instala o .cia de fonte embutido na CTRNAND
-                 * via AM (rota da FBI) e REINICIA pra aplicar. Item 0 "Padrao do
-                 * Sistema" instala a fonte STOCK (extraida da NAND do dono) =
-                 * restaurar. So funciona no hardware (no Azahar o AM install
-                 * falha -> popup de erro). NAND backup recomendado. */
-                s_sysfontPending = false;
-                const char* cia = (s_selected == 0)
-                    ? SYSFONT_STOCK_CIA
-                    : FONT_CIA_PATHS[s_selected - 1];
-                if (sysfontInstallBegin(&s_inst, cia) == SYSFONT_OK) {
-                    /* abre a tela de instalacao animada (o reboot vem no fim). */
-                    s_installing = true; s_instT = 0.0f; s_instProg = 0.0f;
-                    s_instDone = false; s_instDoneT = 0.0f;
-                    snprintf(s_instName, sizeof(s_instName), "%s", fontsLabel(s_selected));
-                } else {
-                    popupShow(&s_popup, T(STR_SYSFONT_FAIL), NULL, NULL);
-                }
+            /* v14 §4 (hardware): instala o .cia de fonte embutido na CTRNAND
+             * via AM (rota da FBI) e REINICIA pra aplicar. Item 0 "Padrao do
+             * Sistema" instala a fonte STOCK (extraida da NAND do dono) =
+             * restaurar. So funciona no hardware (no Azahar o AM install
+             * falha -> popup de erro honesto). NAND backup recomendado. */
+            s_sysfontPending = false;
+            const char* cia = (s_selected == 0)
+                ? SYSFONT_STOCK_CIA
+                : FONT_CIA_PATHS[s_selected - 1];
+            if (sysfontInstallBegin(&s_inst, cia) == SYSFONT_OK) {
+                /* abre a tela de instalacao animada (o reboot vem no fim). */
+                s_installing = true; s_instT = 0.0f; s_instProg = 0.0f;
+                s_instDone = false; s_instDoneT = 0.0f;
+                s_instIndex = s_selected;
+                snprintf(s_instName, sizeof(s_instName), "%s", fontsLabel(s_selected));
             } else {
-                applyFont(s_selected, true);
+                popupShow(&s_popup, T(STR_SYSFONT_FAIL), NULL, NULL);
             }
         } else if (s_popup.result == -1) {
             s_sysfontPending = false;
@@ -228,11 +230,14 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
         }
     }
 
+    /* 1.4.0 §FONTES (norte v19): acao PRIMARIA = X (aplicar como fonte do
+     * SISTEMA, com confirmacao clara: reboot + backup NAND; em "Padrao do
+     * Sistema" (0) = restaurar a original). A = previa no app (aplica a fonte
+     * so no app, sem reiniciar). O preview da tela de cima ja acompanha a
+     * navegacao; o A persiste essa escolha como fonte do app. */
     if (in->confirm) {
-        s_sysfontPending = false;
-        popupShowConfirm(&s_popup, T(STR_CONFIRM_FONT));
+        applyFont(s_selected, true);
     }
-    /* §5: X = aplicar como fonte do SISTEMA; em "Padrao do Sistema" (0) = restaurar. */
     if (in->down & KEY_X) {
         s_sysfontPending = true;
         popupShowConfirm(&s_popup, s_selected == 0 ? T(STR_SYSFONT_RESTORE) : T(STR_SYSFONT_CONFIRM));
@@ -258,30 +263,55 @@ static const char* previewTitle(int index) {
     return fontsLabel(index); /* o titulo do preview e o proprio nome da fonte */
 }
 
-/* Overlay animado da instalacao (tela de cima): scrim + card com o emblema das
- * 3 bolinhas (vivo) + nome da fonte + barra de progresso accent + %. */
+/* 1.4.0 §B2: instalacao MIRABOLANTE (norte = northstar_fonts_1.4.0.png painel
+ * 3). Sem card -- takeover de tela: fundo accent-tingido que entra suave +
+ * emblema das 3 bolinhas com GLOW respirando (1 sprite glow_radial, pulsa no
+ * ritmo do progresso) + barra 9-slice (pill9) enchendo com easing + % subindo;
+ * ao 100% um FLOURISH (emblema da pulso final + check verde com brilho) antes
+ * do fade -> reboot. Os assets sao os do pacote 1.4.0 (UI_Glow/UI_NinePill/
+ * UI_Check); fora dos cantos AA, nada de retangulo serrilhado. */
 static void drawInstallOverlay(C2D_TextBuf buf) {
-    ColorRGBA scrim = g_theme.backgroundTop; scrim.a = 210;
+    float t = s_instT;
+    float scrimA = clampf(t / 0.30f, 0.0f, 1.0f);   /* fade de entrada */
+    bool done = s_instDone;
+    float doneK = done ? clampf(s_instDoneT / 0.35f, 0.0f, 1.0f) : 0.0f;
+
+    /* Fundo: scrim levemente tingido de accent (ambiencia do painel 3). */
+    ColorRGBA scrim = themeMix(g_theme.backgroundTop, g_theme.accent, 0.10f);
+    scrim.a = (u8)(232 * scrimA);
     UI_Fill(0, 0, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT, scrim);
 
-    float cw = 264, ch = 160;
-    float cx = (SCREEN_TOP_WIDTH - cw) * 0.5f, cy = (SCREEN_TOP_HEIGHT - ch) * 0.5f;
-    UI_Shadow(cx, cy, cw, ch, RADIUS_CARD, 60, 3.0f);
-    UI_Card(cx, cy, cw, ch, RADIUS_CARD, g_theme.surface);
-
     float mid = SCREEN_TOP_WIDTH * 0.5f;
-    UI_Emblem(mid, cy + 38, 0.58f, uiFrameTime(), 1.0f);
-    UI_TextCenter(buf, NULL, T(STR_SYSFONT_INSTALLING), mid, cy + 78, 0.24f, 0.24f, g_theme.textPrimary);
-    UI_TextCenterFit(buf, NULL, s_instName, mid, cy + 97, 0.30f, 0.20f, cw - 44, g_theme.accent);
-
-    float bw = cw - 48, bx = cx + 24, by = cy + 122, bh = 10;
-    ColorRGBA track = g_theme.textHint; track.a = 50;
-    UI_RoundRect(bx, by, bw, bh, bh * 0.5f, track);
+    float emY = SCREEN_TOP_HEIGHT * 0.40f;
     float p = clampf(s_instProg, 0.0f, 1.0f);
-    if (p > 0.001f) UI_RoundRect(bx, by, bw * p, bh, bh * 0.5f, g_theme.accent);
+    float pe = easeFunc(p, EASE_OUT_CUBIC);
 
-    char pct[8]; snprintf(pct, sizeof(pct), "%d%%", (int)(p * 100.0f + 0.5f));
-    UI_TextCenter(buf, NULL, pct, mid, by + 14, 0.20f, 0.20f, g_theme.textSecondary);
+    /* 1.4.0 §SEM-GLOW: instalacao LIMPA -- sem glow respirando atras do
+     * emblema. So o emblema flat (3 aneis), com um leve pulso de escala no
+     * fim (flourish) em vez de brilho. */
+    UI_Emblem(mid, emY, 0.74f + doneK * 0.08f, uiFrameTime(), scrimA);
+
+    UI_TextCenter(buf, NULL, done ? T(STR_SYSFONT_DONE) : T(STR_SYSFONT_INSTALLING),
+                  mid, emY + 54, 0.26f, 0.26f, g_theme.textPrimary);
+    UI_TextCenterFit(buf, NULL, s_instName, mid, emY + 76, 0.32f, 0.20f, 260.0f,
+                     done ? g_theme.success : g_theme.accent);
+
+    float by = emY + 106;
+    if (!done) {
+        float bw = 252.0f, bx = mid - bw * 0.5f, bh = 12.0f;
+        ColorRGBA track = g_theme.textHint; track.a = (u8)(55 * scrimA);
+        UI_NinePill(bx, by, bw, bh, track);
+        if (pe > 0.001f) {
+            ColorRGBA fill = g_theme.accent; fill.a = (u8)(255 * scrimA);
+            UI_NinePill(bx, by, fmaxf(bh, bw * pe), bh, fill);
+        }
+        char pct[8]; snprintf(pct, sizeof(pct), "%d%%", (int)(p * 100.0f + 0.5f));
+        UI_TextCenter(buf, NULL, pct, mid, by + 18, 0.22f, 0.22f, g_theme.textSecondary);
+    } else {
+        /* 1.4.0 §SEM-GLOW: check verde nitido (escala easeOutBack), sem glow atras. */
+        float sc = easeOutBackAmp(doneK, 1.7f);
+        UI_Check(mid, by + 8, 46.0f * sc, g_theme.success);
+    }
 }
 
 void fontsRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
@@ -318,7 +348,8 @@ void fontsRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, 
     float pw = fmaxf(tw, minW) + 18.0f;
     float badgeX = (16 + 368) - pw - 8 + slideX; /* relativo a borda direita do card (cima tem 400px, nao 320) */
     ColorRGBA badgeC = (s_selected == g_fonts.currentIndex) ? g_theme.success : g_theme.accent;
-    UI_RoundRect(badgeX, 50 + offsetFg, pw, 18, 9, badgeC);
+    if (UI_AssetsReady()) UI_NinePill(badgeX, 50 + offsetFg, pw, 18, badgeC);
+    else UI_RoundRect(badgeX, 50 + offsetFg, pw, 18, 9, badgeC);
     ColorRGBA badgeText = themeContrastText(badgeC);
     UI_TextCenter(buf, NULL, status, badgeX + pw * 0.5f, 52 + offsetFg, 0.22f, 0.22f, badgeText);
 
@@ -385,7 +416,9 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         /* §3: anel de foco accent na linha focada (alem da borda accent). */
         if (selected) UI_FocusRing(rx, by + slide, FL_W, FL_ROWINNER, 14);
         if (selected) UI_Shadow(rx, by + slide, FL_W, FL_ROWINNER, 14, 30, 1.5f);
-        UI_RoundFrame(rx, by + slide, FL_W, FL_ROWINNER, 14, bg, border);
+        /* 1.4.0 §A1: fundo da linha = pilula 9-slice (canto AA), com fallback. */
+        if (UI_AssetsReady()) UI_NinePill(rx, by + slide, FL_W, FL_ROWINNER, bg);
+        else UI_RoundFrame(rx, by + slide, FL_W, FL_ROWINNER, 14, bg, border);
 
         ColorRGBA textCol = selected ? g_theme.textPrimary : g_theme.textSecondary;
         UI_Text(buf, fontsGetFont(i), fontsLabel(i), rx + 14, by + 5 + slide, 0.30f, 0.30f, textCol);
@@ -407,7 +440,7 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
     }
 
     char fhelp[64];
-    snprintf(fhelp, sizeof(fhelp), "%s  %s", T(STR_HELP_FONTS_L), T(STR_HELP_FONTS_X));
+    snprintf(fhelp, sizeof(fhelp), "%s   %s", T(STR_HELP_FONTS_X), T(STR_HELP_FONTS_L));
     UI_HelpBar(buf, fhelp, T(STR_SAIR));
 
     if (fadeA < 0.999f) {
@@ -415,10 +448,14 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         veil.a = (u8)(255 * (1.0f - clampf(fadeA, 0.0f, 1.0f)));
         UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT - 26, veil);
     }
-    /* durante a instalacao a tela de baixo fica inerte (o foco e a tela de cima). */
+    /* durante a instalacao a tela de baixo avisa pra nao desligar (norte painel
+     * 3): scrim + "Nao desligue o console" / "reiniciando ao concluir...". */
     if (s_installing) {
-        ColorRGBA scrim = g_theme.background; scrim.a = 210;
+        ColorRGBA scrim = g_theme.background; scrim.a = 228;
         UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT, scrim);
+        float mid = SCREEN_BOT_WIDTH * 0.5f, cy = SCREEN_BOT_HEIGHT * 0.5f;
+        UI_TextCenter(buf, NULL, T(STR_SYSFONT_KEEPON), mid, cy - 16, 0.30f, 0.30f, g_theme.textPrimary);
+        UI_TextCenter(buf, NULL, T(STR_SYSFONT_REBOOT_END), mid, cy + 14, 0.22f, 0.22f, g_theme.textSecondary);
     }
     popupRender(buf, &s_popup);
 }

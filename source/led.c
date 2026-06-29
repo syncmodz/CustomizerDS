@@ -419,10 +419,8 @@ void ledRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, fl
     float lx = 266.0f + slideX, ly = 50 + offsetFg;
     ColorRGBA previewBg = themeIsDark() ? (ColorRGBA){8, 8, 9, 255} : (ColorRGBA){225, 228, 238, 255};
     UI_RoundFrame(lx, ly, 88, 64, 16, previewBg, (ColorRGBA){255, 255, 255, 12});
+    /* 1.4.0 §SEM-GLOW: removido o glow da cor atras do swatch -- so o swatch solido. */
     UI_RoundRect(lx + 4, ly + 4, 80, 56, 12, c);
-    ColorRGBA glow = c;
-    glow.a = 30;
-    UI_RoundRect(lx + 2, ly + 2, 84, 60, 14, glow);
 
     /* Grade de stat chips preenchendo o card -- substitui a lista de texto
      * solto (Off / led ativo / RGB / instrucoes) por dados reais legiveis. */

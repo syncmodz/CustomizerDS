@@ -2,6 +2,7 @@
 #include "common.h"
 #include "icons.h"
 #include "lang.h"
+#include "ui9_gen.h" /* 1.4.0 §A1: indices da sheet 9-slice (gerado por tex3ds) */
 #include <stdio.h>
 #include <string.h>
 
@@ -20,13 +21,19 @@ static C2D_Font g_uiFont = NULL;
 /* UI_TEXT_SCALE vem de ui.h (publico). Aplicado so quando font==NULL (chrome),
  * nunca no preview de fonte. */
 
+/* 1.4.0 §A1: sheet 9-slice (ui9.t3x). Carregada junto da fonte (romfs pronto).
+ * Se nao carregar, os helpers caem no desenho vetorial antigo (nunca trava). */
+static C2D_SpriteSheet s_ui9 = NULL;
+
 void UI_FontInit(void) {
     /* ui_comfortaa_bold.bcfnt = Comfortaa Bold gerada com whitelist ASCII +
      * Latin-1 (0x20-0x7E, 0xA0-0xFF) -> tem os acentos PT/ES. A
      * comfortaa_bold.bcfnt original (so ASCII) continua intacta pro preview. */
     if (!g_uiFont) g_uiFont = C2D_FontLoad("romfs:/fonts/ui_comfortaa_bold.bcfnt");
+    if (!s_ui9) s_ui9 = C2D_SpriteSheetLoad("romfs:/gfx/ui9.t3x");
 }
 void UI_FontExit(void) {
+    if (s_ui9) { C2D_SpriteSheetFree(s_ui9); s_ui9 = NULL; }
     if (g_uiFont) { C2D_FontFree(g_uiFont); g_uiFont = NULL; }
 }
 
@@ -90,6 +97,104 @@ float UI_EnterSlide(float maxOffset, EaseType ease) {
 }
 
 static u32 u32c(ColorRGBA c) { return C2D_Color32(c.r, c.g, c.b, c.a); }
+
+/* ==================== 9-SLICE / SPRITES (1.4.0 §A1) ====================
+ * Mata o serrilhado do UI_RoundRect (leque de triangulos SEM antialiasing nos
+ * cantos): os assets PNG (ui9.t3x) ja tem o canto anti-aliased, entao em
+ * qualquer tamanho o canto fica perfeito. Todos os assets sao brancos/neutros
+ * -> desenhados TINTADOS (blend=1.0 substitui o RGB pela cor, o alpha da
+ * textura preserva o AA; mesma tecnica dos icones monocromaticos). */
+
+static C2D_Image ui9img(size_t idx) {
+    C2D_Image img = {0};
+    if (s_ui9) return C2D_SpriteSheetGetImage(s_ui9, idx);
+    return img;
+}
+bool UI_AssetsReady(void) { return s_ui9 != NULL; }
+
+/* Desenha UMA celula (sub-regiao em texcoords l/t/r/b) de um sprite de atlas,
+ * esticada pro retangulo destino. width/height=1 no subtex temporario: o
+ * tamanho desenhado vem so de scaleX/scaleY (= w/h destino), eliminando o erro
+ * de arredondamento u16 da largura/altura nativa. */
+static void ui9cell(C2D_Image base, float dx, float dy, float dw, float dh,
+                    float l, float t, float r, float b, const C2D_ImageTint* tint) {
+    if (dw <= 0.05f || dh <= 0.05f) return;
+    Tex3DS_SubTexture sub = { 1, 1, l, t, r, b };
+    C2D_Image cell = { base.tex, &sub };
+    C2D_DrawImageAt(cell, dx, dy, 0.0f, tint, dw, dh);
+}
+
+/* 9-slice generico. srcInset = px do inset no asset-fonte (README_assets.txt);
+ * dstCorner = tamanho do canto NO DESTINO (px) -- desacoplado do source pra o
+ * mesmo asset virar card (canto fixo) ou pill/stadium (canto = h/2). Cantos
+ * desenhados em tamanho fixo, bordas esticam em 1 eixo, centro em 2. */
+void UI_NineSliceImg(C2D_Image img, float x, float y, float w, float h,
+                     float srcInset, float dstCorner, ColorRGBA tint) {
+    if (!img.tex || !img.subtex || w <= 0.0f || h <= 0.0f) return;
+    const Tex3DS_SubTexture* st = img.subtex;
+    float fu = fminf(srcInset / (float)st->width, 0.5f);
+    float fv = fminf(srcInset / (float)st->height, 0.5f);
+    float L = st->left, R = st->right, T = st->top, B = st->bottom;
+    float uL = L + (R - L) * fu, uR = R - (R - L) * fu; /* U: esq->dir */
+    float vT = T - (T - B) * fv, vB = B + (T - B) * fv; /* V desce (top>bottom) */
+    float cx = fminf(dstCorner, w * 0.5f);
+    float cy = fminf(dstCorner, h * 0.5f);
+    float x0 = x, x1 = x + cx, x2 = x + w - cx, x3 = x + w;
+    float y0 = y, y1 = y + cy, y2 = y + h - cy, y3 = y + h;
+    C2D_ImageTint tn;
+    C2D_PlainImageTint(&tn, C2D_Color32(tint.r, tint.g, tint.b, tint.a), 1.0f);
+    ui9cell(img, x0, y0, x1 - x0, y1 - y0, L,  T,  uL, vT, &tn); /* TL */
+    ui9cell(img, x1, y0, x2 - x1, y1 - y0, uL, T,  uR, vT, &tn); /* T  */
+    ui9cell(img, x2, y0, x3 - x2, y1 - y0, uR, T,  R,  vT, &tn); /* TR */
+    ui9cell(img, x0, y1, x1 - x0, y2 - y1, L,  vT, uL, vB, &tn); /* L  */
+    ui9cell(img, x1, y1, x2 - x1, y2 - y1, uL, vT, uR, vB, &tn); /* C  */
+    ui9cell(img, x2, y1, x3 - x2, y2 - y1, uR, vT, R,  vB, &tn); /* R  */
+    ui9cell(img, x0, y2, x1 - x0, y3 - y2, L,  vB, uL, B,  &tn); /* BL */
+    ui9cell(img, x1, y2, x2 - x1, y3 - y2, uL, vB, uR, B,  &tn); /* B  */
+    ui9cell(img, x2, y2, x3 - x2, y3 - y2, uR, vB, R,  B,  &tn); /* BR */
+}
+
+/* Helpers por papel (insets do README). Cada um cai no fallback vetorial do
+ * chamador quando a sheet nao carregou (UI_AssetsReady()==false). */
+void UI_NineCard(float x, float y, float w, float h, float r, ColorRGBA tint) {
+    UI_NineSliceImg(ui9img(ui9_gen_card9_3x_idx), x, y, w, h, 28.0f, r, tint);
+}
+void UI_NinePill(float x, float y, float w, float h, ColorRGBA tint) {
+    UI_NineSliceImg(ui9img(ui9_gen_pill9_3x_idx), x, y, w, h, 22.0f, h * 0.5f, tint);
+}
+void UI_NineFocus(float x, float y, float w, float h, float r, ColorRGBA tint) {
+    UI_NineSliceImg(ui9img(ui9_gen_focus9_3x_idx), x, y, w, h, 40.0f, r, tint);
+}
+void UI_NineShadow(float x, float y, float w, float h, float r, ColorRGBA tint) {
+    UI_NineSliceImg(ui9img(ui9_gen_shadow9_3x_idx), x, y, w, h, 46.0f, r, tint);
+}
+/* 1.4.0 §SEM-GLOW: anel NÍTIDO (ring9 = contorno AA puro, centro transparente,
+ * ZERO halo) tintado -- foco/seleção. Preenche (x,y,w,h) com a borda no
+ * perimetro; o conteudo aparece pelo centro transparente. */
+void UI_Ring(float x, float y, float w, float h, float r, ColorRGBA tint) {
+    UI_NineSliceImg(ui9img(ui9_gen_ring9_3x_idx), x, y, w, h, 30.0f, r, tint);
+}
+
+/* Glow radial (substitui os circulos translucidos empilhados -- 1 sprite =
+ * menos overdraw). (cx,cy)=centro; diameter = lado do quadrado; tint accent. */
+void UI_Glow(float cx, float cy, float diameter, ColorRGBA tint) {
+    C2D_Image img = ui9img(ui9_gen_glow_radial_3x_idx);
+    if (!img.tex || !img.subtex || diameter <= 0.0f) return;
+    C2D_ImageTint tn;
+    C2D_PlainImageTint(&tn, C2D_Color32(tint.r, tint.g, tint.b, tint.a), 1.0f);
+    float scale = diameter / (float)img.subtex->width;
+    C2D_DrawImageAt(img, cx - diameter * 0.5f, cy - diameter * 0.5f, 0.0f, &tn, scale, scale);
+}
+
+/* Marca de sucesso (fim da instalacao de fonte). (cx,cy)=centro; size = lado. */
+void UI_Check(float cx, float cy, float size, ColorRGBA tint) {
+    C2D_Image img = ui9img(ui9_gen_check_3x_idx);
+    if (!img.tex || !img.subtex || size <= 0.0f) return;
+    C2D_ImageTint tn;
+    C2D_PlainImageTint(&tn, C2D_Color32(tint.r, tint.g, tint.b, tint.a), 1.0f);
+    float scale = size / (float)img.subtex->height;
+    C2D_DrawImageAt(img, cx - size * 0.5f, cy - size * 0.5f, 0.0f, &tn, scale, scale);
+}
 
 /* spec v7 Parte A (causa-raiz): a versao antiga montava o round-rect em 2
  * retangulos + 4 circulos SOBREPOSTOS -- os 2 retangulos (vertical cheio +
@@ -252,10 +357,18 @@ void UI_GlassDot(float cx, float cy, float r, ColorRGBA color, ColorRGBA bgBehin
 void UI_Shadow(float x, float y, float w, float h, float r, float alpha, float offset) {
     if (w <= 0 || h <= 0) return;
     u8 a = (u8)fminf(alpha, 255);
-    if (a > 0) {
-        UI_RoundRect(x + offset, y + offset, w, h, r, (ColorRGBA){0, 0, 0, a / 4});
-        UI_RoundRect(x + offset * 1.5f, y + offset * 1.5f, w, h, r, (ColorRGBA){0, 0, 0, a / 8});
+    if (a == 0) return;
+    /* 1.4.0 §A1: sombra = sprite shadow9 (blur suave real), desenhada um pouco
+     * maior que o card e deslocada -> halo macio que da profundidade, sem o
+     * canto quadrado duro das 2 camadas retangulares antigas. */
+    if (UI_AssetsReady()) {
+        float m = 8.0f; /* halo alem da borda */
+        UI_NineShadow(x - m, y - m + offset, w + 2.0f * m, h + 2.0f * m, r + m,
+                      (ColorRGBA){0, 0, 0, a});
+        return;
     }
+    UI_RoundRect(x + offset, y + offset, w, h, r, (ColorRGBA){0, 0, 0, a / 4});
+    UI_RoundRect(x + offset * 1.5f, y + offset * 1.5f, w, h, r, (ColorRGBA){0, 0, 0, a / 8});
 }
 
 /* Gradiente horizontal (esquerda->direita) -- usado no preenchimento dos
@@ -290,16 +403,56 @@ static inline float uiChromeScale(C2D_Font font) { return font ? 1.0f : UI_TEXT_
 /* §3: ANEL DE FOCO accent animado (pulsa), desenhado ATRAS do elemento focado
  * -- chamar ANTES de desenhar o elemento. Distinto da selecao/aplicado: e o
  * halo accent ao redor do que o D-pad esta apontando agora. */
+/* Desenha o aro de foco num rect. 1.4.0 §SEM-GLOW: anel NÍTIDO (ring9 = contorno
+ * AA puro, centro transparente, ZERO halo) tintado accent, um pouco maior que o
+ * elemento. O focus9 (que tinha glow embutido) NÃO é mais usado. */
+static void focusRingDraw(float x, float y, float w, float h, float r) {
+    ColorRGBA acc = g_theme.accent; acc.a = 255;
+    float p = 3.0f;
+    if (UI_AssetsReady()) {
+        UI_Ring(x - p, y - p, w + 2.0f * p, h + 2.0f * p, r + p, acc);
+    } else {
+        /* fallback vetorial: aro accent (o elemento por cima cobre o centro). */
+        UI_RoundRect(x - p, y - p, w + 2.0f * p, h + 2.0f * p, r + p, acc);
+    }
+}
+
 void UI_FocusRing(float x, float y, float w, float h, float r) {
-    /* §redesign: indicador de foco LIMPO e ESTATICO (sem o halo pulsante que
-     * poluia). Um glow accent suave e estavel atras do elemento focado +
-     * uma borda nitida fina -- coerente em todo o app. */
-    /* Desenhado ATRAS do elemento focado (o elemento cobre o centro), entao
-     * dois retangulos accent = glow suave + aro nitido em volta. */
-    ColorRGBA glow = g_theme.accent; glow.a = 70;
-    UI_RoundRect(x - 4.0f, y - 4.0f, w + 8.0f, h + 8.0f, r + 4.0f, glow);
-    ColorRGBA edge = g_theme.accent; edge.a = 235;
-    UI_RoundRect(x - 2.0f, y - 2.0f, w + 4.0f, h + 4.0f, r + 2.0f, edge);
+    /* 1.4.0 §FLUIDEZ (assinatura END4): o anel DESLIZA do elemento anterior pro
+     * novo com leve overshoot (EASE_EXPR_SPATIAL) em vez de teleportar -- o
+     * detalhe que mais lembra o END4. Guarda from/target/atual + um Tween 0..1;
+     * ao mudar o alvo, recomeca a partir do rect interpolado atual. Saltos
+     * grandes (troca de aba/tela) ou durante uma transicao de tela = SNAP, pra
+     * nao varrer a tela e nao brigar com o render duplo do compositor. */
+    static float fx, fy, fw, fh, fr;       /* from */
+    static float tx, ty, tw, th, tr;       /* target */
+    static float cx, cy, cw, ch, cr;       /* atual desenhado */
+    static Tween tw_ = {0};
+    static bool init = false;
+    if (!init) {
+        fx = tx = cx = x; fy = ty = cy = y; fw = tw = cw = w; fh = th = ch = h; fr = tr = cr = r;
+        init = true; tw_.active = false;
+    }
+
+    bool targetMoved = (fabsf(x - tx) + fabsf(y - ty) + fabsf(w - tw) + fabsf(h - th)) > 0.5f;
+    if (targetMoved) {
+        float jump = fabsf(x - cx) + fabsf(y - cy);
+        fx = cx; fy = cy; fw = cw; fh = ch; fr = cr;
+        tx = x; ty = y; tw = w; th = h; tr = r;
+        if (jump > 260.0f || transitionActive(&g_trans)) {
+            /* snap: nao desliza atravessando a tela inteira. */
+            fx = x; fy = y; fw = w; fh = h; fr = r;
+            tw_.active = false;
+        } else {
+            tweenStart(&tw_, 0.0f, 1.0f, 0.20f, EASE_EXPR_SPATIAL);
+        }
+    }
+    tweenUpdate(&tw_, uiFrameDt());
+    float p = tw_.active ? tweenValue(&tw_) : 1.0f; /* from=0,to=1 -> p = curva (passa de 1 no overshoot) */
+    cx = fx + (tx - fx) * p; cy = fy + (ty - fy) * p;
+    cw = fw + (tw - fw) * p; ch = fh + (th - fh) * p; cr = fr + (tr - fr) * p;
+
+    focusRingDraw(cx, cy, cw, ch, cr);
 }
 
 /* Largura REAL do texto como sera desenhado (fonte/escala do chrome) -- pra
@@ -426,7 +579,13 @@ void UI_Card(float x, float y, float w, float h, float r, ColorRGBA bg) {
      * "blur" e simulado por essas 2 camadas; alpha~102=40% de 255, offset 4px
      * (8px literal ficaria desproporcional num card de 196px numa tela de 240px). */
     UI_Shadow(x, y, w, h, r, 102, 4.0f);
-    UI_RoundFrame(x, y, w, h, r, bg, (ColorRGBA){255, 255, 255, themeIsDark() ? 12 : 24});
+    /* 1.4.0 §A1: superficie do card = sprite card9 tintado (canto AA perfeito),
+     * substituindo o UI_RoundFrame (cantos serrilhados). */
+    if (UI_AssetsReady()) {
+        UI_NineCard(x, y, w, h, r, bg);
+    } else {
+        UI_RoundFrame(x, y, w, h, r, bg, (ColorRGBA){255, 255, 255, themeIsDark() ? 12 : 24});
+    }
     ColorRGBA hl = {255, 255, 255, themeIsDark() ? 4 : 14};
     UI_Fill(x + r, y + 1, w - r * 2.0f, 1, hl);
 }
@@ -516,11 +675,13 @@ bool popupConfirmInput(PopupModal* p, const AppInput* in) {
 
 void popupRender(C2D_TextBuf buf, PopupModal* p) {
     if (!p->active) return;
-    float t = p->closing
-        ? 1.0f - easeFunc(p->closeT, EASE_IN_CUBIC)
-        : easeOutBackAmp(p->animT, 1.5f);
-    float scale = lerpf(0.6f, 1.0f, clampf(t, 0.0f, 1.0f));
-    float alpha = p->closing ? (1.0f - easeFunc(p->closeT, EASE_IN_CUBIC)) : easeFunc(p->animT, EASE_OUT_CUBIC);
+    /* 1.4.0 §FLUIDEZ: pop-in END4 -- abre escalando 92%->100% + fade com
+     * emphasizedDecel (nao de 0.6, nao easeOutBack); fecha indo a 94% + fade
+     * com emphasizedAccel. O scrim faz fade junto. */
+    float openE = easeFunc(p->animT, EASE_EMPH_DECEL);
+    float closeE = easeFunc(p->closeT, EASE_EMPH_ACCEL);
+    float scale = p->closing ? lerpf(1.0f, 0.94f, closeE) : lerpf(0.92f, 1.0f, openE);
+    float alpha = p->closing ? (1.0f - closeE) : openE;
     float scrimT = p->closing ? alpha : fminf(p->bgAlpha, 1.0f);
 
     ColorRGBA bgDim = {0, 0, 0, (u8)(140 * scrimT)};
@@ -538,7 +699,8 @@ void popupRender(C2D_TextBuf buf, PopupModal* p) {
     ColorRGBA cardBorder = {255, 255, 255, (u8)(themeIsDark() ? 20 * alpha : 30 * alpha)};
 
     UI_Shadow(px, py, pw, ph, 16 * scale, 80 * alpha, 3.0f);
-    UI_RoundFrame(px, py, pw, ph, 16 * scale, cardBg, cardBorder);
+    if (UI_AssetsReady()) UI_NineCard(px, py, pw, ph, 16 * scale, cardBg);
+    else UI_RoundFrame(px, py, pw, ph, 16 * scale, cardBg, cardBorder);
 
     float textX = SCREEN_BOT_WIDTH * 0.5f;
     float textY = py + 20 * scale;
@@ -565,7 +727,8 @@ void popupRender(C2D_TextBuf buf, PopupModal* p) {
         float btnW = (p->cancelLabel[0]) ? 90.0f : 140.0f;
         float bx = (SCREEN_BOT_WIDTH - btnW) * 0.5f;
         float by = py + ph - 44 * scale;
-        UI_RoundRect(bx, by, btnW, 32, 16, btnBg);
+        if (UI_AssetsReady()) UI_NinePill(bx, by, btnW, 32, btnBg);
+        else UI_RoundRect(bx, by, btnW, 32, 16, btnBg);
         ColorRGBA btnText = themeContrastText(g_theme.accent);
         btnText.a = (u8)(btnText.a * alpha);
         UI_TextCenter(buf, NULL, p->confirmLabel, SCREEN_BOT_WIDTH * 0.5f, by + 7, 0.26f, 0.26f, btnText);
@@ -634,19 +797,19 @@ void UI_TouchBarPill(C2D_TextBuf buf, float x, float y, float w, float h,
     }
 
     UI_Shadow(ox, y, w, h, r, 20, 1.0f);
-    UI_RoundRect(ox, y, w, h, r, bg);
-    if (!selected && border.a > 0) UI_RoundFrame(ox, y, w, h, r, bg, border);
-
-    if (selected) {
-        ColorRGBA glow = g_theme.accent;
-        glow.a = 30;
-        UI_RoundRect(ox + 3, y + 3, w - 6, h - 6, r - 3, glow);
+    if (UI_AssetsReady()) {
+        UI_NinePill(ox, y, w, h, bg);
+    } else {
+        UI_RoundRect(ox, y, w, h, r, bg);
+        if (!selected && border.a > 0) UI_RoundFrame(ox, y, w, h, r, bg, border);
     }
+
+    /* 1.4.0 §SEM-GLOW: removido o glow accent atras do segmento selecionado --
+     * a pilula solida ja marca a selecao, sem halo. */
 
     float cx = ox + w * 0.5f;
     float cy = y + 6;
     if (icon) UI_Text(buf, NULL, icon, ox + 10, cy, 0.30f, 0.30f, textCol);
-    float lx = icon ? ox + 28 : cx;
     UI_TextCenter(buf, NULL, label, cx, cy, 0.26f, 0.26f, textCol);
 }
 
@@ -683,8 +846,12 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
     float r = h * 0.5f;
 
     UI_Shadow(x, y, w, h, r, 15, 1.0f);
-    UI_RoundRect(x, y, w, h, r, baseBg);
-    if (baseBorder.a > 0) UI_RoundFrame(x, y, w, h, r, baseBg, baseBorder);
+    if (UI_AssetsReady()) {
+        UI_NinePill(x, y, w, h, baseBg);
+    } else {
+        UI_RoundRect(x, y, w, h, r, baseBg);
+        if (baseBorder.a > 0) UI_RoundFrame(x, y, w, h, r, baseBg, baseBorder);
+    }
 
     float segW = w / count;
     float targetX = x + selected * segW;
@@ -697,7 +864,7 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
          * aplicado aqui no componente compartilhado pois Tema/LED usam a
          * mesma UI_TouchBarSegmented -- settle organico em vez do
          * easeOutBack seco anterior. */
-        tweenStart(morphTween, tweenValue(morphTween), targetX, 0.32f, EASE_SPRING);
+        tweenStart(morphTween, tweenValue(morphTween), targetX, 0.28f, EASE_EXPR_SPATIAL);
     }
     tweenUpdate(morphTween, uiFrameDt());
     float curX = tweenValue(morphTween);
@@ -706,7 +873,8 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
      * que quase desaparecia contra o trilho) -- feedback de selecao inequivoco. */
     ColorRGBA selBg = g_theme.accent;
     UI_Shadow(curX + 2, y + 2, segW - 4, h - 4, r - 2, 20, 1.0f);
-    UI_RoundRect(curX + 2, y + 2, segW - 4, h - 4, r - 2, selBg);
+    if (UI_AssetsReady()) UI_NinePill(curX + 2, y + 2, segW - 4, h - 4, selBg);
+    else UI_RoundRect(curX + 2, y + 2, segW - 4, h - 4, r - 2, selBg);
 
     for (int i = 0; i < count; i++) {
         float cx = x + segW * i + segW * 0.5f;
@@ -726,7 +894,8 @@ void UI_HueSpectrumBar(float x, float y, float w, float h, float hueT, bool drag
     float r = h * 0.5f;
     ColorRGBA trough = {18, 16, 24, 215};
     UI_Shadow(x, y, w, h, r, 15, 1.0f);
-    UI_RoundRect(x, y, w, h, r, trough);
+    if (UI_AssetsReady()) UI_NinePill(x, y, w, h, trough);
+    else UI_RoundRect(x, y, w, h, r, trough);
 
     float insetX = r * 0.7f;
     float ix = x + insetX, iw = w - insetX * 2;
@@ -760,7 +929,6 @@ void UI_TouchBarSlider(C2D_TextBuf buf, float x, float y, float w,
 void UI_TouchBarSliderDrag(C2D_TextBuf buf, float x, float y, float w,
                            const char* label, int value, int min, int max,
                            bool selected, ColorRGBA swatch, float thumbScale, float displayValue) {
-    bool dragging = thumbScale > 1.001f;
     float rh = 28.0f;
     ColorRGBA bg = selected
         ? themeMix((ColorRGBA){30, 30, 32, 250}, g_theme.accent, 0.10f)
@@ -784,14 +952,9 @@ void UI_TouchBarSliderDrag(C2D_TextBuf buf, float x, float y, float w,
     float t = (max > min) ? (float)(value - min) / (float)(max - min) : 0.0f;
     t = clampf(t, 0.0f, 1.0f);
 
-    /* Trilho branco@10% (capsula real, raio = altura/2). */
+    /* Trilho branco@10% (capsula real, raio = altura/2). 1.4.0 §SEM-GLOW:
+     * removido o glow da cor do canal por baixo do trilho -- trilho solido. */
     ColorRGBA track = {255, 255, 255, 26};
-    UI_RoundRect(barX, barY, barW, barH, barH * 0.5f, track);
-
-    /* Glow na cor do canal por baixo do trilho (mais forte ao arrastar). */
-    ColorRGBA glow = swatch;
-    glow.a = dragging ? 70 : 30;
-    UI_RoundRect(barX - 2, barY - 2, barW + 4, barH + 4, (barH + 4) * 0.5f, glow);
     UI_RoundRect(barX, barY, barW, barH, barH * 0.5f, track);
 
     if (t > 0.0f) {
@@ -822,10 +985,7 @@ void UI_TouchBarSliderDrag(C2D_TextBuf buf, float x, float y, float w,
      * a cor do canal -- substitui o circulo branco + glow empilhados. Halo
      * accent sutil so ao arrastar pra reforcar o "pegou". */
     UI_Shadow(knobX - knobR, knobCy - knobR, knobR * 2, knobR * 2, knobR, 35, 1.0f);
-    if (dragging) {
-        ColorRGBA glow = swatch; glow.a = 90;
-        UI_RoundRect(knobX - knobR - 4, knobCy - knobR - 4, knobR * 2 + 8, knobR * 2 + 8, knobR + 4, glow);
-    }
+    /* 1.4.0 §SEM-GLOW: removido o halo accent ao arrastar -- thumb solido nitido. */
     ColorRGBA knobTint = swatch; knobTint.a = 255;
     iconsDraw(ICON_SWATCH_THICK, knobX, knobCy, knobR * 2.0f, knobTint, 1.0f);
 
@@ -868,7 +1028,8 @@ void UI_Badge(C2D_TextBuf buf, float x, float y, const char* text, ColorRGBA bg)
     ColorRGBA textCol = ((int)bg.r + (int)bg.g + (int)bg.b > 430)
         ? (ColorRGBA){10, 12, 16, 255}
         : g_theme.onPrimary;
-    UI_RoundRect(x, y, pw, 18, 9, bg);
+    if (UI_AssetsReady()) UI_NinePill(x, y, pw, 18, bg);
+    else UI_RoundRect(x, y, pw, 18, 9, bg);
     UI_TextCenter(buf, NULL, text, x + pw * 0.5f, y + 2, 0.22f, 0.22f, textCol);
 }
 
@@ -895,9 +1056,6 @@ void UI_PillButtonPress(C2D_TextBuf buf, float x, float y, float w, float h,
     if (ap <= 0.0f) return;
     float slide = (1.0f - ap) * 8.0f;
 
-    float haloPhase = fmodf(uiFrameTime(), 1.4f) / 1.4f; /* 0..1 a cada 1.4s */
-    float haloTri = (haloPhase < 0.5f) ? (haloPhase * 2.0f) : (2.0f - haloPhase * 2.0f); /* triangulo 0->1->0 */
-    float haloWave = easeFunc(haloTri, EASE_IN_OUT_CUBIC);
     float totalScale = pressScale * focusScale;
 
     float pw = w * totalScale, ph = h * totalScale;
@@ -926,18 +1084,17 @@ void UI_PillButtonPress(C2D_TextBuf buf, float x, float y, float w, float h,
     textCol.a = (u8)((float)textCol.a * ap);
 
     UI_Shadow(ox, oy, pw, ph, r, 15, 1.0f);
-    if (selected) {
-        /* Halo pulsante 3.4: opacidade 0.25<->0.4, 1.4s, loop, easeInOut. */
-        ColorRGBA glow = g_theme.accent;
-        glow.a = (u8)(lerpf(0.25f, 0.4f, haloWave) * 255.0f * ap);
-        UI_RoundRect(ox - 3, oy - 3, pw + 6, ph + 6, r + 3, glow);
-    }
-    UI_RoundRect(ox, oy, pw, ph, r, bg);
-
-    if (!selected) {
-        ColorRGBA border = (ColorRGBA){0, 0, 0, themeIsDark() ? 15 : 10};
-        border.a = (u8)((float)border.a * ap);
-        UI_RoundFrame(ox, oy, pw, ph, r, bg, border);
+    /* 1.4.0 §SEM-GLOW: removido o halo accent pulsante atras da pilula
+     * selecionada -- a pilula solida accent ja marca a selecao, sem brilho. */
+    if (UI_AssetsReady()) {
+        UI_NinePill(ox, oy, pw, ph, bg);
+    } else {
+        UI_RoundRect(ox, oy, pw, ph, r, bg);
+        if (!selected) {
+            ColorRGBA border = (ColorRGBA){0, 0, 0, themeIsDark() ? 15 : 10};
+            border.a = (u8)((float)border.a * ap);
+            UI_RoundFrame(ox, oy, pw, ph, r, bg, border);
+        }
     }
 
     bool hasIcon = (iconImg >= 0) || (icon != NULL);
@@ -1082,10 +1239,8 @@ void UI_Emblem(float cx, float cy, float scale, float idleT, float alpha) {
     if (alpha <= 0.003f || scale <= 0.01f) return;
     const float R = 24.0f * scale;
 
-    /* glow rosa atras "respira": alpha ~18->40 num ciclo de ~3s (1 circulo). */
-    float breath = 0.5f + 0.5f * sinf(idleT * (EMBLEM_TWO_PI / 3.0f));
-    ColorRGBA glow = (ColorRGBA){255, 95, 135, (u8)((18.0f + 22.0f * breath) * alpha)};
-    C2D_DrawCircleSolid(cx, cy, 0.0f, R * 1.55f, u32c(glow));
+    /* 1.4.0 §SEM-GLOW: emblema FLAT (3 aneis cakeOS) -- removido o glow rosa
+     * "respirando" atras. A marca sao os 3 aneis de vidro, sem halo. */
 
     /* 3 bolinhas com float idle: seno lento, fase/amp/periodo diferentes
      * (amp 1.8-2.5px, periodo 2.7-3.4s) -- so translacao vertical (leve). */
@@ -1129,12 +1284,8 @@ void UI_StartupLogo(C2D_TextBuf buf, float t) {
         C2D_DrawCircleSolid(lx, cy, 0.0f, wr, u32c(wc));
     }
 
-    /* glow rosa no "encaixe" das bolinhas (~1.0-1.4s), pulso que some. */
-    float glowT = clampf((t - 0.95f) / 0.45f, 0.0f, 1.0f);
-    if (glowT > 0.0f && glowT < 1.0f) {
-        ColorRGBA glow = (ColorRGBA){255, 95, 135, (u8)(130.0f * (1.0f - glowT) * gA)};
-        C2D_DrawCircleSolid(lx, cy, 0.0f, 28.0f + glowT * 46.0f, u32c(glow));
-    }
+    /* 1.4.0 §SEM-GLOW: removido o pulso de glow rosa no "encaixe" das bolinhas
+     * (o boot fica limpo; o wipe de revelacao acima nao e halo, fica). */
 
     /* 2) 3 bolinhas glass voam de 3 pontos e se encaixam (spring, 1 oscilacao). */
     const float R = 24.0f;

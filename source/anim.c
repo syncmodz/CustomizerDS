@@ -30,8 +30,42 @@ float easeFunc(float t, EaseType type) {
         }
         case EASE_IN_CUBIC: return t * t * t;
         case EASE_SPRING: return easeSpringAmp(t, 0.75f);
+        /* 1.4.0 §FLUIDEZ: curvas END4 (valores reais do general.conf). */
+        case EASE_EMPH_DECEL:   return cubicBezier(0.05f, 0.70f, 0.10f, 1.00f, t);
+        case EASE_EMPH_ACCEL:   return cubicBezier(0.30f, 0.00f, 0.80f, 0.15f, t);
+        case EASE_EXPR_SPATIAL: return cubicBezier(0.38f, 1.21f, 0.22f, 1.00f, t);
+        case EASE_EXPR_FAST:    return cubicBezier(0.42f, 1.67f, 0.21f, 0.90f, t);
+        case EASE_MENU_DECEL:   return cubicBezier(0.10f, 1.00f, 0.00f, 1.00f, t);
         default: return t;
     }
+}
+
+/* B(s) de um cubic-bezier 1D com P0=0, P3=1 e controles p1,p2. */
+static float bezAxis(float p1, float p2, float s) {
+    float u = 1.0f - s;
+    return 3.0f * u * u * s * p1 + 3.0f * u * s * s * p2 + s * s * s;
+}
+/* dB/ds do mesmo (p/ Newton). */
+static float bezAxisD(float p1, float p2, float s) {
+    float u = 1.0f - s;
+    return 3.0f * u * u * p1 + 6.0f * u * s * (p2 - p1) + 3.0f * s * s * (1.0f - p2);
+}
+float cubicBezier(float p1x, float p1y, float p2x, float p2y, float t) {
+    if (t <= 0.0f) return 0.0f;
+    if (t >= 1.0f) return 1.0f;
+    /* acha s tal que X(s)=t por Newton-Raphson (x e monotonico pra p?x em
+     * [0,1]); 8 iteracoes convergem bem e e barato por frame. */
+    float s = t;
+    for (int i = 0; i < 8; i++) {
+        float x = bezAxis(p1x, p2x, s) - t;
+        if (fabsf(x) < 1e-4f) break;
+        float d = bezAxisD(p1x, p2x, s);
+        if (fabsf(d) < 1e-6f) break;
+        s -= x / d;
+    }
+    if (s < 0.0f) s = 0.0f;
+    if (s > 1.0f) s = 1.0f;
+    return bezAxis(p1y, p2y, s); /* Y(s) -- pode passar de 1 (overshoot) */
 }
 
 /* Oscilador harmonico amortecido fechado (nao uma simulacao por dt como

@@ -550,9 +550,9 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
      * verdade, pois desenhava um retangulo translucido por CIMA do swatch
      * inteiro. Corrigido com o mesmo padrao de 3 camadas do UI_NavCard:
      * fundo solido do card, tint contido no proprio raio, swatch por cima. */
+    /* 1.4.0 §SEM-GLOW: removido o halo accent translucido por cima do swatch
+     * -- so o card de fundo + swatch accent solido. */
     UI_RoundRect(colX - 4, colCenterY - 28, 56, 56, 28, g_theme.surface);
-    ColorRGBA halo = accentC; halo.a = 40;
-    UI_RoundRect(colX - 4, colCenterY - 28, 56, 56, 28, halo);
     UI_RoundRect(colX, colCenterY - 24, 48, 48, 24, accentC);
 
     const char* accentLabel = themeAccentIsCustom() ? T(STR_CUSTOM) : themeAccentName(themeGetAccentIndex());
@@ -677,11 +677,12 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
     float ringX = tweenValue(&s_ringTween);
     float ringY = sy + swSize * 0.5f;
 
-    /* §redesign: anel da accent APLICADA -- estatico e nitido (sem pulsar). O
-     * cursor (foco do D-pad) tem seu proprio aro limpo no loop abaixo. */
-    ColorRGBA ring = g_theme.accent; ring.a = 90;
+    /* §redesign + 1.4.0 §SEM-GLOW: anel da accent APLICADA = anel BRANCO NÍTIDO
+     * (ring9 AA, alpha 255), sem halo translucido. O cursor (foco do D-pad) tem
+     * seu proprio aro accent no loop abaixo. */
+    ColorRGBA ring = {255, 255, 255, 255};
     float ringSize = swSize + 8.0f;
-    UI_RoundRect(ringX - ringSize * 0.5f, ringY - ringSize * 0.5f, ringSize, ringSize, ringSize * 0.5f, ring);
+    UI_Ring(ringX - ringSize * 0.5f, ringY - ringSize * 0.5f, ringSize, ringSize, ringSize * 0.5f, ring);
 
     for (int i = 0; i < accentTotal; i++) {
         float sx = startX + i * (swSize + gap);

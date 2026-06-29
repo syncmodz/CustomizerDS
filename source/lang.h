@@ -75,6 +75,8 @@ typedef enum {
     STR_SYSFONT_DONE,     /* instalado, reiniciando */
     STR_SYSFONT_FAIL,     /* falhou (tamanho/escrita) */
     STR_SYSFONT_INSTALLING, /* tela de progresso do install */
+    STR_SYSFONT_KEEPON,   /* 1.4.0: tela de baixo durante install ("nao desligue") */
+    STR_SYSFONT_REBOOT_END, /* 1.4.0: subtitulo ("reiniciando ao concluir...") */
     STR_HELP_FONTS_X,     /* "X fonte do sistema" */
     /* startup */
     STR_STARTUP_SLOGAN,

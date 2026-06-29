@@ -96,12 +96,11 @@ void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float y) {
                                                 : (ColorRGBA){20, 24, 34, 22});
         if (sel) border.a = 120;
         if (sel) {
-            /* pulsacao suave na borda selecionada + leve elevacao (sombra) */
+            /* 1.4.0 §SEM-GLOW: seleção = anel accent NÍTIDO (ring9 AA), sem
+             * glow pulsante translucido. Leve elevacao (sombra) mantida. */
             UI_Shadow(cx, fy + 1, cellW, cellH, radius, 40, 1.5f);
-            float pulse = 0.06f * sinf(uiFrameTime() * 5.0f);
-            ColorRGBA glow = g_theme.accent;
-            glow.a = (u8)(40 + (int)(30 * pulse));
-            UI_RoundRect(cx - 2, fy - 2, cellW + 4, cellH + 4, radius + 2, glow);
+            ColorRGBA acc = g_theme.accent; acc.a = 255;
+            UI_Ring(cx - 2, fy - 2, cellW + 4, cellH + 4, radius + 2, acc);
         }
         UI_RoundFrame(cx, fy, cellW, cellH, radius, bg, border);
         char digit[2] = { cp->hex_input[i], '\0' };

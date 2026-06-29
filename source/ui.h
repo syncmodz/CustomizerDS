@@ -53,6 +53,26 @@ void UI_TransOverlay(float screenW, float screenH, float scrimAlpha, float flash
 /* Bolinha "glass" Reva UI: borda solida + interior @25%. bgBehind precisa
  * ser a cor solida exata por baixo do ponto onde a bolinha e desenhada. */
 void UI_GlassDot(float cx, float cy, float r, ColorRGBA color, ColorRGBA bgBehind);
+/* 1.4.0 §A1: 9-slice por sprite (canto anti-aliased em qualquer tamanho, mata o
+ * serrilhado do UI_RoundRect). UI_AssetsReady()==false (sheet ui9.t3x ausente)
+ * -> chamador deve cair no desenho vetorial. srcInset = px do inset no asset;
+ * dstCorner = tamanho do canto no destino (desacoplado: card=raio fixo,
+ * pill=h/2). Ver source/ui9_gen.h e README_assets.txt. */
+bool UI_AssetsReady(void);
+void UI_NineSliceImg(C2D_Image img, float x, float y, float w, float h,
+                     float srcInset, float dstCorner, ColorRGBA tint);
+void UI_NineCard(float x, float y, float w, float h, float r, ColorRGBA tint);
+void UI_NinePill(float x, float y, float w, float h, ColorRGBA tint);
+void UI_NineFocus(float x, float y, float w, float h, float r, ColorRGBA tint);
+void UI_NineShadow(float x, float y, float w, float h, float r, ColorRGBA tint);
+/* Anel nitido (contorno AA, sem halo) -- foco/seleção. Preenche o rect com a
+ * borda; centro transparente. */
+void UI_Ring(float x, float y, float w, float h, float r, ColorRGBA tint);
+/* Glow radial 1-sprite (substitui circulos translucidos empilhados) e marca de
+ * sucesso, ambos tintados/centrados. */
+void UI_Glow(float cx, float cy, float diameter, ColorRGBA tint);
+void UI_Check(float cx, float cy, float size, ColorRGBA tint);
+
 void UI_RoundRect(float x, float y, float w, float h, float r, ColorRGBA color);
 void UI_RoundFrame(float x, float y, float w, float h, float r, ColorRGBA fill, ColorRGBA border);
 /* r deve bater com o raio do elemento que recebe a sombra, senao sobra canto

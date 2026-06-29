@@ -198,7 +198,18 @@ EXTRA_T3X := $(DATA)/gfx/extra.t3x
 $(EXTRA_T3X): $(EXTRA_T3S) $(DATA)/gfx/swatch_ring_thick_3x.png $(DATA)/gfx/swatch_ring_thin_3x.png $(DATA)/gfx/icon_256.png
 	$(TEX3DS) -i $(EXTRA_T3S) -o $(EXTRA_T3X) -H source/extra_gen.h
 
-$(ROMFS_RAW): $(DATA) $(EXTRA_T3X) $(SYSFONT_EMBED_CIAS)
+# 1.4.0 §A1: pacote 9-slice (card/focus/pill/shadow + glow/check). Sheet propria
+# (ui9.t3x) carregada por ui.c; source/ui9_gen.h sai junto (indices na ordem do
+# .t3s). ui.o depende do .t3x pra garantir que o header exista antes de compilar.
+UI9_T3S := $(DATA)/gfx/ui9.t3s
+UI9_T3X := $(DATA)/gfx/ui9.t3x
+UI9_PNGS := $(DATA)/gfx/card9_3x.png $(DATA)/gfx/focus9_3x.png $(DATA)/gfx/pill9_3x.png \
+            $(DATA)/gfx/shadow9_3x.png $(DATA)/gfx/glow_radial_3x.png $(DATA)/gfx/check_3x.png
+$(UI9_T3X): $(UI9_T3S) $(UI9_PNGS)
+	$(TEX3DS) -i $(UI9_T3S) -o $(UI9_T3X) -H source/ui9_gen.h
+$(BUILD)/ui.o: $(UI9_T3X)
+
+$(ROMFS_RAW): $(DATA) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS)
 	@mkdir -p $(BUILD)
 	$(MKROMFS) $(DATA) $@
 
@@ -208,7 +219,7 @@ $(ROMFS_RAW): $(DATA) $(EXTRA_T3X) $(SYSFONT_EMBED_CIAS)
 # aceitava mas o 3DS nao conseguia ler -> icones/fontes sumiam SO no .cia (o
 # .3dsx usa o romfs cru direto e sempre funcionou). O .t3x tem que existir
 # antes do makerom varrer a pasta, dai a dependencia em EXTRA_T3X.
-$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(EXTRA_T3X) $(SYSFONT_EMBED_CIAS)
+$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
 	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER)
 
