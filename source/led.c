@@ -5,6 +5,7 @@
 #include "anim.h"
 #include "config.h"
 #include "fonts.h"
+#include "icons.h"
 #include "lang.h"
 #include <math.h>
 #include <stdio.h>
@@ -446,32 +447,43 @@ void ledRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, fl
     }
 }
 
-/* Slider PLANO (espec v20, SEM glow): label (x24) + trilho fino x44..280 h12
- * + preenchimento na cor do canal + thumb circulo solido r8. focado = anel
- * accent no trilho; numero animado a direita. */
+/* 1.5.0 slider cakeOS/reva: label a esquerda + trilho pill + preenchimento na
+ * cor do canal + KNOB reva (base branca + anel GROSSO na cor, cresce ao
+ * arrastar) + numero numa COLUNA fixa a direita, tudo centralizado na vertical
+ * da barra (o numero antes flutuava solto em cima, desalinhado). */
 static void drawFlatSlider(C2D_TextBuf buf, const char* label, int displayValue,
                            int value, int min, int max, float y, ColorRGBA chan,
-                           bool focused, float slideX) {
+                           bool focused, float slideX, float thumbScale) {
     ColorRGBA lblC = focused ? g_theme.textPrimary : g_theme.textSecondary;
-    UI_Text(buf, NULL, label, 24.0f + slideX, y - 5.0f, 0.27f, 0.27f, lblC);
+    float barX = 42.0f + slideX, barW = 224.0f, barH = 12.0f, barY = y + 2.0f;
+    float cy = barY + barH * 0.5f;
 
-    float barX = 44.0f + slideX, barW = 236.0f, barY = y + 2.0f, barH = 12.0f;
+    UI_Text(buf, NULL, label, 18.0f + slideX, cy - 8.0f, 0.26f, 0.26f, lblC);
+
     if (focused) UI_FocusRing(barX, barY, barW, barH, barH * 0.5f);
-    ColorRGBA track = {255, 255, 255, 18}; /* ~7% */
+
+    ColorRGBA track = {255, 255, 255, (u8)(themeIsDark() ? 20 : 32)};
     if (UI_AssetsReady()) UI_NinePill(barX, barY, barW, barH, track);
     else UI_RoundRect(barX, barY, barW, barH, barH * 0.5f, track);
 
     float t = (max > min) ? (float)(value - min) / (float)(max - min) : 0.0f;
     t = clampf(t, 0.0f, 1.0f);
     if (t > 0.001f) {
-        if (UI_AssetsReady()) UI_NinePill(barX, barY, fmaxf(barH, barW * t), barH, chan);
-        else UI_RoundRect(barX, barY, fmaxf(barH, barW * t), barH, barH * 0.5f, chan);
+        float fw = fmaxf(barH, barW * t);
+        if (UI_AssetsReady()) UI_NinePill(barX, barY, fw, barH, chan);
+        else UI_RoundRect(barX, barY, fw, barH, barH * 0.5f, chan);
     }
-    float knobX = barX + barW * t, knobCy = barY + barH * 0.5f;
-    UI_RoundRect(knobX - 8.0f, knobCy - 8.0f, 16.0f, 16.0f, 8.0f, chan); /* thumb solido */
+
+    /* knob reva: base branca + anel grosso (ICON_SWATCH_THICK) na cor do canal. */
+    float knobX = barX + barW * t;
+    float kr = 9.0f * thumbScale;
+    UI_Shadow(knobX - kr, cy - kr, kr * 2.0f, kr * 2.0f, kr, 30, 1.0f);
+    UI_RoundRect(knobX - kr, cy - kr, kr * 2.0f, kr * 2.0f, kr, (ColorRGBA){255, 255, 255, 255});
+    ColorRGBA ring = chan; ring.a = 255;
+    iconsDraw(ICON_SWATCH_THICK, knobX, cy, kr * 2.0f, ring, 1.0f);
 
     char v[8]; snprintf(v, sizeof(v), "%d", displayValue);
-    UI_TextRight(buf, NULL, v, barX + barW, y - 5.0f, 0.22f, 0.22f, g_theme.textHint);
+    UI_TextRight(buf, NULL, v, SCREEN_BOT_WIDTH - 14.0f + slideX, cy - 8.0f, 0.24f, 0.24f, g_theme.textSecondary);
 }
 
 void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
@@ -494,7 +506,8 @@ void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA,
         chanInfo(chan, &ip, &mn, &mx, &col, &lbl);
         float y = ledRowY(slot, nsl);
         drawFlatSlider(buf, lbl, (int)(tweenValue(&s_valTween[chan]) + 0.5f),
-                       chanGet(chan), mn, mx, y, col, s_selected == slot + 1, slideX);
+                       chanGet(chan), mn, mx, y, col, s_selected == slot + 1, slideX,
+                       tweenValue(&s_thumbTween[chan]));
     }
 
     UI_HelpBar(buf, T(STR_HELP_LED_L), T(STR_SAIR));

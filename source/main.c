@@ -271,6 +271,8 @@ int main() {
 
         uiFrameTick(dt);
         ledTick(dt); /* §4.1: mantem o LED escolhido vivo em qualquer aba */
+        themeWipeTick(dt); /* 1.5.0: wipe de troca de tema avanca em QUALQUER aba
+                            * (senao congela ao sair da aba Tema no meio da anim). */
 
         if (transActive) {
             transClock += dt;

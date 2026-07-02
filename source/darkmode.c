@@ -185,7 +185,10 @@ static void updatePopup(void) {
 
 void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
     updatePopup();
-    themeWipeTick(dt);
+    /* 1.5.0: themeWipeTick NAO roda mais aqui -- roda no laco principal (main.c)
+     * TODO frame, em qualquer aba. Antes, sair da aba Tema no meio da animacao
+     * de troca claro/escuro congelava o wipe (o timer so avancava aqui), e o
+     * split de cor ficava travado nas outras telas ate voltar. */
 
     if (s_hexEditing) {
         if (s_hexClosing) {
@@ -439,9 +442,11 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
     UI_ScreenHeader(buf, T(STR_TAB_THEME));
 
     if (s_hexEditing) {
-        /* editor de HEX: mantem o card-backdrop largo (cobre o header enquanto
-         * edita -- ok, o foco e o editor). */
-        UI_Card(16 + slideX, 30, 368, 196, RADIUS_CARD, g_theme.surface);
+        /* editor de HEX: painel largo cobrindo o header enquanto edita. 1.5.0:
+         * SEM UI_Card aqui -- a sombra dura dele (halo retangular, alpha fixo)
+         * ficava "mal colocada" e escurecia a beirada no tema claro. Agora e um
+         * painel arredondado chapado, sem drop-shadow, cobrindo quase a tela. */
+        UI_RoundRect(8 + slideX, 28, 384, 202, RADIUS_CARD, g_theme.surface);
         /* Popup 3.3 (Travel Agency): scrim 0->55% em 220ms easeOutCubic,
          * card cresce 0.6->1.0 + opacidade 0.4->1.0 com easeOutBack(1.5),
          * 360ms. A tela de cima nao tem um "elemento que abriu" equivalente
@@ -565,10 +570,11 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         }
         float popupFade = clampf(lerpf(0.4f, 1.0f, clampf(scaleG, 0.0f, 1.0f)), 0.0f, 1.0f);
 
-        /* §4: scrim mais suave no claro (igual a tela de cima). */
+        /* §4: scrim mais suave no claro (igual a tela de cima). 1.5.0: cobre a
+         * tela TODA (era ate H-26, deixava uma faixa clara embaixo "sem tampar"). */
         float scrimMax = themeIsDark() ? 0.55f : 0.10f;
         ColorRGBA scrim = {0, 0, 0, (u8)(255 * scrimP * scrimMax)};
-        UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT - 26, scrim);
+        UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT, scrim);
 
         /* Touch Bar HSV (3.4): selecao grossa, desliza/cresce junto com o
          * resto do popup a partir da mesma origem. */
@@ -624,9 +630,19 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
             bounce = (bt < 0.5f) ? lerpf(1.0f, 1.15f, easeFunc(bt * 2.0f, EASE_OUT_CUBIC))
                                  : lerpf(1.15f, 1.0f, easeFunc((bt - 0.5f) * 2.0f, EASE_OUT_BACK));
         }
-        float d = 28.0f * bounce;
-        UI_RoundRect(scx - d * 0.5f, scy - d * 0.5f, d, d, d * 0.5f, ac); /* disco da cor */
-        UI_RingCircle(scx, scy, d + 6.0f, (ColorRGBA){255, 255, 255, 70}); /* aro fino cakeOS */
+        /* 1.5.0: swatch no estilo GLASS cakeOS/reva -- borda GROSSA da cor +
+         * miolo translucido furado (mesma linguagem das bolinhas do app), em
+         * vez do disco chapado + aro fino de antes. */
+        float r = 14.0f * bounce;
+        float bw = fmaxf(3.0f, r * 0.32f);
+        ColorRGBA border = ac; border.a = 255;
+        UI_RoundRect(scx - r, scy - r, r * 2.0f, r * 2.0f, r, border);
+        float hr = r - bw;
+        if (hr > 0.5f) {
+            UI_RoundRect(scx - hr, scy - hr, hr * 2.0f, hr * 2.0f, hr, g_theme.background);
+            ColorRGBA fill = ac; fill.a = 70;
+            UI_RoundRect(scx - hr, scy - hr, hr * 2.0f, hr * 2.0f, hr, fill);
+        }
         if (i == themeAccentCount()) {
             /* 6o = HEX/custom: rotulo "HEX" legivel sobre a cor. */
             UI_RoundRect(scx - 12.0f, scy - 6.5f, 24.0f, 13.0f, 6.5f, (ColorRGBA){0, 0, 0, 165});

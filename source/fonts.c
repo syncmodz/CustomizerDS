@@ -68,6 +68,7 @@ static const char* FONT_LABELS[] = {
     "Love House",
     "Comic Sans MS3",
     "Super Mario 64",
+    "Coolvetica",
 };
 
 /* Caminho dentro da romfs (arquivos .bcfnt em romfs/fonts, gerados com mkbcfnt
@@ -80,6 +81,7 @@ static const char* FONT_PATHS[MAX_CUSTOM_FONTS] = {
     "romfs:/fonts/love_house.bcfnt",
     "romfs:/fonts/comic_sans_ms3.bcfnt",
     "romfs:/fonts/super_mario_64.bcfnt",
+    "romfs:/fonts/coolvetica.bcfnt",
 };
 
 /* v14 §4 (hardware): .cia de fonte de sistema embutidos (1 por fonte custom,
@@ -95,6 +97,7 @@ static const char* FONT_CIA_PATHS[MAX_CUSTOM_FONTS] = {
     "romfs:/sysfont/SystemFont_love_house.cia",
     "romfs:/sysfont/SystemFont_comic_sans_ms3.cia",
     "romfs:/sysfont/SystemFont_super_mario_64.cia",
+    "romfs:/sysfont/SystemFont_coolvetica.cia",
 };
 #define SYSFONT_STOCK_CIA "romfs:/sysfont/SystemFont_STOCK.cia"
 
@@ -459,13 +462,30 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         UI_RoundRect(sbX, thumbY, 3.0f, thumbH, 1.5f, g_theme.accent);
     }
 
-    /* rodape (espec v20): pilula accent "X aplicar no sistema" (16,202,150,28)
-     * + "A previa" ao lado. */
-    ColorRGBA pillC = g_theme.accent;
-    if (UI_AssetsReady()) UI_NinePill(16.0f + slideX, 202.0f, 150.0f, 28.0f, pillC);
-    else UI_RoundRect(16.0f + slideX, 202.0f, 150.0f, 28.0f, 14.0f, pillC);
-    UI_TextCenter(buf, NULL, T(STR_HELP_FONTS_X), 16.0f + 75.0f + slideX, 208.0f, 0.24f, 0.24f, themeContrastText(pillC));
-    UI_Text(buf, NULL, T(STR_HELP_FONTS_L), 182.0f + slideX, 210.0f, 0.24f, 0.24f, g_theme.textHint);
+    /* 1.5.0 rodape cakeOS: UMA pilula accent CENTRALIZADA e compacta, com uma
+     * badge circular "A" (chip invertido: fundo na cor de contraste, "A" na cor
+     * do accent) + o rotulo "aplicar no sistema". Sem o "previa ao navegar"
+     * solto do lado (era feio e quebrava a estetica). */
+    {
+        ColorRGBA pillC = g_theme.accent;
+        ColorRGBA txtC = themeContrastText(pillC);
+        const char* lbl = T(STR_HELP_FONTS_X);
+        float sc = 0.24f;
+        float lblW = UI_TextWidth(buf, NULL, lbl, sc);
+        float pillH = 30.0f, badgeR = 9.0f, padL = 11.0f, gap = 8.0f, padR = 15.0f;
+        float pillW = padL + badgeR * 2.0f + gap + lblW + padR;
+        float px = (SCREEN_BOT_WIDTH - pillW) * 0.5f + slideX;
+        float py = 200.0f;
+        UI_Shadow(px, py, pillW, pillH, pillH * 0.5f, 22, 1.5f);
+        if (UI_AssetsReady()) UI_NinePill(px, py, pillW, pillH, pillC);
+        else UI_RoundRect(px, py, pillW, pillH, pillH * 0.5f, pillC);
+        /* badge A invertida. */
+        float bcx = px + padL + badgeR, bcy = py + pillH * 0.5f;
+        UI_RoundRect(bcx - badgeR, bcy - badgeR, badgeR * 2.0f, badgeR * 2.0f, badgeR, txtC);
+        UI_TextCenter(buf, NULL, "A", bcx, bcy - 7.0f, 0.21f, 0.21f, pillC);
+        /* rotulo. */
+        UI_Text(buf, NULL, lbl, bcx + badgeR + gap, py + (pillH - 14.0f) * 0.5f, sc, sc, txtC);
+    }
 
     if (fadeA < 0.999f) {
         ColorRGBA veil = g_theme.background;

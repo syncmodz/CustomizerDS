@@ -70,7 +70,7 @@ static const char* STRINGS[LANG_COUNT][STR_COUNT] = {
         [STR_SYSFONT_REBOOT_END] = "reiniciando ao concluir...",
         [STR_SYSFONT_EMU_DONE] = "So aplica no console real",
         [STR_SYSFONT_EMU_NOTE] = "Fontes copiadas pra pasta do SD",
-        [STR_HELP_FONTS_X] = "A aplicar no sistema",
+        [STR_HELP_FONTS_X] = "aplicar no sistema",
         [STR_STARTUP_SLOGAN] = "personalize seu console com estilo",
     },
     /* ===================== LANG_EN ===================== */
@@ -137,7 +137,7 @@ static const char* STRINGS[LANG_COUNT][STR_COUNT] = {
         [STR_SYSFONT_REBOOT_END] = "rebooting when done...",
         [STR_SYSFONT_EMU_DONE] = "Applies on a real console only",
         [STR_SYSFONT_EMU_NOTE] = "Fonts copied to the SD folder",
-        [STR_HELP_FONTS_X] = "A apply to system",
+        [STR_HELP_FONTS_X] = "apply to system",
         [STR_STARTUP_SLOGAN] = "personalize your console in style",
     },
     /* ===================== LANG_ES ===================== */
@@ -204,7 +204,7 @@ static const char* STRINGS[LANG_COUNT][STR_COUNT] = {
         [STR_SYSFONT_REBOOT_END] = "reiniciando al terminar...",
         [STR_SYSFONT_EMU_DONE] = "Solo aplica en consola real",
         [STR_SYSFONT_EMU_NOTE] = "Fuentes copiadas a la carpeta SD",
-        [STR_HELP_FONTS_X] = "A aplicar al sistema",
+        [STR_HELP_FONTS_X] = "aplicar al sistema",
         [STR_STARTUP_SLOGAN] = "personaliza tu consola con estilo",
     },
 };

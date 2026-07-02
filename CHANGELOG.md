@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.0
+- **Coolvetica is now a real installable system font**: it ships as a proper
+  `.cia` merged into the original font (full glyph set kept), so applying it
+  won't brick the Home Menu — exactly like the other bundled fonts. It's the 8th
+  font in the list.
+- Fonts tab: cleaner footer — a single centered accent pill with an **"A" badge**
+  reading "apply to system" (dropped the stray "preview on browse" text).
+- Theme tab: the accent swatches now use the **cakeOS/reva glass style** (thick
+  colored ring + translucent center) instead of flat discs.
+- Theme tab: fixed the light↔dark animation **freezing** if you left the tab
+  mid-swap — the transition now finishes no matter which screen you're on.
+- Theme tab: fixed the HEX editor backdrop in the **light theme** — no more
+  misplaced hard shadow darkening the popup; the dim now covers the whole screen.
+- LED tab: redesigned the sliders in the **cakeOS/reva style** (white knob with a
+  thick colored ring) and aligned the value numbers in a tidy right-hand column.
+- Focus indicator: **much snappier** — faster and smoother, with a subtle stretch
+  as it travels, no more laggy/wobbly feel.
+
 ## 1.4.0
 - New chrome font: **Coolvetica Regular** — a rounder, friendlier display face
   that fits the app better than the old bold.

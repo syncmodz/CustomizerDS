@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include "input.h"
 
-#define MAX_CUSTOM_FONTS 7
+#define MAX_CUSTOM_FONTS 8 /* 1.5.0: +Coolvetica */
 
 typedef struct {
     C2D_Font fonts[MAX_CUSTOM_FONTS];

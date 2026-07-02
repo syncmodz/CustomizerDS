@@ -60,7 +60,7 @@ SYSFONT_STOCK_LZ := scripts/sysfont/stock/cbf_std.bcfnt.lz
 SYSFONT_STOCK_BCFNT := scripts/sysfont/stock/cbf_std.bcfnt
 SYSFONT_TTF_DIR := scripts/sysfont/ttf
 SYSFONT_DIR := $(DATA)/sysfont
-SYSFONT_FONTS := comfortaa_regular comfortaa_bold made_evolve_regular made_evolve_bold love_house comic_sans_ms3 super_mario_64
+SYSFONT_FONTS := comfortaa_regular comfortaa_bold made_evolve_regular made_evolve_bold love_house comic_sans_ms3 super_mario_64 coolvetica
 # python com freetype-py p/ o merge (venv do projeto); cai pra python3 se faltar.
 PYFT := $(if $(wildcard scripts/sysfont/.venv/bin/python),scripts/sysfont/.venv/bin/python,python3)
 # CRITICO: a fonte de sistema custom e feita por MERGE na STOCK (mk_sysfont_merge.py)

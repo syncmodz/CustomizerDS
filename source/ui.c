@@ -439,14 +439,12 @@ static void focusRingDraw(float x, float y, float w, float h, float r) {
     }
 }
 
-/* 1.5.0 §FOCO: anel de foco "liquido". Antes ele so deslizava reto (um lerp com
- * leve overshoot) -- o dono achou o oposto de dinamico. Agora, ao viajar entre
- * dois elementos, o anel se ESTICA: a borda que lidera o movimento corre na
- * frente (curva rapida com overshoot) e a que fica pra tras arrasta (curva
- * lenta), entao a caixa alonga no meio do trajeto e reassenta no destino --
- * sensacao de elastico/gosma, a assinatura END4. Parado, ele "respira" (a borda
- * engrossa/afina de leve num seno lento). Cada aresta e interpolada
- * separadamente com progresso proprio por eixo, guardando from/target/atual. */
+/* 1.5.0 §FOCO (revisao 2): o "liquido" anterior ficou LENTO/atrasado (0.26s +
+ * overshoot forte da EXPR_FAST -> arrastava e balancava). Agora e RAPIDO (0.16s)
+ * com stretch SUTIL: a borda lider usa EXPR_SPATIAL (molinha leve) e a de tras
+ * EMPH_DECEL, entao a caixa alonga de leve no trajeto e assenta rapido --
+ * responsivo, sem wobble e SEM o "respiro" parado (que lia como bug). Cada
+ * aresta interpolada por eixo; salto grande ou transicao de tela = snap. */
 void UI_FocusRing(float x, float y, float w, float h, float r) {
     static float fL, fT, fR, fB, fr_;   /* from (edges + raio) */
     static float tL, tT, tR, tB, tr_;   /* target */
@@ -469,16 +467,15 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
             fL = nL; fT = nT; fR = nR; fB = nB; fr_ = r; /* snap */
             tw_.active = false;
         } else {
-            tweenStart(&tw_, 0.0f, 1.0f, 0.26f, EASE_LINEAR); /* progresso bruto; curvas por-aresta abaixo */
+            tweenStart(&tw_, 0.0f, 1.0f, 0.16f, EASE_LINEAR); /* progresso bruto; curvas por-aresta abaixo */
         }
     }
     tweenUpdate(&tw_, uiFrameDt());
 
     if (tw_.active) {
         float p = tweenValue(&tw_);
-        float lead  = easeFunc(p, EASE_EXPR_FAST);   /* aresta lider corre na frente (overshoot) */
-        float trail = easeFunc(p, EASE_EMPH_DECEL);  /* aresta de tras arrasta */
-        /* eixo X: quem lidera depende do sentido do movimento. */
+        float lead  = easeFunc(p, EASE_EXPR_SPATIAL); /* lider com molinha leve */
+        float trail = easeFunc(p, EASE_EMPH_DECEL);   /* aresta de tras */
         if (tL >= fL) { cL = lerpf(fL, tL, trail); cR = lerpf(fR, tR, lead); }
         else          { cL = lerpf(fL, tL, lead);  cR = lerpf(fR, tR, trail); }
         if (tT >= fT) { cT = lerpf(fT, tT, trail); cB = lerpf(fB, tB, lead); }
@@ -488,9 +485,7 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
         cL = tL; cT = tT; cR = tR; cB = tB; cr_ = tr_;
     }
 
-    /* respiro no repouso (subindo/descendo a espessura ~+-1px via inset). */
-    float breathe = tw_.active ? 0.0f : 0.9f * sinf(uiFrameTime() * (6.28318531f / 1.7f));
-    float p3 = 3.0f + breathe;
+    const float p3 = 3.0f;
     focusRingDraw(cL - p3, cT - p3, (cR - cL) + 2.0f * p3, (cB - cT) + 2.0f * p3, cr_ + p3);
 }
 
