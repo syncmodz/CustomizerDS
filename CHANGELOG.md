@@ -1,6 +1,29 @@
 # Changelog
 
 ## 1.4.0
+- New chrome font: **Coolvetica Regular** — a rounder, friendlier display face
+  that fits the app better than the old bold.
+- Reworked the focus ring: instead of a stiff slide it now **stretches like
+  liquid** as it travels between items and gently breathes when it sits still.
+- Home: the bottom icons are properly centered, the **ugly rings around them
+  are gone** (just the icon now), the selected tile no longer turns dark in the
+  light theme, and the floating balls up top are smaller with a thicker outline,
+  matching the little logo balls — still animated.
+- Fonts tab: **A applies the font to the system directly** (no more A-preview /
+  X-apply two-step), and the list now **scrolls smoothly** with a soft fade at
+  the edges instead of jumping line by line.
+- Theme tab: removed the ugly ring around the sun/moon icon; the light-dark swap
+  now animates **on the icon itself** (a fade + spin, no leftover ghost fade and
+  no big icon over the preview). Fixed the selection indicator **flickering**
+  when moving onto the HEX swatch. Cleaned up the light theme (selection and the
+  HEX editor no longer look muddy/dark).
+- LED tab: each mode now shows **only the sliders that make sense** — Off has
+  none, Static shows just R/G/B (no pointless Speed), and **Pulse gains a Depth
+  slider** to control how far the light dims in the valley of the pulse.
+- Smoother, more expressive screen transitions (Material-3 "emphasized" curve on
+  the horizontal slide).
+- Build: the packed romfs now rebuilds whenever any bundled file changes, so a
+  new font can't silently get left out of the `.3dsx`.
 - Redesigned interface on all four screens (Home, Fonts, Theme, LED): a large
   macOS-style title on each screen, flat cakeOS cards, a grouped font list,
   ring swatches, and a clean LED ring.
@@ -12,7 +35,6 @@
   a check, then reboot. It now also plays in the emulator (simulated, with an
   honest "real console only" note) instead of just failing.
 - The bundled fonts are copied to sdmc:/3ds/CustomizerDS/fonts/ on first run.
-- Fonts tab: X applies the font to the system, A is just a preview.
 
 ## 1.3.0
 - You can now apply a bundled font as the whole **3DS system font**: pick a font

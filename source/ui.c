@@ -26,9 +26,12 @@ static C2D_Font g_uiFont = NULL;
 static C2D_SpriteSheet s_ui9 = NULL;
 
 void UI_FontInit(void) {
-    /* ui_comfortaa_bold.bcfnt = Comfortaa Bold gerada com whitelist ASCII +
-     * Latin-1 (0x20-0x7E, 0xA0-0xFF) -> tem os acentos PT/ES. A
-     * comfortaa_bold.bcfnt original (so ASCII) continua intacta pro preview. */
+    /* 1.5.0: fonte do chrome = Coolvetica Regular (mais "gordinha"/display, casa
+     * melhor com o app). Gerada com whitelist ASCII + Latin-1 (0x20-0x7E,
+     * 0xA0-0xFF) a 40pt -> tem acentos PT/ES e fica nitida ate o large-title.
+     * Se nao carregar, cai na Comfortaa Bold (fallback), e essa cai na fonte de
+     * sistema (parse()) -- nunca trava. */
+    if (!g_uiFont) g_uiFont = C2D_FontLoad("romfs:/fonts/ui_coolvetica.bcfnt");
     if (!g_uiFont) g_uiFont = C2D_FontLoad("romfs:/fonts/ui_comfortaa_bold.bcfnt");
     if (!s_ui9) s_ui9 = C2D_SpriteSheetLoad("romfs:/gfx/ui9.t3x");
 }
@@ -428,51 +431,67 @@ static inline float uiChromeScale(C2D_Font font) { return font ? 1.0f : UI_TEXT_
  * elemento. O focus9 (que tinha glow embutido) NÃO é mais usado. */
 static void focusRingDraw(float x, float y, float w, float h, float r) {
     ColorRGBA acc = g_theme.accent; acc.a = 255;
-    float p = 3.0f;
     if (UI_AssetsReady()) {
-        UI_Ring(x - p, y - p, w + 2.0f * p, h + 2.0f * p, r + p, acc);
+        UI_Ring(x, y, w, h, r, acc);
     } else {
         /* fallback vetorial: aro accent (o elemento por cima cobre o centro). */
-        UI_RoundRect(x - p, y - p, w + 2.0f * p, h + 2.0f * p, r + p, acc);
+        UI_RoundRect(x, y, w, h, r, acc);
     }
 }
 
+/* 1.5.0 §FOCO: anel de foco "liquido". Antes ele so deslizava reto (um lerp com
+ * leve overshoot) -- o dono achou o oposto de dinamico. Agora, ao viajar entre
+ * dois elementos, o anel se ESTICA: a borda que lidera o movimento corre na
+ * frente (curva rapida com overshoot) e a que fica pra tras arrasta (curva
+ * lenta), entao a caixa alonga no meio do trajeto e reassenta no destino --
+ * sensacao de elastico/gosma, a assinatura END4. Parado, ele "respira" (a borda
+ * engrossa/afina de leve num seno lento). Cada aresta e interpolada
+ * separadamente com progresso proprio por eixo, guardando from/target/atual. */
 void UI_FocusRing(float x, float y, float w, float h, float r) {
-    /* 1.4.0 §FLUIDEZ (assinatura END4): o anel DESLIZA do elemento anterior pro
-     * novo com leve overshoot (EASE_EXPR_SPATIAL) em vez de teleportar -- o
-     * detalhe que mais lembra o END4. Guarda from/target/atual + um Tween 0..1;
-     * ao mudar o alvo, recomeca a partir do rect interpolado atual. Saltos
-     * grandes (troca de aba/tela) ou durante uma transicao de tela = SNAP, pra
-     * nao varrer a tela e nao brigar com o render duplo do compositor. */
-    static float fx, fy, fw, fh, fr;       /* from */
-    static float tx, ty, tw, th, tr;       /* target */
-    static float cx, cy, cw, ch, cr;       /* atual desenhado */
+    static float fL, fT, fR, fB, fr_;   /* from (edges + raio) */
+    static float tL, tT, tR, tB, tr_;   /* target */
+    static float cL, cT, cR, cB, cr_;   /* atual desenhado (edges) */
     static Tween tw_ = {0};
     static bool init = false;
+
+    float nL = x, nT = y, nR = x + w, nB = y + h; /* alvo novo em arestas */
     if (!init) {
-        fx = tx = cx = x; fy = ty = cy = y; fw = tw = cw = w; fh = th = ch = h; fr = tr = cr = r;
-        init = true; tw_.active = false;
+        fL = tL = cL = nL; fT = tT = cT = nT; fR = tR = cR = nR; fB = tB = cB = nB;
+        fr_ = tr_ = cr_ = r; init = true; tw_.active = false;
     }
 
-    bool targetMoved = (fabsf(x - tx) + fabsf(y - ty) + fabsf(w - tw) + fabsf(h - th)) > 0.5f;
+    bool targetMoved = (fabsf(nL - tL) + fabsf(nT - tT) + fabsf(nR - tR) + fabsf(nB - tB)) > 0.5f;
     if (targetMoved) {
-        float jump = fabsf(x - cx) + fabsf(y - cy);
-        fx = cx; fy = cy; fw = cw; fh = ch; fr = cr;
-        tx = x; ty = y; tw = w; th = h; tr = r;
-        if (jump > 260.0f || transitionActive(&g_trans)) {
-            /* snap: nao desliza atravessando a tela inteira. */
-            fx = x; fy = y; fw = w; fh = h; fr = r;
+        float jump = fabsf(nL - cL) + fabsf(nT - cT);
+        fL = cL; fT = cT; fR = cR; fB = cB; fr_ = cr_;
+        tL = nL; tT = nT; tR = nR; tB = nB; tr_ = r;
+        if (jump > 300.0f || transitionActive(&g_trans)) {
+            fL = nL; fT = nT; fR = nR; fB = nB; fr_ = r; /* snap */
             tw_.active = false;
         } else {
-            tweenStart(&tw_, 0.0f, 1.0f, 0.20f, EASE_EXPR_SPATIAL);
+            tweenStart(&tw_, 0.0f, 1.0f, 0.26f, EASE_LINEAR); /* progresso bruto; curvas por-aresta abaixo */
         }
     }
     tweenUpdate(&tw_, uiFrameDt());
-    float p = tw_.active ? tweenValue(&tw_) : 1.0f; /* from=0,to=1 -> p = curva (passa de 1 no overshoot) */
-    cx = fx + (tx - fx) * p; cy = fy + (ty - fy) * p;
-    cw = fw + (tw - fw) * p; ch = fh + (th - fh) * p; cr = fr + (tr - fr) * p;
 
-    focusRingDraw(cx, cy, cw, ch, cr);
+    if (tw_.active) {
+        float p = tweenValue(&tw_);
+        float lead  = easeFunc(p, EASE_EXPR_FAST);   /* aresta lider corre na frente (overshoot) */
+        float trail = easeFunc(p, EASE_EMPH_DECEL);  /* aresta de tras arrasta */
+        /* eixo X: quem lidera depende do sentido do movimento. */
+        if (tL >= fL) { cL = lerpf(fL, tL, trail); cR = lerpf(fR, tR, lead); }
+        else          { cL = lerpf(fL, tL, lead);  cR = lerpf(fR, tR, trail); }
+        if (tT >= fT) { cT = lerpf(fT, tT, trail); cB = lerpf(fB, tB, lead); }
+        else          { cT = lerpf(fT, tT, lead);  cB = lerpf(fB, tB, trail); }
+        cr_ = lerpf(fr_, tr_, trail);
+    } else {
+        cL = tL; cT = tT; cR = tR; cB = tB; cr_ = tr_;
+    }
+
+    /* respiro no repouso (subindo/descendo a espessura ~+-1px via inset). */
+    float breathe = tw_.active ? 0.0f : 0.9f * sinf(uiFrameTime() * (6.28318531f / 1.7f));
+    float p3 = 3.0f + breathe;
+    focusRingDraw(cL - p3, cT - p3, (cR - cL) + 2.0f * p3, (cB - cT) + 2.0f * p3, cr_ + p3);
 }
 
 /* Largura REAL do texto como sera desenhado (fonte/escala do chrome) -- pra
@@ -1241,12 +1260,16 @@ void UI_MiniWindow(float x, float y, float w, float h, bool dark) {
  * cakeOS), desenhada por cima do bg_base. */
 static void bootGlassBall(float cx, float cy, float r, ColorRGBA col, float a) {
     if (a <= 0.003f || r <= 0.5f) return;
+    /* 1.5.0: borda PROPORCIONAL e grossa (~30% do raio) -- casa a bolinha grande
+     * do hero com a aparencia das bolinhas pequenas do canto (logo), que o dono
+     * curtiu. Miolo translucido fininho. */
+    float bw = fmaxf(2.0f, r * 0.30f);
     ColorRGBA border = col; border.a = (u8)(235.0f * a);
     C2D_DrawCircleSolid(cx, cy, 0.0f, r, u32c(border));
     ColorRGBA hole = g_theme.backgroundTop; hole.a = (u8)(255.0f * a);
-    C2D_DrawCircleSolid(cx, cy, 0.0f, r - 3.0f, u32c(hole));
+    C2D_DrawCircleSolid(cx, cy, 0.0f, r - bw, u32c(hole));
     ColorRGBA fill = col; fill.a = (u8)(110.0f * a);
-    C2D_DrawCircleSolid(cx, cy, 0.0f, r - 3.0f, u32c(fill));
+    C2D_DrawCircleSolid(cx, cy, 0.0f, r - bw, u32c(fill));
 }
 
 /* §1/§2: emblema compartilhado (3 bolinhas glass) usado na home (com float

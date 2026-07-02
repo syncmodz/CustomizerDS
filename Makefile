@@ -209,7 +209,13 @@ $(UI9_T3X): $(UI9_T3S) $(UI9_PNGS)
 	$(TEX3DS) -i $(UI9_T3S) -o $(UI9_T3X) -H source/ui9_gen.h
 $(BUILD)/ui.o: $(UI9_T3X)
 
-$(ROMFS_RAW): $(DATA) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS)
+# Depende de TODOS os arquivos da romfs (nao so do diretorio topo): adicionar
+# um arquivo numa subpasta -- ex.: uma fonte nova em romfs/fonts/ -- NAO muda o
+# mtime de romfs/, entao o make pulava a regeneracao e o .3dsx saia com o romfs
+# velho (bug real 1.5.0). Listar os arquivos forca a regeneracao sempre que
+# qualquer um deles mudar.
+ROMFS_FILES := $(shell find $(DATA) -type f 2>/dev/null)
+$(ROMFS_RAW): $(DATA) $(ROMFS_FILES) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS)
 	@mkdir -p $(BUILD)
 	$(MKROMFS) $(DATA) $@
 

@@ -68,9 +68,10 @@ void transEval(TransitionID id, float t, int navDir, float W, float H, Transitio
 
     switch (id) {
         case TRANS_PUSH_H: {
-            /* tabela 1: velha x=-W*p, nova x=W*(1-p), IN_OUT_CUBIC. navDir da
-             * o sentido (abrir = nova entra pela direita; voltar = esquerda). */
-            float p = easeFunc(t01, EASE_IN_OUT_CUBIC);
+            /* tabela 1: velha x=-W*p, nova x=W*(1-p). 1.5.0: EMPH_DECEL (Material
+             * 3 expressive do END4) no lugar do IN_OUT_CUBIC -- entrada mais viva
+             * e assentamento mais macio. navDir da o sentido. */
+            float p = easeFunc(t01, EASE_EMPH_DECEL);
             out->oldL.x = -(float)navDir * W * p;
             out->newL.x =  (float)navDir * W * (1.0f - p);
             break;

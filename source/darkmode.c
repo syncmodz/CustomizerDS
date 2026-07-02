@@ -397,55 +397,39 @@ void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
     if (s_swatchBounceT < 1.0f) s_swatchBounceT += dt;
 }
 
-/* Icone sol/lua girando + trocando de sprite na metade do giro (spec v5 6),
- * desenhado por cima de tudo na origem do wipe capturada em
- * applyThemeWithWipe() -- mesmo helper serve pra tela de cima (origem fixa
- * no MiniWindow) e de baixo (origem no segmento de destino do toggle).
- * Giro+morph calibrados no prototipo web (spec v5 9.4): 360deg easeOutCubic,
- * pop de escala via spring(0.55) -- o "pico de dopamina" Apple-style mora
- * aqui, nao no raio do wipe (que e monotono, sem overshoot). */
-/* PROMPT v8 secao 6: SO desenha na tela de cima (o caller de baixo nao chama
- * mais isto) e tem CICLO DE VIDA COM FADE -- mata o "travado"/some-seco. O
- * alpha do overlay celeste sobe 0->1 nos 1os 20% do timer, segura, e cai
- * 1->0 nos ultimos 25% -> entra, brilha e some sozinho, atado ao MESMO timer
- * (wp->t/THEME_WIPE_DUR) do wipe de ambiente. */
-static void darkmodeRenderWipeIcon(bool isTopScreen) {
-    ThemeWipe* wp = themeWipeGet();
-    if (!wp->active) return;
-    float t = clampf(wp->t / THEME_WIPE_DUR, 0.0f, 1.0f);
-
-    float alpha;
-    if (t < 0.20f) {
-        alpha = easeFunc(t / 0.20f, EASE_OUT_CUBIC);                 /* sobe 0->1 */
-    } else if (t > 0.75f) {
-        alpha = 1.0f - easeFunc((t - 0.75f) / 0.25f, EASE_IN_CUBIC); /* cai 1->0 */
-    } else {
-        alpha = 1.0f;                                               /* segura */
-    }
-    if (alpha <= 0.001f) return;
-
-    /* giro+morph por easeInOutCubic (secao 6.3); pop de escala via spring
-     * mantido (e o "pico de dopamina" Apple-style). */
-    float spinDeg = 360.0f * easeFunc(t, EASE_IN_OUT_CUBIC);
-    float pop = easeSpringAmp(t, 0.55f);
-    float iconScale = 0.85f + 0.3f * pop;
-    bool showNew = t > 0.5f;
-    IconID oldIcon = wp->wasDark ? ICON_THEME : ICON_SUN;
-    IconID newIcon = wp->wasDark ? ICON_SUN : ICON_THEME;
-    IconID ic = showNew ? newIcon : oldIcon;
-    float ox = isTopScreen ? wp->originTopX : wp->originBotX;
-    float oy = isTopScreen ? wp->originTopY : wp->originBotY;
-    float baseSize = isTopScreen ? 40.0f : 24.0f;
-    float ang = spinDeg * (M_PI / 180.0f);
-    float sz = baseSize * iconScale;
-    /* §3a: a lua (moon_fill, contorno escuro) gira TINTADA de prata pra nao
-     * ficar preta no escuro; o sol gira com a cor propria (amarelo). */
+/* 1.5.0 §TEMA: a troca sol<->lua agora anima NO PROPRIO lugar do icone (lado
+ * direito do card de previa), NAO mais como um overlay celeste gigante em cima
+ * do mini-card a esquerda (o dono achou feio). Sem aro/aureola, sem fade-out
+ * final: os dois sprites fazem crossfade girando de forma continua com um leve
+ * mergulho de escala no ponto de troca -- entra girando e assenta. */
+static void drawModeIconStyled(IconID ic, float cx, float cy, float size, float ang, float a) {
+    if (a <= 0.003f) return;
+    /* a lua (moon_fill, contorno escuro) gira TINTADA de prata pra nao ficar
+     * preta; o sol gira com a cor propria (amarelo). */
     if (ic == ICON_THEME) {
         ColorRGBA silver = {232, 234, 240, 255}; /* #E8EAF0 */
-        iconsDrawRotated(ic, ox, oy, sz, ang, silver, alpha);
+        iconsDrawRotated(ic, cx, cy, size, ang, silver, a);
     } else {
-        iconsDrawFixedRotated(ic, ox, oy, sz, ang, alpha);
+        iconsDrawFixedRotated(ic, cx, cy, size, ang, a);
     }
+}
+
+static void darkmodeDrawModeIcon(float cx, float cy, float size) {
+    ThemeWipe* wp = themeWipeGet();
+    if (!wp->active) {
+        drawModeIconStyled(themeIsDark() ? ICON_THEME : ICON_SUN, cx, cy, size, 0.0f, 1.0f);
+        return;
+    }
+    float t = clampf(wp->t / THEME_WIPE_DUR, 0.0f, 1.0f);
+    IconID oldI = wp->wasDark ? ICON_THEME : ICON_SUN;
+    IconID newI = wp->wasDark ? ICON_SUN : ICON_THEME;
+    float e = easeFunc(t, EASE_IN_OUT_CUBIC);
+    float ang = e * (float)M_PI;                    /* 0..180 giro continuo */
+    float oldA = 1.0f - clampf(t / 0.5f, 0.0f, 1.0f);
+    float newA = clampf((t - 0.5f) / 0.5f, 0.0f, 1.0f);
+    float dip = 1.0f - 0.14f * sinf(t * (float)M_PI); /* mergulho de escala no swap */
+    drawModeIconStyled(oldI, cx, cy, size * dip, ang, oldA);
+    drawModeIconStyled(newI, cx, cy, size * dip, ang - (float)M_PI, newA);
 }
 
 void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
@@ -480,7 +464,7 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
 
         /* §4: scrim bem mais suave no CLARO -- 55% preto borrava/sujava a tela
          * toda no modo claro; no escuro continua forte pra focar o editor. */
-        float scrimMax = themeIsDark() ? 0.55f : 0.28f;
+        float scrimMax = themeIsDark() ? 0.55f : 0.10f;
         ColorRGBA scrim = {0, 0, 0, (u8)(255 * scrimP * scrimMax)};
         UI_Fill(0, 25, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT - 25, scrim);
 
@@ -527,10 +511,13 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
     ColorRGBA accentC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
 
     /* mini-card de exemplo (44,136,150,76) r12: swatch accent r11 + nome + #hex
-     * + pilula accent. */
+     * + pilula accent. 1.5.0: fundo THEME-AWARE (era #1F1E26 fixo -> escuro feio
+     * no tema claro). */
     float mx = 44.0f + slideX, my = 136.0f;
-    if (UI_AssetsReady()) UI_NineCard(mx, my, 150.0f, 76.0f, 12.0f, (ColorRGBA){0x1F, 0x1E, 0x26, 255});
-    else UI_RoundRect(mx, my, 150.0f, 76.0f, 12.0f, (ColorRGBA){0x1F, 0x1E, 0x26, 255});
+    ColorRGBA innerCard = themeIsDark() ? (ColorRGBA){0x1F, 0x1E, 0x26, 255}
+                                        : (ColorRGBA){0xEC, 0xEC, 0xF0, 255};
+    if (UI_AssetsReady()) UI_NineCard(mx, my, 150.0f, 76.0f, 12.0f, innerCard);
+    else UI_RoundRect(mx, my, 150.0f, 76.0f, 12.0f, innerCard);
     UI_RoundRect(72.0f - 11.0f + slideX, 164.0f - 11.0f, 22.0f, 22.0f, 11.0f, accentC);
     const char* accentLabel = themeAccentIsCustom() ? T(STR_CUSTOM) : themeAccentName(themeGetAccentIndex());
     UI_Text(buf, NULL, accentLabel, 92.0f + slideX, 150.0f, 0.27f, 0.27f, g_theme.textPrimary);
@@ -540,14 +527,11 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
     if (UI_AssetsReady()) UI_NinePill(60.0f + slideX, 196.0f, 80.0f, 14.0f, accentC);
     else UI_RoundRect(60.0f + slideX, 196.0f, 80.0f, 14.0f, 7.0f, accentC);
 
-    /* icone de modo (sol/lua): anel ambar r22 (300,160) + label (300,~188). */
-    ColorRGBA amber = {0xF5, 0xBE, 0x46, 255};
-    UI_RingCircle(300.0f + slideX, 160.0f, 44.0f, amber);
-    iconsDrawAuto(themeIsDark() ? ICON_THEME : ICON_SUN, 300.0f + slideX, 160.0f, 22.0f, amber, 1.0f);
+    /* 1.5.0: icone de modo (sol/lua) SEM aro/aureola (o dono odiou o anel ambar).
+     * A troca sol<->lua anima no proprio icone (fade+rotacao), sem overlay. */
+    darkmodeDrawModeIcon(300.0f + slideX, 158.0f, 40.0f);
     UI_TextCenter(buf, NULL, themeIsDark() ? T(STR_DARK) : T(STR_LIGHT),
-                  300.0f + slideX, 188.0f, 0.32f, 0.32f, g_theme.textSecondary);
-
-    darkmodeRenderWipeIcon(true);
+                  300.0f + slideX, 192.0f, 0.32f, 0.32f, g_theme.textSecondary);
 
     if (fadeA < 0.999f) {
         ColorRGBA veil = g_theme.backgroundTop;
@@ -582,7 +566,7 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         float popupFade = clampf(lerpf(0.4f, 1.0f, clampf(scaleG, 0.0f, 1.0f)), 0.0f, 1.0f);
 
         /* §4: scrim mais suave no claro (igual a tela de cima). */
-        float scrimMax = themeIsDark() ? 0.55f : 0.28f;
+        float scrimMax = themeIsDark() ? 0.55f : 0.10f;
         ColorRGBA scrim = {0, 0, 0, (u8)(255 * scrimP * scrimMax)};
         UI_Fill(0, 0, SCREEN_BOT_WIDTH, SCREEN_BOT_HEIGHT - 26, scrim);
 
@@ -666,8 +650,11 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
     ColorRGBA curC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
     if (UI_AssetsReady()) UI_NineCard(16.0f + slideX, 132.0f + offset, 168.0f, 32.0f, 10.0f, g_theme.surface);
     else UI_RoundRect(16.0f + slideX, 132.0f + offset, 168.0f, 32.0f, 10.0f, g_theme.surface);
-    if (s_selected == 2 + themeAccentCount())
-        UI_FocusRing(16.0f + slideX, 132.0f + offset, 168.0f, 32.0f, 10.0f);
+    /* 1.5.0: o card HEX compartilha o slot de selecao com o 6o swatch (HEX). O
+     * foco ja e desenhado NO SWATCH (loop acima) -- desenhar AQUI tambem fazia
+     * UI_FocusRing ser chamado 2x no mesmo frame com alvos diferentes, e como o
+     * anel tem estado global unico ele brigava consigo mesmo (o "flicker" que o
+     * dono viu). Um indicador so, no swatch. */
     char hexStr[16];
     snprintf(hexStr, sizeof(hexStr), "HEX %02X%02X%02X", curC.r, curC.g, curC.b);
     UI_Text(buf, NULL, hexStr, 28.0f + slideX, 140.0f + offset, 0.27f, 0.27f, g_theme.textPrimary);

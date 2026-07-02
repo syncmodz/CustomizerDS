@@ -107,9 +107,10 @@ void menuUpdate(const AppInput* in, int* currentScreen) {
     if (s_selected != prevSelected) pillFocusChange(prevSelected, s_selected);
 
     if (in->touchDown) {
-        /* tiles 92x150, y=30, x=22/128/234 (deve bater com menuRenderBottom). */
-        const float tileW = 92.0f, tileH = 150.0f, tileY = 30.0f;
-        const float tileX[3] = { 22.0f, 128.0f, 234.0f };
+        /* tiles 90x150, y=30, x=9/115/221 -- centrados (margens 9/9, gap 16);
+         * deve bater com menuRenderBottom/menuRenderStartupPills. */
+        const float tileW = 90.0f, tileH = 150.0f, tileY = 30.0f;
+        const float tileX[3] = { 9.0f, 115.0f, 221.0f };
         for (int i = 0; i < 3; i++) {
             if (in->touchPX >= tileX[i] && in->touchPX < tileX[i] + tileW &&
                 in->touchPY >= tileY && in->touchPY < tileY + tileH) {
@@ -135,8 +136,8 @@ void menuRenderStartupPills(C2D_TextBuf buf, float startupT) {
     /* §2 + espec v20: os 3 TILES da Home sobem/aparecem em cascata no fim da
      * boot, ja na pose final (y=30, x=22/128/234) -> o handoff entrega a tela
      * de baixo sem pulo. */
-    const float tileW = 92.0f, tileH = 150.0f, tileY = 30.0f;
-    const float tileX[3] = { 22.0f, 128.0f, 234.0f };
+    const float tileW = 90.0f, tileH = 150.0f, tileY = 30.0f;
+    const float tileX[3] = { 9.0f, 115.0f, 221.0f };
     const ColorRGBA sect[3] = {
         {255, 86, 120, 255}, {86, 200, 235, 255}, {95, 215, 130, 255}
     };
@@ -154,9 +155,9 @@ void menuRenderStartupPills(C2D_TextBuf buf, float startupT) {
         if (UI_AssetsReady()) UI_NineCard(x, y, tileW, tileH, 16.0f, bg);
         else UI_RoundRect(x, y, tileW, tileH, 16.0f, bg);
 
+        /* 1.5.0: SEM aro/aureola em volta do icone (o dono odiou) -- icone limpo. */
         ColorRGBA rc = sect[i]; rc.a = au;
-        UI_RingCircle(cx, y + 50.0f, 40.0f, rc);
-        iconsDrawAuto(resolveIcon(i), cx, y + 50.0f, 18.0f, rc, e);
+        iconsDrawAuto(resolveIcon(i), cx, y + 54.0f, 26.0f, rc, e);
         ColorRGBA nc = g_theme.textSecondary; nc.a = (u8)((float)nc.a * e);
         UI_TextCenter(buf, NULL, T(ITEMS[i].titleId), cx, y + 102.0f, 0.35f, 0.35f, nc);
     }
@@ -173,11 +174,14 @@ void menuRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, f
      * Suprimido durante o handoff boot->home (os shared-elements deslizam em
      * menuRenderTopHandoff). */
     if (!s_emblemSuppressed) {
-        float bob = 2.0f * sinf(uiFrameTime() * (6.28318531f / 3.2f));
-        UI_Emblem(200.0f + slideX, 116.0f + offsetFg + bob, 34.0f / 24.0f, uiFrameTime(), 1.0f);
-        UI_TextCenter(buf, NULL, "CustomizerDS", 200.0f + slideX, 168.0f + offsetFg,
+        float bob = 2.5f * sinf(uiFrameTime() * (6.28318531f / 3.2f));
+        /* 1.5.0: hero MENOR (26/24, era 34/24) com bolinhas de borda grossa
+         * (bootGlassBall agora tem borda proporcional) -- o visual das
+         * bolinhas do canto, so que animado. */
+        UI_Emblem(200.0f + slideX, 112.0f + offsetFg + bob, 26.0f / 24.0f, uiFrameTime(), 1.0f);
+        UI_TextCenter(buf, NULL, "CustomizerDS", 200.0f + slideX, 162.0f + offsetFg,
                       0.54f, 0.54f, g_theme.textPrimary);
-        UI_TextCenter(buf, NULL, T(STR_HOME_SLOGAN), 200.0f + slideX, 194.0f + offsetFg,
+        UI_TextCenter(buf, NULL, T(STR_HOME_SLOGAN), 200.0f + slideX, 188.0f + offsetFg,
                       0.32f, 0.32f, g_theme.textSecondary);
     }
 
@@ -210,15 +214,15 @@ void menuRenderTopHandoff(C2D_TextBuf buf, float h) {
     }
 
     /* 3) emblema: BOOT (centro 200,86 scale 1.0; ver UI_StartupLogo) -> HOME
-     *    (centro 200,116 scale 34/24). Ambos centrados em x=200 (espec v20). */
-    UI_Emblem(200.0f, lerpf(86.0f, 116.0f, e),
-              lerpf(1.0f, 34.0f / 24.0f, e), uiFrameTime(), 1.0f);
+     *    (centro 200,112 scale 26/24). Ambos centrados em x=200. */
+    UI_Emblem(200.0f, lerpf(86.0f, 112.0f, e),
+              lerpf(1.0f, 26.0f / 24.0f, e), uiFrameTime(), 1.0f);
 
-    /* 4) wordmark: BOOT centrado (200,138) base 0.34 -> HOME centrado (200,168)
+    /* 4) wordmark: BOOT centrado (200,138) base 0.34 -> HOME centrado (200,162)
      *    base 0.54 -- aterrissa EXATO no que a Home desenha depois (sem pulo). */
     float wmS = lerpf(0.34f, 0.54f, e);
     UI_TextCenter(buf, NULL, "CustomizerDS",
-                  200.0f, lerpf(138.0f, 168.0f, e), wmS, wmS, g_theme.textPrimary);
+                  200.0f, lerpf(138.0f, 162.0f, e), wmS, wmS, g_theme.textPrimary);
 
     /* libera a supressao -> quando o handoff acabar, o render normal volta a
      * desenhar emblema/wordmark na MESMA pose final (continuidade). */
@@ -232,8 +236,8 @@ void menuRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA
     /* Espec v20: 3 tiles 92x150, y=30, x=22/128/234. Cada tile = card (foco =
      * card-foco #1F1E26 + anel accent + micro-escala) com anel cakeOS na cor da
      * secao (cx,80) r20 + icone + nome (cx,140). */
-    const float tileW = 92.0f, tileH = 150.0f, tileY = 30.0f;
-    const float tileX[3] = { 22.0f, 128.0f, 234.0f };
+    const float tileW = 90.0f, tileH = 150.0f, tileY = 30.0f;
+    const float tileX[3] = { 9.0f, 115.0f, 221.0f };
     const ColorRGBA sect[3] = {
         {255, 86, 120, 255},  /* Fontes = rosa  */
         { 86, 200, 235, 255}, /* Tema   = ciano */
@@ -254,16 +258,19 @@ void menuRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA
         float w = tileW * popS, h = tileH * popS;
         float x = cx - w * 0.5f, y = cy - h * 0.5f;
 
-        ColorRGBA bg = sel ? (ColorRGBA){0x1F, 0x1E, 0x26, 255} : g_theme.surface;
+        /* 1.5.0: fundo do tile selecionado THEME-AWARE (era #1F1E26 fixo, que
+         * escurecia feio no tema claro). Deriva da superficie com um toque de
+         * accent (Monet), igual aos outros cards selecionados. */
+        ColorRGBA bg = sel ? themeCardSelBg() : g_theme.surface;
         UI_Shadow(x, y, w, h, 16.0f, sel ? 45 : 24, 2.0f);
         if (UI_AssetsReady()) UI_NineCard(x, y, w, h, 16.0f, bg);
         else UI_RoundFrame(x, y, w, h, 16.0f, bg, (ColorRGBA){255, 255, 255, themeIsDark() ? 12 : 24});
-        if (sel) UI_FocusRing(x, y, w, h, 16.0f); /* anel accent nitido (desliza) */
+        if (sel) UI_FocusRing(x, y, w, h, 16.0f); /* anel accent liquido (desliza+estica) */
 
-        float ringCy = cy + (80.0f - cy) * (h / tileH);
+        /* 1.5.0: SEM aro/aureola em volta do icone -- so o icone, maior e limpo. */
+        float iconCy = cy + (78.0f - cy) * (h / tileH);
         float nameCy = cy + (140.0f - cy) * (h / tileH);
-        UI_RingCircle(cx, ringCy, 40.0f * popS, sect[i]);
-        iconsDrawAuto(resolveIcon(i), cx, ringCy, 18.0f, sect[i], 1.0f);
+        iconsDrawAuto(resolveIcon(i), cx, iconCy, 26.0f * popS, sect[i], 1.0f);
         ColorRGBA nameC = sel ? g_theme.textPrimary : g_theme.textSecondary;
         UI_TextCenter(buf, NULL, T(ITEMS[i].titleId), cx, nameCy - 8.0f, 0.35f, 0.35f, nameC);
     }

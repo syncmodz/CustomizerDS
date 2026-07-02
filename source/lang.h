@@ -65,6 +65,7 @@ typedef enum {
     STR_BLUE,
     STR_SPEED,
     STR_SPEED_SHORT,
+    STR_DEPTH_SHORT,   /* 1.5.0: rotulo curto do slider de profundidade do pulso */
     STR_STATE,
     STR_REALTIME,
     STR_SIMULATED,

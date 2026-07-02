@@ -15,6 +15,9 @@ FontSystem g_fonts;
 
 static int s_selected = 0;
 static int s_scrollTop = 0; /* §5/§7: lista rolavel (9 fontes nao cabem todas) */
+/* 1.5.0: rolagem FLUIDA -- s_scrollTop e o alvo (inteiro), s_scrollAnim segue
+ * suave em "linhas" fracionarias, entao a lista desliza em vez de saltar. */
+static float s_scrollAnim = 0.0f;
 static bool s_sysfontPending = false; /* §5: o popup atual e de FONTE DE SISTEMA */
 
 /* Geometria da lista AGRUPADA de fontes (espec v20; render + toque iguais):
@@ -271,15 +274,12 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
         }
     }
 
-    /* 1.4.0 §FONTES (norte v19): acao PRIMARIA = X (aplicar como fonte do
-     * SISTEMA, com confirmacao clara: reboot + backup NAND; em "Padrao do
-     * Sistema" (0) = restaurar a original). A = previa no app (aplica a fonte
-     * so no app, sem reiniciar). O preview da tela de cima ja acompanha a
-     * navegacao; o A persiste essa escolha como fonte do app. */
+    /* 1.5.0 §FONTES: acao PRIMARIA = A -> aplicar como fonte do SISTEMA direto
+     * (o dono achava o fluxo A=previa / X=aplicar nada pratico). O preview da
+     * tela de cima ja acompanha a navegacao, entao o A nao precisa mais
+     * "prever" -- ele confirma (popup A/B: reboot + backup NAND; item 0 "Padrao
+     * do Sistema" = restaurar a original). */
     if (in->confirm) {
-        applyFont(s_selected, true);
-    }
-    if (in->down & KEY_X) {
         s_sysfontPending = true;
         popupShowConfirm(&s_popup, s_selected == 0 ? T(STR_SYSFONT_RESTORE) : T(STR_SYSFONT_CONFIRM));
     }
@@ -396,33 +396,56 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
     else UI_RoundFrame(cardX, FL_CARD_Y, FL_CARD_W, FL_CARD_H, 15.0f, g_theme.surface,
                        (ColorRGBA){255, 255, 255, (u8)(themeIsDark() ? 8 : 24)});
 
-    for (int v = 0; v < FL_VISIBLE && (s_scrollTop + v) < n; v++) {
-        int i = s_scrollTop + v;
-        float rowY = FL_ROW0 + v * FL_ROWH;
+    /* rolagem fluida: s_scrollAnim persegue s_scrollTop suave (glide ~exponencial). */
+    s_scrollAnim += ((float)s_scrollTop - s_scrollAnim) * fminf(1.0f, uiFrameDt() * 14.0f);
+    if (fabsf((float)s_scrollTop - s_scrollAnim) < 0.002f) s_scrollAnim = (float)s_scrollTop;
+
+    const float listTop = FL_ROW0;
+    const float listBot = FL_ROW0 + FL_VISIBLE * FL_ROWH;
+
+    /* desenha 1 linha extra em cima/baixo pra cobrir as parciais que entram/saem
+     * durante o deslize; cada linha some por FADE nas bordas (sem scissor, que e
+     * arriscado na tela girada do 3DS). */
+    int first = (int)floorf(s_scrollAnim) - 1; if (first < 0) first = 0;
+    int last  = s_scrollTop + FL_VISIBLE; if (last >= n) last = n - 1;
+    bool prevDrawn = false;
+    for (int i = first; i <= last; i++) {
+        float rowY = FL_ROW0 + ((float)i - s_scrollAnim) * FL_ROWH;
         float rowCy = rowY + FL_ROWH * 0.5f;
+        /* fracao da linha DENTRO da janela (fade nas pontas). */
+        float vis = fminf(rowY + FL_ROWH, listBot) - fmaxf(rowY, listTop);
+        float ra = clampf(vis / FL_ROWH, 0.0f, 1.0f);
+        if (ra <= 0.01f) { prevDrawn = false; continue; }
         bool selected = (i == s_selected);
         bool isCurrent = (i == g_fonts.currentIndex);
 
-        /* divisoria 1px entre linhas (x32..288). */
-        if (v > 0) {
-            ColorRGBA div = {255, 255, 255, (u8)(themeIsDark() ? 26 : 30)};
+        /* divisoria 1px entre linhas (nao na 1a linha visivel). */
+        if (prevDrawn) {
+            ColorRGBA div = {255, 255, 255, (u8)((themeIsDark() ? 26 : 30) * ra)};
             UI_Fill(FL_TEXT_X + slideX, rowY, (FL_CARD_X + FL_CARD_W) - FL_TEXT_X, 1.0f, div);
         }
+        prevDrawn = true;
 
-        /* item focado: fundo #1F1E26 + anel accent (ring9, desliza). */
+        /* item focado: fundo THEME-AWARE (era #1F1E26 fixo -> escuro no claro)
+         * + anel accent liquido (desliza). */
         if (selected) {
             float fx = cardX + 4.0f, fw = FL_CARD_W - 8.0f, fy = rowY + 1.0f, fh = FL_ROWH - 2.0f;
-            if (UI_AssetsReady()) UI_NineCard(fx, fy, fw, fh, 12.0f, (ColorRGBA){0x1F, 0x1E, 0x26, 255});
-            else UI_RoundRect(fx, fy, fw, fh, 12.0f, (ColorRGBA){0x1F, 0x1E, 0x26, 255});
-            UI_FocusRing(fx, fy, fw, fh, 12.0f);
+            ColorRGBA selBg = themeCardSelBg(); selBg.a = (u8)((float)selBg.a * ra);
+            if (UI_AssetsReady()) UI_NineCard(fx, fy, fw, fh, 12.0f, selBg);
+            else UI_RoundRect(fx, fy, fw, fh, 12.0f, selBg);
+            /* o anel acompanha a linha deslizando (chamado todo frame com fy
+             * animado); so evita desenhar quando a linha ja esta quase saindo. */
+            if (ra > 0.5f) UI_FocusRing(fx, fy, fw, fh, 12.0f);
         }
 
         ColorRGBA textCol = selected ? g_theme.textPrimary : g_theme.textSecondary;
+        textCol.a = (u8)((float)textCol.a * ra);
         UI_Text(buf, fontsGetFont(i), fontsLabel(i), FL_TEXT_X + slideX, rowCy - 9.0f, 0.34f, 0.34f, textCol);
 
         if (isCurrent) {
             /* bolinha verde solida "em uso" (290, rowCy) r6. */
-            UI_RoundRect(FL_CARD_X + FL_CARD_W - 16.0f + slideX, rowCy - 6.0f, 12.0f, 12.0f, 6.0f, g_theme.success);
+            ColorRGBA su = g_theme.success; su.a = (u8)((float)su.a * ra);
+            UI_RoundRect(FL_CARD_X + FL_CARD_W - 16.0f + slideX, rowCy - 6.0f, 12.0f, 12.0f, 6.0f, su);
         }
     }
 

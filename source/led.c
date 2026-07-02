@@ -37,21 +37,74 @@ static int s_speed = 2;
 static u8 s_r = 255;
 static u8 s_g = 96;
 static u8 s_b = 160;
+/* 1.5.0: PROFUNDIDADE do pulso (1..100%). Controla o quanto o LED escurece no
+ * vale da onda: no 3DS real o pulso so escurecia ate ~metade -- agora da pra
+ * ir do "quase constante" ao "apaga total". floor = 1 - depth/100. */
+static int s_pulseDepth = 80;
 static bool s_mcuReady = false;
 static Result s_lastResult = 0;
+
+/* 1.5.0: cada modo mostra sliders DIFERENTES (o dono reclamou do slider de
+ * Speed aparecer em Off/Static, onde nao ha nada pra ajustar):
+ *   RGB    -> [Vel]
+ *   Fixo   -> [R,G,B]            (sem Vel: cor parada nao tem velocidade)
+ *   Pulso  -> [R,G,B,Vel,Prof]  (Prof = profundidade nova)
+ *   Off    -> (nenhum)
+ * Os tweens de thumb/valor sao indexados por KIND (nao por posicao) pra
+ * persistirem quando o modo muda. */
+typedef enum { CH_R = 0, CH_G, CH_B, CH_SPEED, CH_DEPTH, CH_COUNT } LedChan;
+
+static int ledSliderKinds(int* kinds) {
+    switch (s_mode) {
+        case LED_RAINBOW: kinds[0] = CH_SPEED; return 1;
+        case LED_SOLID:   kinds[0] = CH_R; kinds[1] = CH_G; kinds[2] = CH_B; return 3;
+        case LED_PULSE:   kinds[0] = CH_R; kinds[1] = CH_G; kinds[2] = CH_B;
+                          kinds[3] = CH_SPEED; kinds[4] = CH_DEPTH; return 5;
+        default:          return 0; /* OFF: nada */
+    }
+}
 
 /* Tween do segmentedLozenge (UI_TouchBarSegmented) -- substitui o antigo
  * s_segSlideT/morphT; o componente agora cuida do slide easeOutBack por
  * dentro, esta instancia so guarda o estado entre frames. */
 static Tween s_segTween;
-static int s_draggingSlider = -1;
 
 /* Slider 3.5: thumb cresce 1.0->1.18 (easeOutBack) ao arrastar, e o numero
  * exibido conta animado (180ms easeOutCubic) em vez de saltar instantaneo.
- * Indices 1-4 = R/G/B/Vel (ou so 1=Vel nos modos sem RGB), 0 nao usado. */
-static Tween s_thumbTween[5];
-static Tween s_valTween[5];
-static int s_lastDisplayed[5] = { -1, -1, -1, -1, -1 };
+ * 1.5.0: indexados por CANAL (LedChan: R/G/B/Speed/Depth) e nao mais por
+ * posicao, pra o estado sobreviver a troca de modo. */
+static Tween s_thumbTween[CH_COUNT];
+static Tween s_valTween[CH_COUNT];
+static int s_lastDisplayed[CH_COUNT] = { -1, -1, -1, -1, -1 };
+static int s_dragChan = -1; /* canal (LedChan) sendo arrastado, ou -1 */
+
+/* Ponteiro/limites/cor/label de um canal. */
+static void chanInfo(int chan, int** ip, int* mn, int* mx, ColorRGBA* col, const char** label) {
+    static int rr, gg, bb, sp, dp;
+    switch (chan) {
+        case CH_R: rr = s_r; *ip = &rr; *mn = 0; *mx = 255; *col = (ColorRGBA){255, 86, 120, 255}; *label = "R"; break;
+        case CH_G: gg = s_g; *ip = &gg; *mn = 0; *mx = 255; *col = (ColorRGBA){95, 215, 130, 255}; *label = "G"; break;
+        case CH_B: bb = s_b; *ip = &bb; *mn = 0; *mx = 255; *col = (ColorRGBA){10, 132, 255, 255}; *label = "B"; break;
+        case CH_SPEED: sp = s_speed; *ip = &sp; *mn = 1; *mx = 5; *col = g_theme.accent; *label = T(STR_SPEED_SHORT); break;
+        default: dp = s_pulseDepth; *ip = &dp; *mn = 1; *mx = 100; *col = g_theme.accent; *label = T(STR_DEPTH_SHORT); break;
+    }
+}
+/* Escreve o valor de volta na variavel do canal. */
+static void chanSet(int chan, int v) {
+    switch (chan) {
+        case CH_R: s_r = (u8)clampi(v, 0, 255); break;
+        case CH_G: s_g = (u8)clampi(v, 0, 255); break;
+        case CH_B: s_b = (u8)clampi(v, 0, 255); break;
+        case CH_SPEED: s_speed = clampi(v, 1, 5); break;
+        default: s_pulseDepth = clampi(v, 1, 100); break;
+    }
+}
+static int chanGet(int chan) {
+    switch (chan) {
+        case CH_R: return s_r; case CH_G: return s_g; case CH_B: return s_b;
+        case CH_SPEED: return s_speed; default: return s_pulseDepth;
+    }
+}
 
 int ledSelected(void) { return s_selected; }
 const char* ledModeName(void) { return modeNameI(s_mode); }
@@ -101,9 +154,12 @@ static Result setPatternPulse(void) {
     pattern.smoothing = 0x01;
     pattern.loopDelay = 0x00;
     pattern.blinkSpeed = 0x00;
+    /* 1.5.0: profundidade -> piso da onda. depth 100% = piso 0 (apaga total);
+     * depth baixo = piso alto (quase constante). */
+    float floorB = clampf(1.0f - (float)s_pulseDepth / 100.0f, 0.0f, 1.0f);
     for (int i = 0; i < 32; i++) {
         float t = (float)i / 31.0f;
-        float wave = 0.20f + 0.80f * (sinf(t * M_TAU) * 0.5f + 0.5f);
+        float wave = floorB + (1.0f - floorB) * (sinf(t * M_TAU) * 0.5f + 0.5f);
         pattern.redPattern[i] = scaleU8(s_r, wave);
         pattern.greenPattern[i] = scaleU8(s_g, wave);
         pattern.bluePattern[i] = scaleU8(s_b, wave);
@@ -119,6 +175,7 @@ static void saveLed(void) {
     cfg.ledR = s_r;
     cfg.ledG = s_g;
     cfg.ledB = s_b;
+    cfg.reserved[1] = (u8)clampi(s_pulseDepth, 1, 100); /* 1.5.0: profundidade do pulso */
     configSave(&cfg);
 }
 
@@ -134,7 +191,7 @@ static void applyLed(void) {
 }
 
 static void initSliderTweens(void) {
-    for (int k = 0; k < 5; k++) {
+    for (int k = 0; k < CH_COUNT; k++) {
         tweenStart(&s_thumbTween[k], 1.0f, 1.0f, 0.001f, EASE_LINEAR);
         tweenUpdate(&s_thumbTween[k], 1.0f);
         tweenStart(&s_valTween[k], 0.0f, 0.0f, 0.001f, EASE_LINEAR);
@@ -151,8 +208,9 @@ void ledInit(void) {
     s_r = cfg.ledR;
     s_g = cfg.ledG;
     s_b = cfg.ledB;
+    s_pulseDepth = cfg.reserved[1] ? clampi(cfg.reserved[1], 1, 100) : 80; /* 0 = save antigo -> default 80 */
     s_selected = 0;
-    s_draggingSlider = -1;
+    s_dragChan = -1;
     s_lastResult = mcuHwcInit();
     s_mcuReady = R_SUCCEEDED(s_lastResult);
     initSliderTweens();
@@ -166,7 +224,7 @@ void ledInit(void) {
 
 void ledEnter(void) {
     s_selected = 0;
-    s_draggingSlider = -1;
+    s_dragChan = -1;
     initSliderTweens();
 }
 
@@ -203,28 +261,43 @@ static void setMode(int mode) {
     saveLed();
 }
 
-static int sliderValueFromTouch(const AppInput* in, int index, float barX, float barY, float barW, int min, int max) {
-    float t = clampf(((float)in->touchPX - barX) / barW, 0.0f, 1.0f);
-    int val = min + (int)(t * (max - min) + 0.5f);
-    val = clampi(val, min, max);
-    s_draggingSlider = index;
-    s_selected = index;
-    return val;
+static int s_savePending = 0;
+
+/* Geometria das linhas de slider, COMPARTILHADA por render e toque: o grupo de
+ * N sliders fica centralizado verticalmente na area de controle (~80..200). */
+static float ledRowStep(int count) { return (count >= 5) ? 27.0f : 34.0f; }
+static float ledRowY(int slot, int count) {
+    if (count <= 0) return 120.0f;
+    float step = ledRowStep(count);
+    float total = (float)(count - 1) * step;
+    float y0 = 80.0f + (120.0f - total) * 0.5f;
+    return y0 + (float)slot * step;
 }
 
-static int s_savePending = 0;
+static int chanStepSize(int chan) {
+    return (chan == CH_SPEED) ? 1 : (chan == CH_DEPTH) ? 5 : 8;
+}
 
 static void commitSliderChange(void) {
     applyLed();
     s_savePending = SAVE_DEBOUNCE_FRAMES;
 }
 
-static void handleSliderDPad(int sel, u8* ch, int step) {
-    if (ch) {
-        *ch = (u8)clampi((int)*ch + step, 0, 255);
-    }
+/* Ajusta um canal por D-pad (passo proprio) e agenda o save. */
+static void chanStep(int chan, int dir) {
+    chanSet(chan, chanGet(chan) + dir * chanStepSize(chan));
     applyLed();
     if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES;
+}
+
+/* Valor do canal a partir do X do toque na barra; marca drag + selecao. */
+static void chanFromTouch(const AppInput* in, int chan, int slot, float barX, float barW) {
+    int mn, mx; int* ip; ColorRGBA col; const char* lbl;
+    chanInfo(chan, &ip, &mn, &mx, &col, &lbl);
+    float t = clampf(((float)in->touchPX - barX) / barW, 0.0f, 1.0f);
+    chanSet(chan, clampi(mn + (int)(t * (mx - mn) + 0.5f), mn, mx));
+    s_dragChan = chan;
+    s_selected = slot + 1;
 }
 
 /* Slider 3.5: thumb cresce 1.0->1.18 ao iniciar o arrasto (easeOutBack) e
@@ -233,27 +306,23 @@ static void handleSliderDPad(int sel, u8* ch, int step) {
  * frame, incondicional, pra nunca perder um tick mesmo com os returns
  * antecipados do tratamento de toque abaixo. */
 static void updateSliderTweens(float dt) {
-    static int s_prevDragIdx = -1;
-    if (s_draggingSlider != s_prevDragIdx) {
-        if (s_prevDragIdx >= 0 && s_prevDragIdx < 5)
-            tweenStart(&s_thumbTween[s_prevDragIdx], tweenValue(&s_thumbTween[s_prevDragIdx]), 1.0f, 0.18f, EASE_OUT_CUBIC);
-        if (s_draggingSlider >= 0 && s_draggingSlider < 5)
-            tweenStart(&s_thumbTween[s_draggingSlider], tweenValue(&s_thumbTween[s_draggingSlider]), 1.18f, 0.18f, EASE_OUT_BACK);
-        s_prevDragIdx = s_draggingSlider;
+    static int s_prevDragChan = -1;
+    if (s_dragChan != s_prevDragChan) {
+        if (s_prevDragChan >= 0 && s_prevDragChan < CH_COUNT)
+            tweenStart(&s_thumbTween[s_prevDragChan], tweenValue(&s_thumbTween[s_prevDragChan]), 1.0f, 0.18f, EASE_OUT_CUBIC);
+        if (s_dragChan >= 0 && s_dragChan < CH_COUNT)
+            tweenStart(&s_thumbTween[s_dragChan], tweenValue(&s_thumbTween[s_dragChan]), 1.18f, 0.18f, EASE_OUT_BACK);
+        s_prevDragChan = s_dragChan;
     }
-    for (int k = 0; k < 5; k++) tweenUpdate(&s_thumbTween[k], dt);
+    for (int k = 0; k < CH_COUNT; k++) tweenUpdate(&s_thumbTween[k], dt);
 
-    int realVals[5] = {0, 0, 0, 0, 0};
-    if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
-        realVals[1] = s_r; realVals[2] = s_g; realVals[3] = s_b; realVals[4] = s_speed;
-    } else {
-        realVals[1] = s_speed;
-    }
-    for (int k = 1; k < 5; k++) {
-        if (s_lastDisplayed[k] != realVals[k]) {
-            float from = (s_lastDisplayed[k] < 0) ? (float)realVals[k] : tweenValue(&s_valTween[k]);
-            tweenStart(&s_valTween[k], from, (float)realVals[k], 0.18f, EASE_OUT_CUBIC);
-            s_lastDisplayed[k] = realVals[k];
+    /* contagem animada por canal (indexado por LedChan, persiste entre modos). */
+    for (int k = 0; k < CH_COUNT; k++) {
+        int rv = chanGet(k);
+        if (s_lastDisplayed[k] != rv) {
+            float from = (s_lastDisplayed[k] < 0) ? (float)rv : tweenValue(&s_valTween[k]);
+            tweenStart(&s_valTween[k], from, (float)rv, 0.18f, EASE_OUT_CUBIC);
+            s_lastDisplayed[k] = rv;
         }
         tweenUpdate(&s_valTween[k], dt);
     }
@@ -262,22 +331,19 @@ static void updateSliderTweens(float dt) {
 void ledUpdate(const AppInput* in, float dt, int* currentScreen) {
     updateSliderTweens(dt);
     if (in->back) {
-        s_draggingSlider = -1;
+        s_dragChan = -1;
         *currentScreen = SCREEN_MAIN_MENU;
         return;
     }
 
-    int totalItems = 1;
-    if (s_mode == LED_SOLID || s_mode == LED_PULSE) totalItems = 5;
-    else totalItems = 2;
+    int kinds[CH_COUNT];
+    int nsl = ledSliderKinds(kinds);
+    int totalItems = 1 + nsl; /* item 0 = modo; 1..nsl = sliders do modo atual */
 
-    bool dragging = (s_draggingSlider >= 0 && in->touchHeld);
+    bool dragging = (s_dragChan >= 0 && in->touchHeld);
 
-    /* esq/dir SO troca o modo quando o item de MODO (selected 0) esta focado.
-     * Antes trocava o modo em qualquer item -> os sliders R/G/B/Vel ficavam
-     * ajustaveis so por toque (esq/dir pulava o modo em vez de mexer no
-     * valor). Com o guard, esq/dir num slider ajusta o valor (bloco abaixo),
-     * deixando a tela LED 100% navegavel por D-pad. */
+    /* esq/dir SO troca o modo quando o item de MODO (selected 0) esta focado;
+     * num slider, esq/dir ajusta o valor (bloco abaixo). */
     bool modeChanged = false;
     if ((in->left || in->right) && s_selected == 0) {
         int dir = in->right ? 1 : -1;
@@ -286,79 +352,37 @@ void ledUpdate(const AppInput* in, float dt, int* currentScreen) {
     }
 
     if (!dragging && !modeChanged) {
-        if (in->downNav) { s_selected = (s_selected + 1) % totalItems; s_draggingSlider = -1; }
-        if (in->up) { s_selected = (s_selected - 1 + totalItems) % totalItems; s_draggingSlider = -1; }
+        if (in->downNav) { s_selected = (s_selected + 1) % totalItems; s_dragChan = -1; }
+        if (in->up) { s_selected = (s_selected - 1 + totalItems) % totalItems; s_dragChan = -1; }
 
         if (s_selected == 0) {
-            if (in->confirm) {
-                setMode((s_mode + 1) % LED_MODE_COUNT);
-            }
-        } else if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
-            if (s_selected >= 1 && s_selected <= 3) {
-                u8* ch = (s_selected == 1) ? &s_r : (s_selected == 2) ? &s_g : &s_b;
-                if (in->left) handleSliderDPad(s_selected, ch, -8);
-                if (in->right) handleSliderDPad(s_selected, ch, 8);
-            }
-            if (s_selected == 4) {
-                if (in->left) { s_speed = clampi(s_speed - 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
-                if (in->right) { s_speed = clampi(s_speed + 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
-            }
-        } else {
-            if (s_selected == 1) {
-                if (in->left) { s_speed = clampi(s_speed - 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
-                if (in->right) { s_speed = clampi(s_speed + 1, 1, 5); applyLed(); if (s_savePending == 0) s_savePending = SAVE_DEBOUNCE_FRAMES; }
-            }
+            if (in->confirm) setMode((s_mode + 1) % LED_MODE_COUNT);
+        } else if (s_selected - 1 < nsl) {
+            int chan = kinds[s_selected - 1];
+            if (in->left) chanStep(chan, -1);
+            if (in->right) chanStep(chan, +1);
         }
     }
 
-    if (in->touchDown || (in->touchHeld && s_draggingSlider >= 0)) {
+    if (in->touchDown || (in->touchHeld && s_dragChan >= 0)) {
         /* segmented de modo (16,18,288,38) -- deve bater com ledRenderBottom. */
         if (!dragging && in->touchPY >= 18 && in->touchPY < 56 &&
             in->touchPX >= 16 && in->touchPX < 304) {
             float segItemW = 288.0f / (float)LED_MODE_COUNT;
-            int newMode = (int)((in->touchPX - 16) / segItemW);
-            newMode = clampi(newMode, 0, LED_MODE_COUNT - 1);
-            if (in->touchDown) {
-                s_selected = 0;
-                setMode(newMode);
-            }
+            int newMode = clampi((int)((in->touchPX - 16) / segItemW), 0, LED_MODE_COUNT - 1);
+            if (in->touchDown) { s_selected = 0; setMode(newMode); }
             return;
         }
 
         float barX = 44.0f, barW = 236.0f, rowH = 30.0f;
-        if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
-            /* R/G/B em y=78,118,158; velocidade em y=198 (bate com ledRenderBottom). */
-            const float ys[4] = { 78.0f, 118.0f, 158.0f, 198.0f };
-            for (int i = 0; i < 3; i++) {
-                float sy = ys[i];
-                if ((dragging && s_draggingSlider == 1 + i) ||
-                    (!dragging && in->touchPY >= sy - 6 && in->touchPY < sy + rowH &&
-                     in->touchPX >= barX && in->touchPX < barX + barW)) {
-                    if (in->touchDown || (dragging && s_draggingSlider == 1 + i)) {
-                        u8* ch = (i == 0) ? &s_r : (i == 1) ? &s_g : &s_b;
-                        *ch = (u8)sliderValueFromTouch(in, 1 + i, barX, sy + 8, barW, 0, 255);
-                        commitSliderChange();
-                    }
-                    return;
-                }
-            }
-            float spY = ys[3];
-            if ((dragging && s_draggingSlider == 4) ||
-                (!dragging && in->touchPY >= spY - 6 && in->touchPY < spY + rowH &&
+        for (int slot = 0; slot < nsl; slot++) {
+            int chan = kinds[slot];
+            float sy = ledRowY(slot, nsl);
+            if ((dragging && s_dragChan == chan) ||
+                (!dragging && in->touchPY >= sy - 6 && in->touchPY < sy + rowH &&
                  in->touchPX >= barX && in->touchPX < barX + barW)) {
-                if (in->touchDown || (dragging && s_draggingSlider == 4)) {
-                    s_speed = sliderValueFromTouch(in, 4, barX, spY + 8, barW, 1, 5);
-                    commitSliderChange();
-                }
-                return;
-            }
-        } else {
-            float spY = 78.0f;
-            if ((dragging && s_draggingSlider == 1) ||
-                (!dragging && in->touchPY >= spY - 6 && in->touchPY < spY + rowH &&
-                 in->touchPX >= barX && in->touchPX < barX + barW)) {
-                if (in->touchDown || (dragging && s_draggingSlider == 1)) {
-                    s_speed = sliderValueFromTouch(in, 1, barX, spY + 8, barW, 1, 5);
+                if (in->touchDown || (dragging && s_dragChan == chan)) {
+                    chanFromTouch(in, chan, slot, barX, barW);
                     commitSliderChange();
                 }
                 return;
@@ -366,7 +390,11 @@ void ledUpdate(const AppInput* in, float dt, int* currentScreen) {
         }
     }
 
-    if (!in->touchHeld) s_draggingSlider = -1;
+    if (!in->touchHeld) s_dragChan = -1;
+
+    /* seguranca: se o total de itens encolheu (troca de modo), nao deixa a
+     * selecao "presa" num slot que nao existe mais. */
+    if (s_selected >= totalItems) s_selected = 0;
 
     if (s_savePending > 0) {
         s_savePending--;
@@ -378,8 +406,10 @@ static ColorRGBA previewColor(void) {
     if (s_mode == LED_MODE_OFF) return (ColorRGBA){24, 24, 32, 255};
     if (s_mode == LED_SOLID) return (ColorRGBA){s_r, s_g, s_b, 255};
     if (s_mode == LED_PULSE) {
-        /* Spec 3.5 literal: 0.5 + 0.5*sin(time*vel). */
-        float wave = 0.5f + 0.5f * sinf(uiFrameTime() * (float)s_speed);
+        /* 1.5.0: preview respeita a PROFUNDIDADE (piso da onda) -- assim o dono
+         * ve na bolinha exatamente o quanto vai escurecer no console. */
+        float floorB = clampf(1.0f - (float)s_pulseDepth / 100.0f, 0.0f, 1.0f);
+        float wave = floorB + (1.0f - floorB) * (0.5f + 0.5f * sinf(uiFrameTime() * (float)s_speed));
         return (ColorRGBA){scaleU8(s_r, wave), scaleU8(s_g, wave), scaleU8(s_b, wave), 255};
     }
     u8 r, g, b;
@@ -454,15 +484,17 @@ void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA,
     if (s_selected == 0) UI_FocusRing(16.0f + slideX, 18.0f, 288.0f, 38.0f, 19.0f);
     UI_TouchBarSegmented(buf, 16.0f + slideX, 18.0f, 288.0f, 38.0f, modeLabels, LED_MODE_COUNT, s_mode, &s_segTween);
 
-    /* sliders nas cores dos canais (R rosa / G verde / B azul). */
-    ColorRGBA chR = {255, 86, 120, 255}, chG = {95, 215, 130, 255}, chB = {10, 132, 255, 255};
-    if (s_mode == LED_SOLID || s_mode == LED_PULSE) {
-        drawFlatSlider(buf, "R", (int)(tweenValue(&s_valTween[1]) + 0.5f), s_r, 0, 255, 78.0f,  chR, s_selected == 1, slideX);
-        drawFlatSlider(buf, "G", (int)(tweenValue(&s_valTween[2]) + 0.5f), s_g, 0, 255, 118.0f, chG, s_selected == 2, slideX);
-        drawFlatSlider(buf, "B", (int)(tweenValue(&s_valTween[3]) + 0.5f), s_b, 0, 255, 158.0f, chB, s_selected == 3, slideX);
-        drawFlatSlider(buf, T(STR_SPEED_SHORT), (int)(tweenValue(&s_valTween[4]) + 0.5f), s_speed, 1, 5, 198.0f, g_theme.accent, s_selected == 4, slideX);
-    } else {
-        drawFlatSlider(buf, T(STR_SPEED_SHORT), (int)(tweenValue(&s_valTween[1]) + 0.5f), s_speed, 1, 5, 78.0f, g_theme.accent, s_selected == 1, slideX);
+    /* 1.5.0: sliders DO MODO ATUAL (Off nao tem nenhum; Fixo so R/G/B; Pulso
+     * ganha Profundidade), centralizados verticalmente. */
+    int kinds[CH_COUNT];
+    int nsl = ledSliderKinds(kinds);
+    for (int slot = 0; slot < nsl; slot++) {
+        int chan = kinds[slot];
+        int mn, mx; int* ip; ColorRGBA col; const char* lbl;
+        chanInfo(chan, &ip, &mn, &mx, &col, &lbl);
+        float y = ledRowY(slot, nsl);
+        drawFlatSlider(buf, lbl, (int)(tweenValue(&s_valTween[chan]) + 0.5f),
+                       chanGet(chan), mn, mx, y, col, s_selected == slot + 1, slideX);
     }
 
     UI_HelpBar(buf, T(STR_HELP_LED_L), T(STR_SAIR));
