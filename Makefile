@@ -73,7 +73,20 @@ ifneq ($(wildcard $(SYSFONT_STOCK_LZ)),)
 SYSFONT_EMBED_CIAS += $(SYSFONT_DIR)/SystemFont_STOCK.cia
 endif
 
+# 1.5.1: fonte STOCK original como PREVIEW do item 0 "Padrao do Sistema"
+# (romfs/fonts/stock.bcfnt, gitignored -- e fonte da Nintendo). Copiada da stock
+# ja descomprimida. So entra se a stock existir localmente; clone publico (sem a
+# stock) builda sem ela e o app cai na fonte de sistema ao vivo.
+STOCK_PREVIEW :=
+ifneq ($(wildcard $(SYSFONT_STOCK_LZ)),)
+STOCK_PREVIEW := $(DATA)/fonts/stock.bcfnt
+endif
+
 all: $(3DSX) $(CIA)
+
+# regra do preview stock DEPOIS de `all` (senao vira o alvo padrao do make).
+$(DATA)/fonts/stock.bcfnt: $(SYSFONT_STOCK_BCFNT)
+	cp $< $@
 
 $(3DSX): $(ELF) $(SMDH) $(ROMFS_RAW)
 	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_RAW)
@@ -215,7 +228,7 @@ $(BUILD)/ui.o: $(UI9_T3X)
 # velho (bug real 1.5.0). Listar os arquivos forca a regeneracao sempre que
 # qualquer um deles mudar.
 ROMFS_FILES := $(shell find $(DATA) -type f 2>/dev/null)
-$(ROMFS_RAW): $(DATA) $(ROMFS_FILES) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS)
+$(ROMFS_RAW): $(DATA) $(ROMFS_FILES) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS) $(STOCK_PREVIEW)
 	@mkdir -p $(BUILD)
 	$(MKROMFS) $(DATA) $@
 
@@ -225,7 +238,7 @@ $(ROMFS_RAW): $(DATA) $(ROMFS_FILES) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIA
 # aceitava mas o 3DS nao conseguia ler -> icones/fontes sumiam SO no .cia (o
 # .3dsx usa o romfs cru direto e sempre funcionou). O .t3x tem que existir
 # antes do makerom varrer a pasta, dai a dependencia em EXTRA_T3X.
-$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS)
+$(CIA): $(ELF) $(SMDH) $(APP_RSF) $(BANNER) $(EXTRA_T3X) $(UI9_T3X) $(SYSFONT_EMBED_CIAS) $(STOCK_PREVIEW)
 	$(CCPREFIX)strip $< -o $(BUILD)/CustomizerDS_stripped.elf
 	$(MAKEROM) -f cia -o $@ -rsf $(APP_RSF) -target t -exefslogo -elf $(BUILD)/CustomizerDS_stripped.elf -icon $(SMDH) -banner $(BANNER)
 

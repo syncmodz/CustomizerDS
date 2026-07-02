@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.1
+- Fonts tab: the **"A" badge** in the footer is now the real reva/cakeOS badge
+  sprite (the green "A" used in the confirm popups), not a hand-drawn circle.
+- Fonts tab: **"System Default" now previews the true original stock font**
+  again. It used to show the live system font, which reads as Coolvetica once
+  the system font has been modified — now it always shows the bundled stock font
+  (which is what "System Default" restores).
+
 ## 1.5.0
 - **Coolvetica is now a real installable system font**: it ships as a proper
   `.cia` merged into the original font (full glyph set kept), so applying it

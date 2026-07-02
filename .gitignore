@@ -59,3 +59,6 @@ test.sh
 
 # skill local do projeto p/ a IA (nao faz parte do app)
 .claude/
+
+# Fonte STOCK da Nintendo usada como preview do item "Padrao do Sistema" (nao versionar)
+romfs/fonts/stock.bcfnt

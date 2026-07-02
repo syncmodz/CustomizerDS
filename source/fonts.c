@@ -15,6 +15,12 @@ FontSystem g_fonts;
 
 static int s_selected = 0;
 static int s_scrollTop = 0; /* §5/§7: lista rolavel (9 fontes nao cabem todas) */
+/* 1.5.1: fonte STOCK original empacotada (romfs/fonts/stock.bcfnt, copia da
+ * cbf_std.bcfnt da NAND, gitignored). O item 0 "Padrao do Sistema" previsualiza
+ * com ELA -- nao mais com C2D_FontLoadSystem (a fonte de sistema AO VIVO, que no
+ * Azahar/console pode ja estar modificada -> aparecia Coolvetica). "Padrao do
+ * Sistema" = restaurar a STOCK, entao a previa tem que ser a STOCK. */
+static C2D_Font s_stockPreview = NULL;
 /* 1.5.0: rolagem FLUIDA -- s_scrollTop e o alvo (inteiro), s_scrollAnim segue
  * suave em "linhas" fracionarias, entao a lista desliza em vez de saltar. */
 static float s_scrollAnim = 0.0f;
@@ -110,7 +116,7 @@ int fontsSelected(void) { return s_selected; }
  * g_fonts.fonts[index-1]. Cai pra system font se um .bcfnt nao carregar. */
 C2D_Font fontsGetFont(int index) {
     index = clampi(index, 0, fontsCount() - 1);
-    if (index == 0) return g_fonts.systemFont;
+    if (index == 0) return s_stockPreview ? s_stockPreview : g_fonts.systemFont;
     int ci = index - 1;
     if (ci < MAX_CUSTOM_FONTS && g_fonts.fonts[ci]) return g_fonts.fonts[ci];
     return g_fonts.systemFont;
@@ -134,6 +140,8 @@ void fontsSystemInit(void) {
     }
     g_fonts.systemFont = C2D_FontLoadSystem(CFG_REGION_USA);
     if (!g_fonts.systemFont) g_fonts.systemFont = C2D_FontLoadSystem(CFG_REGION_JPN);
+    /* 1.5.1: stock original p/ a previa do item 0 (se o asset existir). */
+    s_stockPreview = C2D_FontLoad("romfs:/fonts/stock.bcfnt");
     g_fonts.count = fontsCount();
 
     ConfigData cfg;
@@ -177,6 +185,7 @@ void fontsSystemCleanup(void) {
         C2D_FontFree(g_fonts.systemFont);
         g_fonts.systemFont = NULL;
     }
+    if (s_stockPreview) { C2D_FontFree(s_stockPreview); s_stockPreview = NULL; }
 }
 
 void fontsUpdate(const AppInput* in, int* currentScreen) {
@@ -479,10 +488,10 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         UI_Shadow(px, py, pillW, pillH, pillH * 0.5f, 22, 1.5f);
         if (UI_AssetsReady()) UI_NinePill(px, py, pillW, pillH, pillC);
         else UI_RoundRect(px, py, pillW, pillH, pillH * 0.5f, pillC);
-        /* badge A invertida. */
+        /* 1.5.1: badge "A" = o MESMO sprite reva usado nos popups de confirmar
+         * (A verde com contorno preto), nao mais um circulo desenhado na mao. */
         float bcx = px + padL + badgeR, bcy = py + pillH * 0.5f;
-        UI_RoundRect(bcx - badgeR, bcy - badgeR, badgeR * 2.0f, badgeR * 2.0f, badgeR, txtC);
-        UI_TextCenter(buf, NULL, "A", bcx, bcy - 7.0f, 0.21f, 0.21f, pillC);
+        UI_ABBadge(bcx, bcy, badgeR, true, 1.0f);
         /* rotulo. */
         UI_Text(buf, NULL, lbl, bcx + badgeR + gap, py + (pillH - 14.0f) * 0.5f, sc, sc, txtC);
     }
