@@ -156,7 +156,8 @@ void UI_TouchBarRow(C2D_TextBuf buf, const char** labels, const char** icons,
 /* morphTween: Tween estatico do CHAMADOR (uma instancia por tela que usa o
  * componente -- nao compartilhar a mesma entre Tema e LED). */
 void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
-                          const char** labels, int count, int selected, Tween* morphTween);
+                          const char** labels, int count, int selected, Tween* morphTween,
+                          bool focused);
 /* Touch Bar colorida do macOS (v3 3.4) -- espectro HSV continuo + thumb.
  * hueT 0..1 (0=vermelho, mapeado linear pros 360 graus). */
 void UI_HueSpectrumBar(float x, float y, float w, float h, float hueT, bool dragging);

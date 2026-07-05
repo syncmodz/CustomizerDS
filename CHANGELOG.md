@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.7.0
+Selection indicator redesigned + more visible detail across every screen.
+- **New selection indicator** — the thin hollow accent ring is gone. Selection
+  now reads as a **filled state**, tuned per control so it's never an empty
+  outline floating around things:
+  - Lists, tiles and cards: a filled accent "chip" (soft accent fill + crisp
+    edge) that slides between items.
+  - Segmented toggles (Light/Dark, LED mode, language): the focus tints the
+    track from the inside instead of drawing a redundant outer ring on top of
+    the already-solid selected pill.
+  - Accent swatches: a crisp accent ring **outside** the circle (never covering
+    the color).
+  - HEX digit cells: the selected digit is now a **solid accent cell** with a
+    contrast-colored digit.
+  - LED sliders: the focused row gets a soft accent band + accent label.
+- **New detail**: every screen title now has a short accent underline that grows
+  in on entry, and the header emblem is alive on all screens.
+- **Stronger ambient motion**: the emblem drift, list depth and hero parallax
+  from 1.6.0 were dialed up so they actually read.
+
 ## 1.6.0
 Motion & detail pass — the interface is richer and more alive, no functions
 changed. Everything is pure per-frame motion (no extra fill/overdraw), so it

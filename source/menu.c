@@ -177,7 +177,7 @@ void menuRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, f
         float bob = 2.5f * sinf(uiFrameTime() * (6.28318531f / 3.2f));
         /* 1.6.0: parallax -- o wordmark/slogan flutuam de leve em CONTRAPONTO ao
          * emblema (periodo/fase diferentes, ~1px), dando profundidade sem jitter. */
-        float heroFloat = 1.2f * sinf(uiFrameTime() * (6.28318531f / 4.6f) + 1.6f);
+        float heroFloat = 2.0f * sinf(uiFrameTime() * (6.28318531f / 4.6f) + 1.6f);
         /* 1.5.0: hero MENOR (26/24, era 34/24) com bolinhas de borda grossa
          * (bootGlassBall agora tem borda proporcional) -- o visual das
          * bolinhas do canto, so que animado. */

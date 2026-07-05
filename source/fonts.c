@@ -448,8 +448,8 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
          * recuam (dim + micro-escala), como uma lista que curva pra tras nas
          * pontas. dist 0 no centro, 1 na borda. */
         float dist = clampf(fabsf(rowCy - listCenterY) / listHalf, 0.0f, 1.0f);
-        float depth = 1.0f - 0.40f * (dist * dist);      /* opacidade recua */
-        float dScale = 1.0f - 0.06f * dist;              /* escala do texto recua */
+        float depth = 1.0f - 0.52f * (dist * dist);      /* opacidade recua (mais visivel) */
+        float dScale = 1.0f - 0.10f * dist;              /* escala do texto recua */
         float a = ra * depth;
 
         /* divisoria 1px entre linhas (nao na 1a linha visivel). */

@@ -636,11 +636,10 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
     /* === espec v20: controles planos (segmented + swatches em anel + cards) === */
     int accentTotal = themeAccentCount() + 1; /* 5 presets + HEX/custom */
 
-    /* 1) segmented Claro/Escuro (16,18,288,38). */
-    if (s_selected < 2) UI_FocusRing(16.0f + slideX, 18.0f + offset, 288.0f, 38.0f, 19.0f);
+    /* 1) segmented Claro/Escuro (16,18,288,38) -- foco integrado no controle. */
     const char* modeLabels[] = { T(STR_LIGHT), T(STR_DARK) };
     UI_TouchBarSegmented(buf, 16.0f + slideX, 18.0f + offset, 288.0f, 38.0f,
-                         modeLabels, 2, themeIsDark() ? 1 : 0, &s_segTween);
+                         modeLabels, 2, themeIsDark() ? 1 : 0, &s_segTween, s_selected < 2);
 
     /* 2) caption + 6 swatches cakeOS (centros y102, x=40..260 passo 44). */
     UI_Text(buf, NULL, T(STR_ACCENT), 24.0f + slideX, 70.0f + offset, 0.24f, 0.24f, g_theme.textHint);
@@ -674,7 +673,14 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
             UI_RoundRect(scx - 12.0f, scy - 6.5f, 24.0f, 13.0f, 6.5f, (ColorRGBA){0, 0, 0, 165});
             UI_TextCenter(buf, NULL, "HEX", scx, scy - 5.0f, 0.16f, 0.16f, (ColorRGBA){255, 255, 255, 255});
         }
-        if (s_selected - 2 == i) UI_FocusRing(scx - 17.0f, scy - 17.0f, 34.0f, 34.0f, 17.0f);
+        /* 1.6.1: foco do swatch = anel accent NITIDO por FORA do circulo (nao
+         * cobre a cor, ao contrario do chip preenchido). */
+        if (s_selected - 2 == i) {
+            ColorRGBA fa = g_theme.accent; fa.a = 255;
+            float rr = r + 5.0f;
+            if (UI_AssetsReady()) UI_Ring(scx - rr, scy - rr, rr * 2.0f, rr * 2.0f, rr, fa);
+            else UI_RoundFrame(scx - rr, scy - rr, rr * 2.0f, rr * 2.0f, rr, (ColorRGBA){0, 0, 0, 0}, fa);
+        }
     }
 
     /* anel BRANCO nitido no swatch ativo, deslizando (END4) de um pro outro. */
@@ -702,10 +708,9 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
     UI_Text(buf, NULL, hexStr, 28.0f + slideX, 140.0f + offset, 0.27f, 0.27f, g_theme.textPrimary);
 
     const char* langLabels[LANG_COUNT] = { "PT", "EN", "ES" };
-    if (s_selected == 2 + accentTotal)
-        UI_FocusRing(LANG_SEG_X + slideX, LANG_SEG_Y + offset, LANG_SEG_W, LANG_SEG_H, 16.0f);
     UI_TouchBarSegmented(buf, LANG_SEG_X + slideX, LANG_SEG_Y + offset, LANG_SEG_W, LANG_SEG_H,
-                         langLabels, LANG_COUNT, (int)langGet(), &s_langSegTween);
+                         langLabels, LANG_COUNT, (int)langGet(), &s_langSegTween,
+                         s_selected == 2 + accentTotal);
 
     UI_HelpBar(buf, T(STR_HELP_THEME2_L), T(STR_HELP_THEME2_R));
 

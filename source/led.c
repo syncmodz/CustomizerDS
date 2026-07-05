@@ -454,13 +454,18 @@ void ledRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, fl
 static void drawFlatSlider(C2D_TextBuf buf, const char* label, int displayValue,
                            int value, int min, int max, float y, ColorRGBA chan,
                            bool focused, float slideX, float thumbScale) {
-    ColorRGBA lblC = focused ? g_theme.textPrimary : g_theme.textSecondary;
+    ColorRGBA lblC = focused ? g_theme.accent : g_theme.textSecondary;
     float barX = 42.0f + slideX, barW = 224.0f, barH = 12.0f, barY = y + 2.0f;
     float cy = barY + barH * 0.5f;
 
-    UI_Text(buf, NULL, label, 18.0f + slideX, cy - 8.0f, 0.26f, 0.26f, lblC);
+    /* 1.6.1: foco do slider = FAIXA preenchida (accent suave) atras da linha
+     * inteira + label em accent, no lugar do aro fino no trilho. */
+    if (focused) {
+        ColorRGBA soft = g_theme.accent; soft.a = themeIsDark() ? 34 : 30;
+        UI_RoundRect(12.0f + slideX, y - 4.0f, SCREEN_BOT_WIDTH - 24.0f, barH + 12.0f, 10.0f, soft);
+    }
 
-    if (focused) UI_FocusRing(barX, barY, barW, barH, barH * 0.5f);
+    UI_Text(buf, NULL, label, 18.0f + slideX, cy - 8.0f, 0.26f, 0.26f, lblC);
 
     ColorRGBA track = {255, 255, 255, (u8)(themeIsDark() ? 20 : 32)};
     if (UI_AssetsReady()) UI_NinePill(barX, barY, barW, barH, track);
@@ -493,8 +498,7 @@ void ledRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA,
     /* segmented de modo (16,18,288,38). */
     const char* modeLabels[LED_MODE_COUNT];
     for (int i = 0; i < LED_MODE_COUNT; i++) modeLabels[i] = modeNameI(i);
-    if (s_selected == 0) UI_FocusRing(16.0f + slideX, 18.0f, 288.0f, 38.0f, 19.0f);
-    UI_TouchBarSegmented(buf, 16.0f + slideX, 18.0f, 288.0f, 38.0f, modeLabels, LED_MODE_COUNT, s_mode, &s_segTween);
+    UI_TouchBarSegmented(buf, 16.0f + slideX, 18.0f, 288.0f, 38.0f, modeLabels, LED_MODE_COUNT, s_mode, &s_segTween, s_selected == 0);
 
     /* 1.5.0: sliders DO MODO ATUAL (Off nao tem nenhum; Fixo so R/G/B; Pulso
      * ganha Profundidade), centralizados verticalmente. */

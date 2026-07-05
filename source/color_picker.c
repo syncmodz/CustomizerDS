@@ -90,23 +90,25 @@ void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float y) {
     for (int i = 0; i < 6; i++) {
         float cx = startX + i * (cellW + gap);
         bool sel = (i == cp->cursor_pos);
-        ColorRGBA bg = sel ? themeMix(g_theme.surfaceElevated, g_theme.accent, 0.30f)
-                           : g_theme.surfaceElevated;
-        ColorRGBA border = sel ? g_theme.accent
-                               : (themeIsDark() ? (ColorRGBA){255, 255, 255, 18}
-                                                : (ColorRGBA){20, 24, 34, 22});
-        if (sel) border.a = 120;
+        ColorRGBA digitCol;
         if (sel) {
-            /* 1.4.0 §SEM-GLOW: seleção = anel accent NÍTIDO (ring9 AA), sem
-             * glow pulsante translucido. Leve elevacao (sombra) mantida. */
-            UI_Shadow(cx, fy + 1, cellW, cellH, radius, 40, 1.5f);
+            /* 1.6.1: digito selecionado = celula PREENCHIDA de accent solido +
+             * digito em cor de contraste (no lugar do aro fino oco, feio). Leve
+             * elevacao com sombra pra "saltar" da fileira. */
             ColorRGBA acc = g_theme.accent; acc.a = 255;
-            UI_Ring(cx - 2, fy - 2, cellW + 4, cellH + 4, radius + 2, acc);
+            UI_Shadow(cx, fy + 1, cellW, cellH, radius, 55, 1.5f);
+            UI_RoundRect(cx, fy, cellW, cellH, radius, acc);
+            digitCol = themeContrastText(acc);
+        } else {
+            ColorRGBA bg = g_theme.surfaceElevated;
+            ColorRGBA border = themeIsDark() ? (ColorRGBA){255, 255, 255, 18}
+                                             : (ColorRGBA){20, 24, 34, 22};
+            UI_RoundFrame(cx, fy, cellW, cellH, radius, bg, border);
+            digitCol = g_theme.textSecondary;
         }
-        UI_RoundFrame(cx, fy, cellW, cellH, radius, bg, border);
         char digit[2] = { cp->hex_input[i], '\0' };
         UI_TextCenter(buf, NULL, digit, cx + cellW * 0.5f, fy + (cellH - 18) * 0.5f,
-                      0.38f, 0.38f, sel ? g_theme.textPrimary : g_theme.textSecondary);
+                      0.38f, 0.38f, digitCol);
     }
 
     /* 1.6.0: cor exibida persegue preview (cross-fade ~150ms) -> a moldura de

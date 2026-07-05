@@ -214,9 +214,17 @@ void UI_RingCircle(float cx, float cy, float diameter, ColorRGBA tint) {
  * v20): mini-emblema centro (28,26) r9 + eyebrow "CustomizerDS" (x46) + o
  * large-title da tela (x24, ~26px, a esquerda). Cores via tema. */
 void UI_ScreenHeader(C2D_TextBuf buf, const char* title) {
-    UI_Emblem(28.0f, 26.0f, 9.0f / 24.0f, 0.0f, 1.0f);
+    /* 1.6.1: o mini-emblema do header tambem ganha vida (deriva 2D). */
+    UI_Emblem(28.0f, 26.0f, 9.0f / 24.0f, uiFrameTime(), 1.0f);
     UI_Text(buf, NULL, "CustomizerDS", 46.0f, 16.0f, 0.30f, 0.30f, g_theme.textHint);
-    if (title) UI_Text(buf, NULL, title, 24.0f, 40.0f, 0.70f, 0.70f, g_theme.textPrimary);
+    if (title) {
+        UI_Text(buf, NULL, title, 24.0f, 40.0f, 0.70f, 0.70f, g_theme.textPrimary);
+        /* 1.6.1: DETALHE -- barra accent curta sob o titulo (cresce na entrada da
+         * tela), a "aba" que amarra a identidade em toda tela. */
+        float grow = UI_EnterProgress();
+        ColorRGBA acc = g_theme.accent; acc.a = 255;
+        UI_RoundRect(24.0f, 66.0f, 34.0f * grow, 3.0f, 1.5f, acc);
+    }
 }
 
 /* spec v7 Parte A (causa-raiz): a versao antiga montava o round-rect em 2
@@ -426,17 +434,16 @@ static inline float uiChromeScale(C2D_Font font) { return font ? 1.0f : UI_TEXT_
 /* §3: ANEL DE FOCO accent animado (pulsa), desenhado ATRAS do elemento focado
  * -- chamar ANTES de desenhar o elemento. Distinto da selecao/aplicado: e o
  * halo accent ao redor do que o D-pad esta apontando agora. */
-/* Desenha o aro de foco num rect. 1.4.0 §SEM-GLOW: anel NÍTIDO (ring9 = contorno
- * AA puro, centro transparente, ZERO halo) tintado accent, um pouco maior que o
- * elemento. O focus9 (que tinha glow embutido) NÃO é mais usado. */
+/* 1.6.1: seleção = CHIP PREENCHIDO (fill accent suave + borda accent nítida),
+ * no lugar do aro fino oco que o dono achou feio. O conteudo do elemento e
+ * desenhado por cima e continua legivel. Le como um estado "selecionado"
+ * premium (estilo iOS/cakeOS), nao um contorno vazio. */
 static void focusRingDraw(float x, float y, float w, float h, float r) {
     ColorRGBA acc = g_theme.accent; acc.a = 255;
-    if (UI_AssetsReady()) {
-        UI_Ring(x, y, w, h, r, acc);
-    } else {
-        /* fallback vetorial: aro accent (o elemento por cima cobre o centro). */
-        UI_RoundRect(x, y, w, h, r, acc);
-    }
+    ColorRGBA soft = g_theme.accent; soft.a = themeIsDark() ? 46 : 40; /* ~18% */
+    UI_RoundRect(x, y, w, h, r, soft);         /* preenchimento suave */
+    if (UI_AssetsReady()) UI_Ring(x, y, w, h, r, acc); /* borda AA nitida por cima */
+    else UI_RoundFrame(x, y, w, h, r, soft, acc);
 }
 
 /* 1.5.0 §FOCO (revisao 2): o "liquido" anterior ficou LENTO/atrasado (0.26s +
@@ -871,13 +878,18 @@ void UI_TouchBarRow(C2D_TextBuf buf, const char** labels, const char** icons,
  * s_morphX`) compartilhado entre TODAS as chamadas, o que faria o Tema e o
  * LED baterem de frente um no estado do outro ao usar o mesmo componente. */
 void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
-                          const char** labels, int count, int selected, Tween* morphTween) {
+                          const char** labels, int count, int selected, Tween* morphTween,
+                          bool focused) {
     /* Trilho cinza claramente visivel contra a faixa quase preta da Touch Bar. */
     ColorRGBA baseBg = themeIsDark()
         ? (ColorRGBA){44, 44, 46, 255}
         : (ColorRGBA){226, 226, 230, 255};
     ColorRGBA baseBorder = {0, 0, 0, themeIsDark() ? 0 : 14};
     float r = h * 0.5f;
+    /* 1.6.1: FOCO integrado no controle (o aro fino externo era feio). Focado =
+     * trilho TINGIDO de accent (sem nenhum contorno solto) -- indica foco de
+     * dentro, sem cobrir a pilula selecionada nem repetir o aro que o dono odeia. */
+    if (focused) baseBg = themeMix(baseBg, g_theme.accent, themeIsDark() ? 0.22f : 0.18f);
 
     UI_Shadow(x, y, w, h, r, 15, 1.0f);
     if (UI_AssetsReady()) {
@@ -1285,12 +1297,12 @@ void UI_Emblem(float cx, float cy, float scale, float idleT, float alpha) {
      * e descer. Amplitudes pequenas (1.2-2.5px, escaladas) pra ficar vivo mas
      * discreto; fases/periodos distintos pra nunca sincronizar. */
     struct { float ox, oy, ampX, perX, phX, ampY, perY, phY; ColorRGBA col; } b[3] = {
-        {  0.0f, -15.0f, 1.6f, 4.3f, 0.6f, 2.5f, 3.4f, 0.0f, {255,  95, 135, 255} }, /* rosa  */
-        {-19.0f, +11.0f, 2.0f, 3.7f, 2.1f, 1.8f, 2.7f, 1.7f, { 90, 200, 230, 255} }, /* ciano */
-        {+19.0f, +11.0f, 1.5f, 5.1f, 4.0f, 2.2f, 3.0f, 3.1f, { 95, 215, 130, 255} }, /* verde */
+        {  0.0f, -15.0f, 2.8f, 4.3f, 0.6f, 3.8f, 3.4f, 0.0f, {255,  95, 135, 255} }, /* rosa  */
+        {-19.0f, +11.0f, 3.4f, 3.7f, 2.1f, 3.0f, 2.7f, 1.7f, { 90, 200, 230, 255} }, /* ciano */
+        {+19.0f, +11.0f, 2.6f, 5.1f, 4.0f, 3.4f, 3.0f, 3.1f, { 95, 215, 130, 255} }, /* verde */
     };
-    /* respiro global de escala do conjunto (~+-1.5%), bem lento. */
-    float breath = 1.0f + 0.015f * sinf(idleT * (EMBLEM_TWO_PI / 4.6f));
+    /* respiro global de escala do conjunto (~+-3%), bem lento. */
+    float breath = 1.0f + 0.03f * sinf(idleT * (EMBLEM_TWO_PI / 4.6f));
     float Rb = R * breath;
     for (int i = 0; i < 3; i++) {
         float fx = b[i].ampX * scale * sinf(idleT * (EMBLEM_TWO_PI / b[i].perX) + b[i].phX);
