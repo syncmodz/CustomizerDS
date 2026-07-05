@@ -175,13 +175,16 @@ void menuRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, f
      * menuRenderTopHandoff). */
     if (!s_emblemSuppressed) {
         float bob = 2.5f * sinf(uiFrameTime() * (6.28318531f / 3.2f));
+        /* 1.6.0: parallax -- o wordmark/slogan flutuam de leve em CONTRAPONTO ao
+         * emblema (periodo/fase diferentes, ~1px), dando profundidade sem jitter. */
+        float heroFloat = 1.2f * sinf(uiFrameTime() * (6.28318531f / 4.6f) + 1.6f);
         /* 1.5.0: hero MENOR (26/24, era 34/24) com bolinhas de borda grossa
          * (bootGlassBall agora tem borda proporcional) -- o visual das
          * bolinhas do canto, so que animado. */
         UI_Emblem(200.0f + slideX, 112.0f + offsetFg + bob, 26.0f / 24.0f, uiFrameTime(), 1.0f);
-        UI_TextCenter(buf, NULL, "CustomizerDS", 200.0f + slideX, 162.0f + offsetFg,
+        UI_TextCenter(buf, NULL, "CustomizerDS", 200.0f + slideX, 162.0f + offsetFg + heroFloat,
                       0.54f, 0.54f, g_theme.textPrimary);
-        UI_TextCenter(buf, NULL, T(STR_HOME_SLOGAN), 200.0f + slideX, 188.0f + offsetFg,
+        UI_TextCenter(buf, NULL, T(STR_HOME_SLOGAN), 200.0f + slideX, 188.0f + offsetFg + heroFloat * 1.3f,
                       0.32f, 0.32f, g_theme.textSecondary);
     }
 

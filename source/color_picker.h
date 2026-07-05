@@ -30,6 +30,9 @@ typedef struct {
     int cursor_pos;      /* 0..5 - qual digito esta selecionado */
     Color_RGB preview;   /* cor atual calculada do hex_input */
     bool valid;
+    /* 1.6.0: cor EXIBIDA (float) que persegue preview -> cross-fade da cor +
+     * contagem animada dos numeros R/G/B. Inicializada em colorPickerInit. */
+    float dispR, dispG, dispB;
 } ColorPicker;
 
 void colorPickerInit(ColorPicker* cp);

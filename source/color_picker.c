@@ -13,6 +13,7 @@ void colorPickerInit(ColorPicker* cp) {
     cp->cursor_pos = 0;
     cp->valid = true;
     cp->preview = hexToRGB(cp->hex_input);
+    cp->dispR = cp->preview.r; cp->dispG = cp->preview.g; cp->dispB = cp->preview.b;
 }
 
 Color_RGB hexToRGB(const char* hex_str) {
@@ -108,9 +109,17 @@ void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float y) {
                       0.38f, 0.38f, sel ? g_theme.textPrimary : g_theme.textSecondary);
     }
 
+    /* 1.6.0: cor exibida persegue preview (cross-fade ~150ms) -> a moldura de
+     * preview MORFA a cor e os numeros R/G/B CONTAM em vez de saltar. */
+    {
+        float sp = fminf(1.0f, uiFrameDt() * 12.0f);
+        cp->dispR += ((float)cp->preview.r - cp->dispR) * sp;
+        cp->dispG += ((float)cp->preview.g - cp->dispG) * sp;
+        cp->dispB += ((float)cp->preview.b - cp->dispB) * sp;
+    }
     /* preview da cor -- somente leitura (sem hit-test em colorPickerInput),
      * por isso ganha rotulo + moldura para nao parecer um botao clicavel */
-    Color_RGB rgb = cp->preview;
+    Color_RGB rgb = { (u8)(cp->dispR + 0.5f), (u8)(cp->dispG + 0.5f), (u8)(cp->dispB + 0.5f) };
     ColorRGBA previewC = {rgb.r, rgb.g, rgb.b, 255};
     float py = fy + cellH + 16;
     float pw = 80.0f, ph = 36.0f;

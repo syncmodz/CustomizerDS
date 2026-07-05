@@ -1280,16 +1280,22 @@ void UI_Emblem(float cx, float cy, float scale, float idleT, float alpha) {
     /* 1.4.0 §SEM-GLOW: emblema FLAT (3 aneis cakeOS) -- removido o glow rosa
      * "respirando" atras. A marca sao os 3 aneis de vidro, sem halo. */
 
-    /* 3 bolinhas com float idle: seno lento, fase/amp/periodo diferentes
-     * (amp 1.8-2.5px, periodo 2.7-3.4s) -- so translacao vertical (leve). */
-    struct { float ox, oy, amp, per, ph; ColorRGBA col; } b[3] = {
-        {  0.0f, -15.0f, 2.5f, 3.4f, 0.0f, {255,  95, 135, 255} }, /* rosa  */
-        {-19.0f, +11.0f, 1.8f, 2.7f, 1.7f, { 90, 200, 230, 255} }, /* ciano */
-        {+19.0f, +11.0f, 2.2f, 3.0f, 3.1f, { 95, 215, 130, 255} }, /* verde */
+    /* 1.6.0: cada bolinha faz uma DERIVA 2D (Lissajous: X e Y com periodos
+     * diferentes -> orbita pequena, "constelacao flutuante") em vez de so subir
+     * e descer. Amplitudes pequenas (1.2-2.5px, escaladas) pra ficar vivo mas
+     * discreto; fases/periodos distintos pra nunca sincronizar. */
+    struct { float ox, oy, ampX, perX, phX, ampY, perY, phY; ColorRGBA col; } b[3] = {
+        {  0.0f, -15.0f, 1.6f, 4.3f, 0.6f, 2.5f, 3.4f, 0.0f, {255,  95, 135, 255} }, /* rosa  */
+        {-19.0f, +11.0f, 2.0f, 3.7f, 2.1f, 1.8f, 2.7f, 1.7f, { 90, 200, 230, 255} }, /* ciano */
+        {+19.0f, +11.0f, 1.5f, 5.1f, 4.0f, 2.2f, 3.0f, 3.1f, { 95, 215, 130, 255} }, /* verde */
     };
+    /* respiro global de escala do conjunto (~+-1.5%), bem lento. */
+    float breath = 1.0f + 0.015f * sinf(idleT * (EMBLEM_TWO_PI / 4.6f));
+    float Rb = R * breath;
     for (int i = 0; i < 3; i++) {
-        float fy = b[i].amp * sinf(idleT * (EMBLEM_TWO_PI / b[i].per) + b[i].ph);
-        bootGlassBall(cx + b[i].ox * scale, cy + b[i].oy * scale + fy, R, b[i].col, alpha);
+        float fx = b[i].ampX * scale * sinf(idleT * (EMBLEM_TWO_PI / b[i].perX) + b[i].phX);
+        float fy = b[i].ampY * scale * sinf(idleT * (EMBLEM_TWO_PI / b[i].perY) + b[i].phY);
+        bootGlassBall(cx + b[i].ox * scale + fx, cy + b[i].oy * scale + fy, Rb, b[i].col, alpha);
     }
 }
 

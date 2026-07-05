@@ -408,12 +408,25 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
     else UI_RoundFrame(cardX, FL_CARD_Y, FL_CARD_W, FL_CARD_H, 15.0f, g_theme.surface,
                        (ColorRGBA){255, 255, 255, (u8)(themeIsDark() ? 8 : 24)});
 
-    /* rolagem fluida: s_scrollAnim persegue s_scrollTop suave (glide ~exponencial). */
-    s_scrollAnim += ((float)s_scrollTop - s_scrollAnim) * fminf(1.0f, uiFrameDt() * 14.0f);
-    if (fabsf((float)s_scrollTop - s_scrollAnim) < 0.002f) s_scrollAnim = (float)s_scrollTop;
+    /* 1.6.0: rolagem com MOLA (leve overshoot organico) em vez do glide
+     * exponencial seco -- da o "peso" de motion design ao descer a lista. */
+    {
+        static float s_scrollVel = 0.0f;
+        float dt = uiFrameDt();
+        float target = (float)s_scrollTop;
+        float diff = target - s_scrollAnim;
+        const float k = 210.0f, damp = 21.0f; /* ~0.72 damping -> overshoot sutil */
+        s_scrollVel += (diff * k - s_scrollVel * damp) * dt;
+        s_scrollAnim += s_scrollVel * dt;
+        if (fabsf(diff) < 0.001f && fabsf(s_scrollVel) < 0.01f) {
+            s_scrollAnim = target; s_scrollVel = 0.0f;
+        }
+    }
 
     const float listTop = FL_ROW0;
     const float listBot = FL_ROW0 + FL_VISIBLE * FL_ROWH;
+    const float listCenterY = (listTop + listBot) * 0.5f;
+    const float listHalf = (listBot - listTop) * 0.5f;
 
     /* desenha 1 linha extra em cima/baixo pra cobrir as parciais que entram/saem
      * durante o deslize; cada linha some por FADE nas bordas (sem scissor, que e
@@ -431,9 +444,17 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         bool selected = (i == s_selected);
         bool isCurrent = (i == g_fonts.currentIndex);
 
+        /* 1.6.0: PROFUNDIDADE de carrossel -- linhas longe do centro da janela
+         * recuam (dim + micro-escala), como uma lista que curva pra tras nas
+         * pontas. dist 0 no centro, 1 na borda. */
+        float dist = clampf(fabsf(rowCy - listCenterY) / listHalf, 0.0f, 1.0f);
+        float depth = 1.0f - 0.40f * (dist * dist);      /* opacidade recua */
+        float dScale = 1.0f - 0.06f * dist;              /* escala do texto recua */
+        float a = ra * depth;
+
         /* divisoria 1px entre linhas (nao na 1a linha visivel). */
         if (prevDrawn) {
-            ColorRGBA div = {255, 255, 255, (u8)((themeIsDark() ? 26 : 30) * ra)};
+            ColorRGBA div = {255, 255, 255, (u8)((themeIsDark() ? 26 : 30) * a)};
             UI_Fill(FL_TEXT_X + slideX, rowY, (FL_CARD_X + FL_CARD_W) - FL_TEXT_X, 1.0f, div);
         }
         prevDrawn = true;
@@ -442,7 +463,7 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
          * + anel accent liquido (desliza). */
         if (selected) {
             float fx = cardX + 4.0f, fw = FL_CARD_W - 8.0f, fy = rowY + 1.0f, fh = FL_ROWH - 2.0f;
-            ColorRGBA selBg = themeCardSelBg(); selBg.a = (u8)((float)selBg.a * ra);
+            ColorRGBA selBg = themeCardSelBg(); selBg.a = (u8)((float)selBg.a * a);
             if (UI_AssetsReady()) UI_NineCard(fx, fy, fw, fh, 12.0f, selBg);
             else UI_RoundRect(fx, fy, fw, fh, 12.0f, selBg);
             /* o anel acompanha a linha deslizando (chamado todo frame com fy
@@ -451,12 +472,13 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         }
 
         ColorRGBA textCol = selected ? g_theme.textPrimary : g_theme.textSecondary;
-        textCol.a = (u8)((float)textCol.a * ra);
-        UI_Text(buf, fontsGetFont(i), fontsLabel(i), FL_TEXT_X + slideX, rowCy - 9.0f, 0.34f, 0.34f, textCol);
+        textCol.a = (u8)((float)textCol.a * a);
+        float ts = 0.34f * dScale;
+        UI_Text(buf, fontsGetFont(i), fontsLabel(i), FL_TEXT_X + slideX, rowCy - 9.0f * dScale, ts, ts, textCol);
 
         if (isCurrent) {
             /* bolinha verde solida "em uso" (290, rowCy) r6. */
-            ColorRGBA su = g_theme.success; su.a = (u8)((float)su.a * ra);
+            ColorRGBA su = g_theme.success; su.a = (u8)((float)su.a * a);
             UI_RoundRect(FL_CARD_X + FL_CARD_W - 16.0f + slideX, rowCy - 6.0f, 12.0f, 12.0f, 6.0f, su);
         }
     }

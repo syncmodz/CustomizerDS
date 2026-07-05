@@ -87,11 +87,13 @@ void transEval(TransitionID id, float t, int navDir, float W, float H, Transitio
             break;
         }
         case TRANS_CROSSFADE: {
-            /* tabela 3: crossfade puro + leve settle de escala (OUT_SINE). */
-            float p = easeFunc(t01, EASE_OUT_SINE);
-            out->oldL.alpha = 1.0f - p;
+            /* tabela 3: crossfade puro + settle de escala. 1.6.0: settle um tico
+             * mais presente (0.975->1.0) com EMPH_DECEL -- entra "vindo pra
+             * frente" com mais vida, sem deixar de ser manteiga. */
+            float p = easeFunc(t01, EASE_EMPH_DECEL);
+            out->oldL.alpha = 1.0f - easeFunc(t01, EASE_OUT_SINE);
             out->newL.alpha = p;
-            float s = lerpf(0.985f, 1.0f, p);
+            float s = lerpf(0.975f, 1.0f, p);
             out->newL.scaleX = s; out->newL.scaleY = s;
             break;
         }
@@ -120,12 +122,15 @@ void transEval(TransitionID id, float t, int navDir, float W, float H, Transitio
         }
         case TRANS_SLIDE_UP: {
             /* tabela 8: parallax de saida -- velha sobe 20px sumindo, nova
-             * vem 28px de baixo, alpha nos 1os 50%. v1.2: OUT_QUINT (mais suave). */
-            float p = easeFunc(t01, EASE_OUT_QUINT);
+             * vem 28px de baixo. 1.6.0: nova entra com EMPH_DECEL (END4) +
+             * micro-escala 0.98->1.0 pra dar profundidade ao parallax. */
+            float p = easeFunc(t01, EASE_EMPH_DECEL);
             out->oldL.y = -20.0f * p;
-            out->oldL.alpha = 1.0f - p;
+            out->oldL.alpha = 1.0f - easeFunc(t01, EASE_OUT_QUINT);
             out->newL.y = 28.0f * (1.0f - p);
             out->newL.alpha = easeFunc(clampf(t01 / 0.5f, 0.0f, 1.0f), EASE_OUT_QUINT);
+            float sn = lerpf(0.98f, 1.0f, p);
+            out->newL.scaleX = sn; out->newL.scaleY = sn;
             break;
         }
         case TRANS_DISSOLVE: {

@@ -139,6 +139,7 @@ static void applyHueTarget(void) {
 static void enterHexEdit(ColorRGBA cur) {
     colorPickerInit(&s_hexPicker);
     s_hexPicker.preview = (Color_RGB){cur.r, cur.g, cur.b};
+    s_hexPicker.dispR = cur.r; s_hexPicker.dispG = cur.g; s_hexPicker.dispB = cur.b; /* 1.6.0: sem flash ao abrir */
     snprintf(s_hexPicker.hex_input, sizeof(s_hexPicker.hex_input),
              "%02X%02X%02X", cur.r, cur.g, cur.b);
     s_hueT = rgbToHueDeg(cur.r, cur.g, cur.b) / 360.0f;
@@ -435,6 +436,27 @@ static void darkmodeDrawModeIcon(float cx, float cy, float size) {
     drawModeIconStyled(newI, cx, cy, size * dip, ang - (float)M_PI, newA);
 }
 
+/* 1.6.0: cor de accent do preview com cross-fade suave. Guarda from/to/atual e
+ * um Tween 0..1; ao mudar o alvo, recomeca do valor interpolado atual. */
+static ColorRGBA s_accFrom, s_accTo, s_accCur;
+static Tween s_accTw = {0};
+static bool s_accInit = false;
+static ColorRGBA displayedAccent(ColorRGBA target) {
+    if (!s_accInit) {
+        s_accFrom = s_accTo = s_accCur = target;
+        s_accInit = true; s_accTw.active = false;
+    }
+    if (target.r != s_accTo.r || target.g != s_accTo.g || target.b != s_accTo.b) {
+        s_accFrom = s_accCur; s_accTo = target;
+        tweenStart(&s_accTw, 0.0f, 1.0f, 0.22f, EASE_EMPH_DECEL);
+    }
+    tweenUpdate(&s_accTw, uiFrameDt());
+    float p = s_accTw.active ? tweenValue(&s_accTw) : 1.0f;
+    s_accCur = themeMix(s_accFrom, s_accTo, clampf(p, 0.0f, 1.0f));
+    s_accCur.a = 255;
+    return s_accCur;
+}
+
 void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
     (void)transVal; (void)scaleM;
     float offsetFg = 0.0f;
@@ -480,8 +502,9 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
         UI_Text(buf, NULL, T(STR_HEX_TITLE), 32, 52 + offsetFg + hexSlide, 0.32f, 0.32f, textP);
         UI_Text(buf, NULL, T(STR_HEX_HINT),
                 32, 76 + offsetFg + hexSlide, 0.22f, 0.22f, textH);
-        Color_RGB rgb = s_hexPicker.preview;
-        ColorRGBA previewC = {rgb.r, rgb.g, rgb.b, fa};
+        /* 1.6.0: usa a cor EXIBIDA (cross-fade) do picker, igual a tela de baixo. */
+        ColorRGBA previewC = {(u8)(s_hexPicker.dispR + 0.5f), (u8)(s_hexPicker.dispG + 0.5f),
+                              (u8)(s_hexPicker.dispB + 0.5f), fa};
         UI_TextCenter(buf, NULL, T(STR_PREVIEW), 308, 36 + offsetFg + hexSlide, 0.20f, 0.20f, textH);
 
         ColorRGBA frameC = themeIsDark() ? (ColorRGBA){10, 12, 18, 255} : (ColorRGBA){225, 228, 238, 255};
@@ -514,6 +537,9 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
     UI_Text(buf, NULL, T(STR_PREVIEW), 44.0f + slideX, 106.0f, 0.24f, 0.24f, g_theme.textHint);
 
     ColorRGBA accentC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
+    /* 1.6.0: a cor EXIBIDA no preview morfa suave (cross-fade ~220ms) ao trocar
+     * de accent, em vez de saltar. So o desenho -- o valor real ja mudou. */
+    ColorRGBA dAcc = displayedAccent(accentC);
 
     /* mini-card de exemplo (44,136,150,76) r12: swatch accent r11 + nome + #hex
      * + pilula accent. 1.5.0: fundo THEME-AWARE (era #1F1E26 fixo -> escuro feio
@@ -523,14 +549,14 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
                                         : (ColorRGBA){0xEC, 0xEC, 0xF0, 255};
     if (UI_AssetsReady()) UI_NineCard(mx, my, 150.0f, 76.0f, 12.0f, innerCard);
     else UI_RoundRect(mx, my, 150.0f, 76.0f, 12.0f, innerCard);
-    UI_RoundRect(72.0f - 11.0f + slideX, 164.0f - 11.0f, 22.0f, 22.0f, 11.0f, accentC);
+    UI_RoundRect(72.0f - 11.0f + slideX, 164.0f - 11.0f, 22.0f, 22.0f, 11.0f, dAcc);
     const char* accentLabel = themeAccentIsCustom() ? T(STR_CUSTOM) : themeAccentName(themeGetAccentIndex());
     UI_Text(buf, NULL, accentLabel, 92.0f + slideX, 150.0f, 0.27f, 0.27f, g_theme.textPrimary);
     char hexStr[10];
     snprintf(hexStr, sizeof(hexStr), "#%02X%02X%02X", accentC.r, accentC.g, accentC.b);
     UI_Text(buf, NULL, hexStr, 92.0f + slideX, 170.0f, 0.24f, 0.24f, g_theme.textSecondary);
-    if (UI_AssetsReady()) UI_NinePill(60.0f + slideX, 196.0f, 80.0f, 14.0f, accentC);
-    else UI_RoundRect(60.0f + slideX, 196.0f, 80.0f, 14.0f, 7.0f, accentC);
+    if (UI_AssetsReady()) UI_NinePill(60.0f + slideX, 196.0f, 80.0f, 14.0f, dAcc);
+    else UI_RoundRect(60.0f + slideX, 196.0f, 80.0f, 14.0f, 7.0f, dAcc);
 
     /* 1.5.0: icone de modo (sol/lua) SEM aro/aureola (o dono odiou o anel ambar).
      * A troca sol<->lua anima no proprio icone (fade+rotacao), sem overlay. */

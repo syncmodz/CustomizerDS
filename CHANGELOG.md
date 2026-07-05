@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.6.0
+Motion & detail pass — the interface is richer and more alive, no functions
+changed. Everything is pure per-frame motion (no extra fill/overdraw), so it
+still holds 60fps and keeps the clean, glow-free cakeOS look.
+- **Living emblem**: the three glass balls now drift in small 2D orbits (a
+  floating constellation) with a slow breathing scale, on every screen's header
+  and the home hero — not just a vertical bob.
+- **Home hero parallax**: the wordmark and slogan float gently against the
+  emblem for a sense of depth.
+- **Theme accent cross-fades**: changing the accent now morphs the preview color
+  smoothly instead of snapping.
+- **Fonts list depth**: rows recede (dim + micro-scale) toward the top/bottom
+  edges like a carousel, and scrolling now has a springy, weighted settle.
+- **HEX editor detail**: the preview color cross-fades and the R/G/B numbers
+  count up/down smoothly instead of jumping.
+- **Silkier transitions**: cross-fade and slide-up now use the Material-3
+  "emphasized" curve with a subtle scale settle for a more premium feel.
+
 ## 1.5.1
 - Fonts tab: the **"A" badge** in the footer is now the real reva/cakeOS badge
   sprite (the green "A" used in the confirm popups), not a hand-drawn circle.
