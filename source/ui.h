@@ -25,6 +25,12 @@ void UI_FontExit(void);
 float UI_TextWidth(C2D_TextBuf buf, C2D_Font font, const char* text, float sx);
 /* §3: anel de foco accent (chamar antes de desenhar o elemento focado). */
 void UI_FocusRing(float x, float y, float w, float h, float r);
+/* 1.9.0 FIX1: forca o foco a NASCER PARADO no proximo item (usar ao entrar em
+ * tela/aba -- mata a "viagem" do indicador vindo da tela anterior). */
+void UI_FocusRingReset(void);
+/* 1.9.0 FIX3: elevacao Material (ambient+key). level 1=chip 2=card 3=foco/knob
+ * 4=popup. alphaMul p/ animar o "lift on focus". */
+void UI_Elevation(float x, float y, float w, float h, float r, int level, float alphaMul);
 
 /* ===== 1.8.0 motor CAELESTIA ===== */
 /* accent ANIMADO global (300ms EFF_SLOW) -- usar no lugar de g_theme.accent nos

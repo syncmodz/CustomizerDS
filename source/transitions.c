@@ -6,17 +6,20 @@
 /* Duracoes da tabela da secao 3 (todas 260-420ms). */
 /* v1.2: durações um tico maiores nas mais "secas" pra dar um assentamento mais
  * suave/premium sem ficar lento (sweet spot ~320-380ms pra troca de tela). */
+/* 1.9.0 FIX2: transicoes de aba mais CURTAS (0.30s) -> resposta imediata ao
+ * botao, sem "respirar antes de andar". Wipes cenicos (6/7/9/10) seguem um tico
+ * maiores (nao sao disparados por navegacao rapida). */
 static const float DURATIONS[TRANS_COUNT] = {
-    0.34f, /* 1  PUSH_H        (era 0.32) */
-    0.36f, /* 2  COVER_V */
-    0.32f, /* 3  CROSSFADE     (era 0.28) */
-    0.34f, /* 4  ZOOM_THROUGH  (era 0.30) */
-    0.32f, /* 5  POP           (era 0.30) */
+    0.30f, /* 1  PUSH_H        */
+    0.30f, /* 2  COVER_V */
+    0.28f, /* 3  CROSSFADE     */
+    0.30f, /* 4  ZOOM_THROUGH  */
+    0.30f, /* 5  POP           */
     0.38f, /* 6  RADIAL_WIPE */
     0.36f, /* 7  DIAGONAL_WIPE */
-    0.34f, /* 8  SLIDE_UP      (era 0.30) */
+    0.30f, /* 8  SLIDE_UP      */
     0.36f, /* 9  DEPTH_FLIP */
-    0.38f, /* 10 DISSOLVE */
+    0.34f, /* 10 DISSOLVE */
 };
 
 static const char* NAMES[TRANS_COUNT] = {
@@ -68,10 +71,11 @@ void transEval(TransitionID id, float t, int navDir, float W, float H, Transitio
 
     switch (id) {
         case TRANS_PUSH_H: {
-            /* tabela 1: velha x=-W*p, nova x=W*(1-p). 1.8.0 CAELESTIA: curva
-             * EMPHASIZED do M3 (2 segmentos) -- a assinatura das transicoes
-             * grandes do caelestia (acelera devagar, cruza rapido, assenta). */
-            float p = easeFunc(t01, EASE_EMPHASIZED);
+            /* tabela 1: velha x=-W*p, nova x=W*(1-p). 1.9.0 FIX2: EMPH_DECEL --
+             * a EMPHASIZED (2 seg) comeca quase parada nos 1os ~17% e, numa troca
+             * de aba disparada por botao, isso lia como INPUT LAG. DECEL comeca
+             * rapido (resposta no frame seguinte) e assenta suave. */
+            float p = easeFunc(t01, EASE_EMPH_DECEL);
             out->oldL.x = -(float)navDir * W * p;
             out->newL.x =  (float)navDir * W * (1.0f - p);
             break;

@@ -267,7 +267,11 @@ void menuRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA
          * escurecia feio no tema claro). Deriva da superficie com um toque de
          * accent (Monet), igual aos outros cards selecionados. */
         ColorRGBA bg = sel ? themeCardSelBg() : g_theme.surface;
-        UI_Shadow(x, y, w, h, 16.0f, sel ? 45 : 24, 2.0f);
+        /* 1.9.0 FIX3: elevacao Material -- card (2) sempre + LIFT flutuante (3)
+         * animado pelo foco (fscale 1.0->1.06 -> 0..1). O tile focado "levanta". */
+        float liftT = clampf((fscale - 1.0f) / 0.06f, 0.0f, 1.0f);
+        UI_Elevation(x, y, w, h, 16.0f, 2, 1.0f);
+        if (liftT > 0.01f) UI_Elevation(x, y, w, h, 16.0f, 3, liftT);
         if (UI_AssetsReady()) UI_NineCard(x, y, w, h, 16.0f, bg);
         else UI_RoundFrame(x, y, w, h, 16.0f, bg, (ColorRGBA){255, 255, 255, themeIsDark() ? 12 : 24});
         if (sel) UI_FocusRing(x, y, w, h, 16.0f); /* anel accent liquido (desliza+estica) */

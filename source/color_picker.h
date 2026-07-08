@@ -33,6 +33,8 @@ typedef struct {
     /* 1.6.0: cor EXIBIDA (float) que persegue preview -> cross-fade da cor +
      * contagem animada dos numeros R/G/B. Inicializada em colorPickerInit. */
     float dispR, dispG, dispB;
+    /* 1.9.0 FIX4: micro-pop do digito editado (escala 1.15->1). */
+    float digitPopT; int digitPopPos;
 } ColorPicker;
 
 void colorPickerInit(ColorPicker* cp);

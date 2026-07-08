@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.9.0
+Surgical polish of the caelestia motion engine.
+- **The selection indicator no longer travels when you enter a tab** — it now
+  is born parked on the focused item (the pretty morph stays only for D-pad
+  moves inside a screen).
+- **Tab transitions respond on the next frame** — swapped the slow-start M3
+  `emphasized` curve for `emphasizedDecel` and shortened to 0.30s, so there's no
+  more "breathe before it moves" lag.
+- **Material elevation system** (`UI_Elevation`, ambient + downward key light):
+  fixes the smudgy HEX shadow (thin elements now scale their shadow down instead
+  of blotching), gives every surface a consistent soft shadow, makes popups
+  clearly float, and **lifts the focused tile/cell** as it gains focus.
+- **More controls animate**: LED slider fill and knob now flow to the new value
+  (not just the number), and the edited HEX digit does a little pop.
+- **Touch feedback**: press ripple (StateLayer) wired onto the accent swatches.
+
 ## 1.8.0
 Caelestia motion engine — the shape/feel language from caelestia-dots/shell
 ported from its source (tokens.hpp / Anim / StateLayer / StyledRect), no logic

@@ -75,9 +75,14 @@ static void setLang(Lang l) {
     configSave(&cfg);
 }
 
+/* 1.9.0 FIX5: PressFx (StateLayer) no swatch selecionado -- flash branco 10% +
+ * fade, o "peso" do toque. Coords base (o swatch fica assentado ao selecionar). */
+static PressFx s_swatchPress;
 static void triggerSwatchBounce(int idx) {
     s_swatchBounceIdx = idx;
     s_swatchBounceT = 0.0f;
+    float scx = 40.0f + idx * 44.0f, scy = 102.0f;
+    pressFxTrigger(&s_swatchPress, scx - 17.0f, scy - 17.0f, 34.0f, 34.0f, 17.0f);
 }
 
 /* Centro do MiniWindow de preview na tela de cima (winX=32,winW=160,
@@ -186,6 +191,7 @@ static void updatePopup(void) {
 
 void darkmodeUpdate(const AppInput* in, float dt, int* currentScreen) {
     updatePopup();
+    pressFxUpdate(&s_swatchPress, dt, in->touchHeld); /* 1.9.0 FIX5 */
     /* 1.5.0: themeWipeTick NAO roda mais aqui -- roda no laco principal (main.c)
      * TODO frame, em qualquer aba. Antes, sair da aba Tema no meio da animacao
      * de troca claro/escuro congelava o wipe (o timer so avancava aqui), e o
@@ -676,6 +682,7 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
     }
     tweenUpdate(&s_ringTween, uiFrameDt());
     UI_RingCircle(tweenValue(&s_ringTween), 102.0f + offset, 38.0f, (ColorRGBA){255, 255, 255, 255});
+    pressFxDraw(&s_swatchPress); /* 1.9.0 FIX5: flash de toque no swatch */
 
     /* 3) card HEX (16,132,168,32) + card idioma (196,132,108,32). */
     ColorRGBA curC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());

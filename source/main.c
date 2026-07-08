@@ -257,7 +257,10 @@ int main() {
                 /* NAO chamamos uiScreenEnter() aqui: o compositor move a tela
                  * NOVA como bloco unico, entao ela deve aparecer ASSENTADA. O
                  * stagger por elemento reintroduziria "borracha" durante a
-                 * troca (secao 4) -- ele fica so na entrada inicial (startup). */
+                 * troca (secao 4) -- ele fica so na entrada inicial (startup).
+                 * 1.9.0 FIX1: MAS resetamos o foco -> o indicador nasce PARADO no
+                 * item da aba nova (nao viaja da posicao da tela anterior). */
+                UI_FocusRingReset();
                 inputResetRepeat();
                 switch (currentScreen) {
                     case SCREEN_MAIN_MENU: menuInit(); break;

@@ -477,7 +477,10 @@ static void drawFlatSlider(C2D_TextBuf buf, const char* label, int displayValue,
     if (UI_AssetsReady()) UI_NinePill(barX, barY, barW, barH, track);
     else UI_RoundRect(barX, barY, barW, barH, barH * 0.5f, track);
 
-    float t = (max > min) ? (float)(value - min) / (float)(max - min) : 0.0f;
+    /* 1.9.0 FIX4: o PREENCHIMENTO e o KNOB seguem o valor ANIMADO (displayValue,
+     * ja tweened), nao o valor cru -> a barra escorre ate o novo valor em vez de
+     * saltar (antes so o numero animava). */
+    float t = (max > min) ? ((float)displayValue - (float)min) / (float)(max - min) : 0.0f;
     t = clampf(t, 0.0f, 1.0f);
     if (t > 0.001f) {
         float fw = fmaxf(barH, barW * t);
@@ -485,10 +488,11 @@ static void drawFlatSlider(C2D_TextBuf buf, const char* label, int displayValue,
         else UI_RoundRect(barX, barY, fw, barH, barH * 0.5f, chan);
     }
 
-    /* knob reva: base branca + anel grosso (ICON_SWATCH_THICK) na cor do canal. */
+    /* knob reva: base branca + anel grosso (ICON_SWATCH_THICK) na cor do canal.
+     * elevacao 1->2 no foco (lift do knob). */
     float knobX = barX + barW * t;
     float kr = 9.0f * thumbScale;
-    UI_Shadow(knobX - kr, cy - kr, kr * 2.0f, kr * 2.0f, kr, 30, 1.0f);
+    UI_Elevation(knobX - kr, cy - kr, kr * 2.0f, kr * 2.0f, kr, focused ? 2 : 1, 1.0f);
     UI_RoundRect(knobX - kr, cy - kr, kr * 2.0f, kr * 2.0f, kr, (ColorRGBA){255, 255, 255, 255});
     ColorRGBA ring = chan; ring.a = 255;
     iconsDraw(ICON_SWATCH_THICK, knobX, cy, kr * 2.0f, ring, 1.0f);

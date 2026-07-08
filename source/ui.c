@@ -68,7 +68,7 @@ ColorRGBA UI_AccentAnim(void) {
 
 float uiFrameTime(void) { return s_frame; }
 float uiFrameDt(void) { return s_dt; }
-void uiScreenEnter(void) { g_enterT = 0.0f; }
+void uiScreenEnter(void) { g_enterT = 0.0f; UI_FocusRingReset(); }
 float UI_EnterProgress(void) { return easeOutCubic(g_enterT); }
 
 /* Segundos reais desde uiScreenEnter() (g_enterT e um ramp linear 0->1 a
@@ -409,13 +409,42 @@ void UI_Shadow(float x, float y, float w, float h, float r, float alpha, float o
      * maior que o card e deslocada -> halo macio que da profundidade, sem o
      * canto quadrado duro das 2 camadas retangulares antigas. */
     if (UI_AssetsReady()) {
-        float m = 8.0f; /* halo alem da borda */
-        UI_NineShadow(x - m, y - m + offset, w + 2.0f * m, h + 2.0f * m, r + m,
-                      (ColorRGBA){0, 0, 0, a});
+        /* 1.9.0 FIX3: elementos FINOS/pequenos (campo HEX ~32px, chips) espremiam
+         * o 9-slice e o halo virava MANCHA suja. Fator k encolhe halo+alpha
+         * proporcional ao menor lado -> sombra sempre limpa, nunca borrao. */
+        float k = fminf(1.0f, fminf(w, h) / 48.0f);
+        float m = 8.0f * k;
+        ColorRGBA sh = {0, 0, 0, (u8)(a * k)};
+        UI_NineShadow(x - m, y - m + offset, w + 2.0f * m, h + 2.0f * m, r + m, sh);
         return;
     }
     UI_RoundRect(x + offset, y + offset, w, h, r, (ColorRGBA){0, 0, 0, a / 4});
     UI_RoundRect(x + offset * 1.5f, y + offset * 1.5f, w, h, r, (ColorRGBA){0, 0, 0, a / 8});
+}
+
+/* 1.9.0 FIX3: elevacao estilo Material -- KEY (direcional, deslocada p/ BAIXO,
+ * luz vem de cima) + AMBIENT (difusa, quase concentrica). level 1=repouso(chip)
+ * 2=card 3=flutuante(foco/knob) 4=popup. Auto-protecao p/ finos (k) -> nunca
+ * mancha. Substitui as sombras avulsas por um sistema consistente e "rico". */
+void UI_Elevation(float x, float y, float w, float h, float r, int level, float alphaMul) {
+    if (level <= 0 || w <= 0.0f || h <= 0.0f) return;
+    if (!UI_AssetsReady()) { UI_Shadow(x, y, w, h, r, 70.0f * alphaMul, 2.0f); return; }
+    static const struct { float aExp, aOfs, aA; float kExp, kOfs, kA; } E[4] = {
+        { 2.0f, 1.0f, 26.0f,   0.0f, 0.0f,  0.0f }, /* 1: so ambient      */
+        { 3.0f, 1.0f, 26.0f,   5.0f, 3.0f, 42.0f }, /* 2: card            */
+        { 4.0f, 1.0f, 30.0f,   9.0f, 5.0f, 55.0f }, /* 3: foco/knob       */
+        { 6.0f, 2.0f, 34.0f,  14.0f, 8.0f, 70.0f }, /* 4: popup           */
+    };
+    int i = (level > 4 ? 4 : level) - 1;
+    float k = fminf(1.0f, fminf(w, h) / 48.0f);
+    ColorRGBA sh = {0, 0, 0, 0};
+    sh.a = (u8)(E[i].aA * k * alphaMul);
+    if (sh.a > 2) UI_NineShadow(x - E[i].aExp, y - E[i].aExp + E[i].aOfs,
+                                w + 2.0f * E[i].aExp, h + 2.0f * E[i].aExp, r + E[i].aExp, sh);
+    sh.a = (u8)(E[i].kA * k * alphaMul);
+    if (E[i].kExp > 0.0f && sh.a > 2)
+        UI_NineShadow(x - E[i].kExp, y - E[i].kExp + E[i].kOfs,
+                      w + 2.0f * E[i].kExp, h + 2.0f * E[i].kExp, r + E[i].kExp, sh);
 }
 
 /* Gradiente horizontal (esquerda->direita) -- usado no preenchimento dos
@@ -468,6 +497,14 @@ static void focusRingDraw(float x, float y, float w, float h, float r) {
  * EMPH_DECEL, entao a caixa alonga de leve no trajeto e assenta rapido --
  * responsivo, sem wobble e SEM o "respiro" parado (que lia como bug). Cada
  * aresta interpolada por eixo; salto grande ou transicao de tela = snap. */
+/* 1.9.0 FIX1: o foco e um estado global que PERSISTE entre telas. Ao entrar numa
+ * aba ele viajava da posicao da tela anterior ate o item novo (~0.5s de viagem
+ * feia). uiScreenEnter()/troca-de-aba chamam UI_FocusRingReset() -> a proxima
+ * chamada SNAPA no item (nasce parado). O morph bonito fica so no D-pad dentro
+ * da tela. */
+static bool s_focusForceSnap = false;
+void UI_FocusRingReset(void) { s_focusForceSnap = true; }
+
 void UI_FocusRing(float x, float y, float w, float h, float r) {
     static float fL, fT, fR, fB, fr_;   /* from (edges + raio) */
     static float tL, tT, tR, tB, tr_;   /* target */
@@ -482,13 +519,19 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
     }
 
     bool targetMoved = (fabsf(nL - tL) + fabsf(nT - tT) + fabsf(nR - tR) + fabsf(nB - tB)) > 0.5f;
+    /* FIX1: reset pedido mas alvo coincide (nao "moveu") -> snapa e limpa aqui. */
+    if (s_focusForceSnap && !targetMoved) {
+        fL = cL = tL; fT = cT = tT; fR = cR = tR; fB = cB = tB; fr_ = cr_ = tr_;
+        tw_.active = false; s_focusForceSnap = false;
+    }
     if (targetMoved) {
         float jump = fabsf(nL - cL) + fabsf(nT - cT);
         fL = cL; fT = cT; fR = cR; fB = cB; fr_ = cr_;
         tL = nL; tT = nT; tR = nR; tB = nB; tr_ = r;
-        if (jump > 300.0f || transitionActive(&g_trans)) {
-            fL = nL; fT = nT; fR = nR; fB = nB; fr_ = r; /* snap */
+        if (s_focusForceSnap || jump > 300.0f || transitionActive(&g_trans)) {
+            fL = nL; fT = nT; fR = nR; fB = nB; fr_ = r; /* snap (nasce parado) */
             tw_.active = false;
+            s_focusForceSnap = false;
         } else {
             tweenStart(&tw_, 0.0f, 1.0f, DUR_SPATIAL_FAST, EASE_LINEAR); /* 1.8.0 CAELESTIA: 0.35s */
         }
@@ -788,7 +831,7 @@ void popupRender(C2D_TextBuf buf, PopupModal* p) {
         : (ColorRGBA){248, 249, 252, (u8)(250 * alpha)};
     ColorRGBA cardBorder = {255, 255, 255, (u8)(themeIsDark() ? 20 * alpha : 30 * alpha)};
 
-    UI_Shadow(px, py, pw, ph, 16 * scale, 80 * alpha, 3.0f);
+    UI_Elevation(px, py, pw, ph, 16 * scale, 4, alpha); /* 1.9.0 FIX3: popup flutua (level 4) */
     if (UI_AssetsReady()) UI_NineCard(px, py, pw, ph, 16 * scale, cardBg);
     else UI_RoundFrame(px, py, pw, ph, 16 * scale, cardBg, cardBorder);
 

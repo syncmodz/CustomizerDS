@@ -14,6 +14,7 @@ void colorPickerInit(ColorPicker* cp) {
     cp->valid = true;
     cp->preview = hexToRGB(cp->hex_input);
     cp->dispR = cp->preview.r; cp->dispG = cp->preview.g; cp->dispB = cp->preview.b;
+    cp->digitPopT = 999.0f; cp->digitPopPos = -1; /* sem pop espurio ao abrir */
 }
 
 Color_RGB hexToRGB(const char* hex_str) {
@@ -36,6 +37,7 @@ static void stepDigit(ColorPicker* cp, int pos, int dir) {
     val = (val + dir + 16) % 16;
     cp->hex_input[pos] = (val < 10) ? ('0' + val) : ('A' + val - 10);
     cp->preview = hexToRGB(cp->hex_input);
+    cp->digitPopT = 0.0f; cp->digitPopPos = pos; /* 1.9.0 FIX4: dispara micro-pop */
 }
 
 /* Input via in->down ja com debounce do input.c -- left/right mudam valor do digito,
@@ -87,28 +89,34 @@ void colorPickerRender(C2D_TextBuf buf, ColorPicker* cp, float y) {
 
     UI_Text(buf, NULL, "# ", startX - 16, fy + 8, 0.32f, 0.32f, g_theme.textSecondary);
 
+    cp->digitPopT += uiFrameDt();
     for (int i = 0; i < 6; i++) {
         float cx = startX + i * (cellW + gap);
         bool sel = (i == cp->cursor_pos);
+        /* 1.9.0 FIX4: micro-pop 1.15->1 (EXPR_FAST 0.2s) na celula recem-editada. */
+        float pop = 1.0f;
+        if (i == cp->digitPopPos && cp->digitPopT < DUR_EFFECTS_DEF)
+            pop = 1.15f - 0.15f * easeFunc(clampf(cp->digitPopT / DUR_EFFECTS_DEF, 0.0f, 1.0f), EASE_EXPR_FAST);
+        float dcx = cx + cellW * 0.5f, dcy = fy + cellH * 0.5f;
+        float pw = cellW * pop, ph = cellH * pop;
+        float px = dcx - pw * 0.5f, py = dcy - ph * 0.5f;
         ColorRGBA digitCol;
         if (sel) {
             /* 1.6.1: digito selecionado = celula PREENCHIDA de accent solido +
-             * digito em cor de contraste (no lugar do aro fino oco, feio). Leve
-             * elevacao com sombra pra "saltar" da fileira. */
-            ColorRGBA acc = g_theme.accent; acc.a = 255;
-            UI_Shadow(cx, fy + 1, cellW, cellH, radius, 55, 1.5f);
-            UI_RoundRect(cx, fy, cellW, cellH, radius, acc);
+             * digito em cor de contraste. 1.9.0: elevacao Material (foco/knob). */
+            ColorRGBA acc = UI_AccentAnim(); acc.a = 255;
+            UI_Elevation(px, py, pw, ph, radius, 3, 1.0f);
+            UI_RoundRect(px, py, pw, ph, radius, acc);
             digitCol = themeContrastText(acc);
         } else {
             ColorRGBA bg = g_theme.surfaceElevated;
             ColorRGBA border = themeIsDark() ? (ColorRGBA){255, 255, 255, 18}
                                              : (ColorRGBA){20, 24, 34, 22};
-            UI_RoundFrame(cx, fy, cellW, cellH, radius, bg, border);
+            UI_RoundFrame(px, py, pw, ph, radius, bg, border);
             digitCol = g_theme.textSecondary;
         }
         char digit[2] = { cp->hex_input[i], '\0' };
-        UI_TextCenter(buf, NULL, digit, cx + cellW * 0.5f, fy + (cellH - 18) * 0.5f,
-                      0.38f, 0.38f, digitCol);
+        UI_TextCenter(buf, NULL, digit, dcx, dcy - 9.0f * pop, 0.38f * pop, 0.38f * pop, digitCol);
     }
 
     /* 1.6.0: cor exibida persegue preview (cross-fade ~150ms) -> a moldura de
