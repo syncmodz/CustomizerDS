@@ -436,26 +436,9 @@ static void darkmodeDrawModeIcon(float cx, float cy, float size) {
     drawModeIconStyled(newI, cx, cy, size * dip, ang - (float)M_PI, newA);
 }
 
-/* 1.6.0: cor de accent do preview com cross-fade suave. Guarda from/to/atual e
- * um Tween 0..1; ao mudar o alvo, recomeca do valor interpolado atual. */
-static ColorRGBA s_accFrom, s_accTo, s_accCur;
-static Tween s_accTw = {0};
-static bool s_accInit = false;
-static ColorRGBA displayedAccent(ColorRGBA target) {
-    if (!s_accInit) {
-        s_accFrom = s_accTo = s_accCur = target;
-        s_accInit = true; s_accTw.active = false;
-    }
-    if (target.r != s_accTo.r || target.g != s_accTo.g || target.b != s_accTo.b) {
-        s_accFrom = s_accCur; s_accTo = target;
-        tweenStart(&s_accTw, 0.0f, 1.0f, 0.22f, EASE_EMPH_DECEL);
-    }
-    tweenUpdate(&s_accTw, uiFrameDt());
-    float p = s_accTw.active ? tweenValue(&s_accTw) : 1.0f;
-    s_accCur = themeMix(s_accFrom, s_accTo, clampf(p, 0.0f, 1.0f));
-    s_accCur.a = 255;
-    return s_accCur;
-}
+/* 1.8.0 CAELESTIA: o cross-fade de accent do preview agora usa o accent ANIMADO
+ * GLOBAL (UI_AccentAnim, 300ms EFF_SLOW) -- mesma cor "escorrendo" que o resto
+ * da UI, unificado (antes tinha um tween local so pro preview). */
 
 void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
     (void)transVal; (void)scaleM;
@@ -539,7 +522,7 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
     ColorRGBA accentC = themeAccentIsCustom() ? themeGetCustomAccent() : themeAccentColor(themeGetAccentIndex());
     /* 1.6.0: a cor EXIBIDA no preview morfa suave (cross-fade ~220ms) ao trocar
      * de accent, em vez de saltar. So o desenho -- o valor real ja mudou. */
-    ColorRGBA dAcc = displayedAccent(accentC);
+    ColorRGBA dAcc = UI_AccentAnim();
 
     /* mini-card de exemplo (44,136,150,76) r12: swatch accent r11 + nome + #hex
      * + pilula accent. 1.5.0: fundo THEME-AWARE (era #1F1E26 fixo -> escuro feio
@@ -676,7 +659,7 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         /* 1.6.1: foco do swatch = anel accent NITIDO por FORA do circulo (nao
          * cobre a cor, ao contrario do chip preenchido). */
         if (s_selected - 2 == i) {
-            ColorRGBA fa = g_theme.accent; fa.a = 255;
+            ColorRGBA fa = UI_AccentAnim(); fa.a = 255;
             float rr = r + 5.0f;
             if (UI_AssetsReady()) UI_Ring(scx - rr, scy - rr, rr * 2.0f, rr * 2.0f, rr, fa);
             else UI_RoundFrame(scx - rr, scy - rr, rr * 2.0f, rr * 2.0f, rr, (ColorRGBA){0, 0, 0, 0}, fa);
@@ -689,7 +672,7 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         tweenStart(&s_ringTween, ringTargetX, ringTargetX, 0.001f, EASE_LINEAR);
         tweenUpdate(&s_ringTween, 1.0f);
     } else if (fabsf(s_ringTween.to - ringTargetX) > 0.5f) {
-        tweenStart(&s_ringTween, tweenValue(&s_ringTween), ringTargetX, 0.20f, EASE_EXPR_SPATIAL);
+        tweenStart(&s_ringTween, tweenValue(&s_ringTween), ringTargetX, DUR_SPATIAL_FAST, EASE_EXPR_FAST);
     }
     tweenUpdate(&s_ringTween, uiFrameDt());
     UI_RingCircle(tweenValue(&s_ringTween), 102.0f + offset, 38.0f, (ColorRGBA){255, 255, 255, 255});

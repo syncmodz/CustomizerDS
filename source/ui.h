@@ -26,6 +26,21 @@ float UI_TextWidth(C2D_TextBuf buf, C2D_Font font, const char* text, float sx);
 /* §3: anel de foco accent (chamar antes de desenhar o elemento focado). */
 void UI_FocusRing(float x, float y, float w, float h, float r);
 
+/* ===== 1.8.0 motor CAELESTIA ===== */
+/* accent ANIMADO global (300ms EFF_SLOW) -- usar no lugar de g_theme.accent nos
+ * elementos que devem "escorrer" pra nova cor ao trocar de accent. */
+ColorRGBA UI_AccentAnim(void);
+/* pop-in de superficie: progresso 0..1 -> escala+alpha. type 0=painel(0.80),
+ * 1=item de lista(0.90). Escala com EXPR_SPATIAL (molinha), alpha EFF_DEFAULT. */
+void UI_PopIn(float p, int type, float* outScale, float* outAlpha);
+
+/* PressFx = "StateLayer" do caelestia: overlay branco 10% no press + fade 300ms.
+ * Combinar com micro-scale no chamador. */
+typedef struct { float t; bool held; float x, y, w, h, r; } PressFx;
+void pressFxTrigger(PressFx* p, float x, float y, float w, float h, float r);
+void pressFxUpdate(PressFx* p, float dt, bool stillHeld);
+void pressFxDraw(const PressFx* p);
+
 void uiFrameTick(float dt);
 float uiFrameTime(void);
 float uiFrameDt(void);

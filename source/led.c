@@ -86,8 +86,8 @@ static void chanInfo(int chan, int** ip, int* mn, int* mx, ColorRGBA* col, const
         case CH_R: rr = s_r; *ip = &rr; *mn = 0; *mx = 255; *col = (ColorRGBA){255, 86, 120, 255}; *label = "R"; break;
         case CH_G: gg = s_g; *ip = &gg; *mn = 0; *mx = 255; *col = (ColorRGBA){95, 215, 130, 255}; *label = "G"; break;
         case CH_B: bb = s_b; *ip = &bb; *mn = 0; *mx = 255; *col = (ColorRGBA){10, 132, 255, 255}; *label = "B"; break;
-        case CH_SPEED: sp = s_speed; *ip = &sp; *mn = 1; *mx = 5; *col = g_theme.accent; *label = T(STR_SPEED_SHORT); break;
-        default: dp = s_pulseDepth; *ip = &dp; *mn = 1; *mx = 100; *col = g_theme.accent; *label = T(STR_DEPTH_SHORT); break;
+        case CH_SPEED: sp = s_speed; *ip = &sp; *mn = 1; *mx = 5; *col = UI_AccentAnim(); *label = T(STR_SPEED_SHORT); break;
+        default: dp = s_pulseDepth; *ip = &dp; *mn = 1; *mx = 100; *col = UI_AccentAnim(); *label = T(STR_DEPTH_SHORT); break;
     }
 }
 /* Escreve o valor de volta na variavel do canal. */
@@ -430,10 +430,16 @@ void ledRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, fl
      * glow + label de modo (200,~182). */
     ColorRGBA c = previewColor();
     float cx = 200.0f + slideX, cy = 128.0f;
+    /* 1.8.0 CAELESTIA §idle: no modo Pulso o anel "respira" 1.0->1.04 na
+     * frequencia do LED (calmo, so nesse modo). */
+    float ringS = 1.0f;
+    if (s_mode == LED_PULSE)
+        ringS = 1.0f + 0.04f * (0.5f + 0.5f * sinf(uiFrameTime() * (float)s_speed));
+    float fr = 40.0f * ringS;
     ColorRGBA fill = c; fill.a = 102;                 /* ~40% */
-    UI_RoundRect(cx - 40.0f, cy - 40.0f, 80.0f, 80.0f, 40.0f, fill);
+    UI_RoundRect(cx - fr, cy - fr, fr * 2.0f, fr * 2.0f, fr, fill);
     ColorRGBA ring = c; ring.a = 255;
-    UI_RingCircle(cx, cy, 86.0f, ring);
+    UI_RingCircle(cx, cy, 86.0f * ringS, ring);
 
     UI_TextCenter(buf, NULL, modeNameI(s_mode), cx, 178.0f, 0.38f, 0.38f, g_theme.textPrimary);
     ColorRGBA st = s_mcuReady ? g_theme.success : g_theme.warning;
@@ -454,14 +460,14 @@ void ledRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, fl
 static void drawFlatSlider(C2D_TextBuf buf, const char* label, int displayValue,
                            int value, int min, int max, float y, ColorRGBA chan,
                            bool focused, float slideX, float thumbScale) {
-    ColorRGBA lblC = focused ? g_theme.accent : g_theme.textSecondary;
+    ColorRGBA lblC = focused ? UI_AccentAnim() : g_theme.textSecondary;
     float barX = 42.0f + slideX, barW = 224.0f, barH = 12.0f, barY = y + 2.0f;
     float cy = barY + barH * 0.5f;
 
     /* 1.6.1: foco do slider = FAIXA preenchida (accent suave) atras da linha
      * inteira + label em accent, no lugar do aro fino no trilho. */
     if (focused) {
-        ColorRGBA soft = g_theme.accent; soft.a = themeIsDark() ? 34 : 30;
+        ColorRGBA soft = UI_AccentAnim(); soft.a = themeIsDark() ? 34 : 30;
         UI_RoundRect(12.0f + slideX, y - 4.0f, SCREEN_BOT_WIDTH - 24.0f, barH + 12.0f, 10.0f, soft);
     }
 

@@ -327,9 +327,9 @@ static void drawInstallOverlay(C2D_TextBuf buf) {
     float breath = 1.0f + 0.04f * (0.5f + 0.5f * sinf(t * (6.28318531f / 1.2f)));
     UI_Emblem(mid, 92.0f, (16.0f / 24.0f) * breath, uiFrameTime(), A);
 
-    /* check verde sobre o emblema ao concluir (pop-in EZ_SPATIAL 200ms). */
+    /* check verde sobre o emblema ao concluir (pop-in FastSpatial 0.35s, molinha). */
     if (done) {
-        float sc = easeFunc(clampf(s_instDoneT / 0.20f, 0.0f, 1.0f), EASE_EXPR_SPATIAL);
+        float sc = easeFunc(clampf(s_instDoneT / DUR_SPATIAL_FAST, 0.0f, 1.0f), EASE_EXPR_FAST);
         ColorRGBA succ = g_theme.success; succ.a = (u8)(255 * A);
         UI_Check(mid, 92.0f, 34.0f * sc, succ);
     }
@@ -349,7 +349,11 @@ static void drawInstallOverlay(C2D_TextBuf buf) {
     ColorRGBA track = {255, 255, 255, (u8)(30 * A)};
     UI_NinePill(90.0f, 196.0f, 220.0f, 10.0f, track);
     if (pe > 0.001f) {
-        ColorRGBA fill = done ? g_theme.success : g_theme.accent;
+        /* 1.8.0 CAELESTIA: a barra ESCORRE de accent -> verde no 100% (ColorTween
+         * 300ms), nao troca seca. */
+        static ColorTween s_barCol = {0};
+        colorTweenTo(&s_barCol, done ? g_theme.success : g_theme.accent);
+        ColorRGBA fill = colorTweenValue(&s_barCol);
         fill.a = (u8)(255 * A);
         UI_NinePill(90.0f, 196.0f, fmaxf(10.0f, 220.0f * pe), 10.0f, fill);
     }
@@ -490,7 +494,7 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
         UI_RoundRect(sbX, sbTop, 3.0f, sbH, 1.5f, track);
         float thumbH = sbH * (float)FL_VISIBLE / (float)n;
         float thumbY = sbTop + sbH * (float)s_scrollTop / (float)n;
-        UI_RoundRect(sbX, thumbY, 3.0f, thumbH, 1.5f, g_theme.accent);
+        UI_RoundRect(sbX, thumbY, 3.0f, thumbH, 1.5f, UI_AccentAnim());
     }
 
     /* 1.5.0 rodape cakeOS: UMA pilula accent CENTRALIZADA e compacta, com uma
@@ -498,7 +502,7 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
      * do accent) + o rotulo "aplicar no sistema". Sem o "previa ao navegar"
      * solto do lado (era feio e quebrava a estetica). */
     {
-        ColorRGBA pillC = g_theme.accent;
+        ColorRGBA pillC = UI_AccentAnim();
         ColorRGBA txtC = themeContrastText(pillC);
         const char* lbl = T(STR_HELP_FONTS_X);
         float sc = 0.24f;

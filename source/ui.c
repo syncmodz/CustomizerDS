@@ -40,6 +40,14 @@ void UI_FontExit(void) {
     if (g_uiFont) { C2D_FontFree(g_uiFont); g_uiFont = NULL; }
 }
 
+/* 1.8.0 CAELESTIA: accent ANIMADO global (o "CAnim" -- toda mudanca de cor
+ * escorre em 300ms). Os elementos accent (foco, pilula do segmented, sliders
+ * de vel/prof, sublinha do titulo...) leem UI_AccentAnim() em vez de
+ * g_theme.accent -> ao trocar de accent, a tela inteira se transforma suave.
+ * A paleta de swatches em si continua com as cores fixas (correto). */
+static ColorTween s_accTw = {0};
+static bool s_accTwInit = false;
+
 void uiFrameTick(float dt) {
     if (dt <= 0.0f || dt > 0.25f) dt = 1.0f / 60.0f;
     s_dt = dt;
@@ -48,6 +56,14 @@ void uiFrameTick(float dt) {
     g_frame = s_frame;
     if (g_enterT < 1.0f) g_enterT = approach(g_enterT, 1.0f, 2.1f * dt);
     if (g_trans.active) transitionUpdate(&g_trans, dt);
+    if (!s_accTwInit) { colorTweenStart(&s_accTw, g_theme.accent, g_theme.accent, DUR_EFFECTS_SLOW, EASE_EFF_SLOW); s_accTw.active = false; s_accTwInit = true; }
+    colorTweenTo(&s_accTw, g_theme.accent); /* auto-update; so reinicia se mudou */
+}
+
+/* accent animado (300ms) -- alpha 255. */
+ColorRGBA UI_AccentAnim(void) {
+    if (!s_accTwInit) return g_theme.accent;
+    ColorRGBA c = colorTweenValue(&s_accTw); c.a = 255; return c;
 }
 
 float uiFrameTime(void) { return s_frame; }
@@ -222,7 +238,7 @@ void UI_ScreenHeader(C2D_TextBuf buf, const char* title) {
         /* 1.6.1: DETALHE -- barra accent curta sob o titulo (cresce na entrada da
          * tela), a "aba" que amarra a identidade em toda tela. */
         float grow = UI_EnterProgress();
-        ColorRGBA acc = g_theme.accent; acc.a = 255;
+        ColorRGBA acc = UI_AccentAnim(); acc.a = 255;
         UI_RoundRect(24.0f, 66.0f, 34.0f * grow, 3.0f, 1.5f, acc);
     }
 }
@@ -249,7 +265,7 @@ void UI_ScreenHeader(C2D_TextBuf buf, const char* title) {
  * Funciona sem caso especial para os degenerados:
  *  - pill/stadium exato (r=h/2): os 4 cantos formam as 2 semicapsulas certas;
  *  - circulo perfeito (w=h=2r): os 4 centros de canto coincidem no meio. */
-#define UI_ROUNDRECT_ARC_SEGS 8
+#define UI_ROUNDRECT_ARC_SEGS 16 /* 1.8.0 CAELESTIA: cantos vetoriais (fallback) mais lisos */
 
 void UI_RoundRect(float x, float y, float w, float h, float r, ColorRGBA color) {
     if (w <= 0.0f || h <= 0.0f) return;
@@ -439,8 +455,8 @@ static inline float uiChromeScale(C2D_Font font) { return font ? 1.0f : UI_TEXT_
  * desenhado por cima e continua legivel. Le como um estado "selecionado"
  * premium (estilo iOS/cakeOS), nao um contorno vazio. */
 static void focusRingDraw(float x, float y, float w, float h, float r) {
-    ColorRGBA acc = g_theme.accent; acc.a = 255;
-    ColorRGBA soft = g_theme.accent; soft.a = themeIsDark() ? 46 : 40; /* ~18% */
+    ColorRGBA acc = UI_AccentAnim(); acc.a = 255;
+    ColorRGBA soft = acc; soft.a = themeIsDark() ? 46 : 40; /* ~18% */
     UI_RoundRect(x, y, w, h, r, soft);         /* preenchimento suave */
     if (UI_AssetsReady()) UI_Ring(x, y, w, h, r, acc); /* borda AA nitida por cima */
     else UI_RoundFrame(x, y, w, h, r, soft, acc);
@@ -474,15 +490,15 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
             fL = nL; fT = nT; fR = nR; fB = nB; fr_ = r; /* snap */
             tw_.active = false;
         } else {
-            tweenStart(&tw_, 0.0f, 1.0f, 0.16f, EASE_LINEAR); /* progresso bruto; curvas por-aresta abaixo */
+            tweenStart(&tw_, 0.0f, 1.0f, DUR_SPATIAL_FAST, EASE_LINEAR); /* 1.8.0 CAELESTIA: 0.35s */
         }
     }
     tweenUpdate(&tw_, uiFrameDt());
 
     if (tw_.active) {
         float p = tweenValue(&tw_);
-        float lead  = easeFunc(p, EASE_EXPR_SPATIAL); /* lider com molinha leve */
-        float trail = easeFunc(p, EASE_EMPH_DECEL);   /* aresta de tras */
+        float lead  = easeFunc(p, EASE_EXPR_FAST);  /* 1.8.0 CAELESTIA: lider FastSpatial (molinha) */
+        float trail = easeFunc(p, EASE_EMPH_DECEL); /* aresta de tras */
         if (tL >= fL) { cL = lerpf(fL, tL, trail); cR = lerpf(fR, tR, lead); }
         else          { cL = lerpf(fL, tL, lead);  cR = lerpf(fR, tR, trail); }
         if (tT >= fT) { cT = lerpf(fT, tT, trail); cB = lerpf(fB, tB, lead); }
@@ -494,6 +510,38 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
 
     const float p3 = 3.0f;
     focusRingDraw(cL - p3, cT - p3, (cR - cL) + 2.0f * p3, (cB - cT) + 2.0f * p3, cr_ + p3);
+}
+
+/* ===== 1.8.0 motor CAELESTIA ===== */
+
+/* pop-in caelestia: painel 0.80->1 (AppList/TrayMenu), item 0.90->1. Escala com
+ * EXPR_SPATIAL (a molinha do overshoot), alpha com EFF_DEFAULT (sem overshoot). */
+void UI_PopIn(float p, int type, float* outScale, float* outAlpha) {
+    float pc = clampf(p, 0.0f, 1.0f);
+    float from = (type == 0) ? 0.80f : 0.90f;
+    float e = easeFunc(pc, EASE_EXPR_SPATIAL);
+    if (outScale) *outScale = from + (1.0f - from) * e;
+    if (outAlpha) *outAlpha = easeFunc(pc, EASE_EFF_DEFAULT);
+}
+
+/* PressFx (StateLayer): overlay branco 10% que surge no press e faz fade em
+ * 300ms (EASE_EFF_SLOW) ao soltar. 1 card fino tintado -> barato. */
+void pressFxTrigger(PressFx* p, float x, float y, float w, float h, float r) {
+    p->t = 0.0f; p->held = true; p->x = x; p->y = y; p->w = w; p->h = h; p->r = r;
+}
+void pressFxUpdate(PressFx* p, float dt, bool stillHeld) {
+    if (!stillHeld) p->held = false;
+    p->t += dt;
+}
+void pressFxDraw(const PressFx* p) {
+    if (p->w <= 0.0f) return;
+    if (p->t > DUR_EFFECTS_SLOW && !p->held) return;
+    float a = p->held ? 0.10f
+                      : 0.10f * (1.0f - easeFunc(clampf(p->t / DUR_EFFECTS_SLOW, 0.0f, 1.0f), EASE_EFF_SLOW));
+    if (a <= 0.004f) return;
+    ColorRGBA white = {254, 254, 254, (u8)(a * 255.0f)}; /* 0xFE evita bug de blend do branco puro */
+    if (UI_AssetsReady()) UI_NineCard(p->x, p->y, p->w, p->h, p->r, white);
+    else UI_RoundRect(p->x, p->y, p->w, p->h, p->r, white);
 }
 
 /* Largura REAL do texto como sera desenhado (fonte/escala do chrome) -- pra
@@ -716,13 +764,14 @@ bool popupConfirmInput(PopupModal* p, const AppInput* in) {
 
 void popupRender(C2D_TextBuf buf, PopupModal* p) {
     if (!p->active) return;
-    /* 1.4.0 §FLUIDEZ: pop-in END4 -- abre escalando 92%->100% + fade com
-     * emphasizedDecel (nao de 0.6, nao easeOutBack); fecha indo a 94% + fade
-     * com emphasizedAccel. O scrim faz fade junto. */
-    float openE = easeFunc(p->animT, EASE_EMPH_DECEL);
+    /* 1.8.0 CAELESTIA: pop-in de painel 0.80->1.00 (TrayMenu scale 0.8->1) com
+     * EXPR_SPATIAL (molinha); alpha sem overshoot (EFF_DEFAULT). Fecha a 0.94 +
+     * fade com emphasizedAccel. */
+    float openScale, openAlpha;
+    UI_PopIn(p->animT, 0, &openScale, &openAlpha);
     float closeE = easeFunc(p->closeT, EASE_EMPH_ACCEL);
-    float scale = p->closing ? lerpf(1.0f, 0.94f, closeE) : lerpf(0.92f, 1.0f, openE);
-    float alpha = p->closing ? (1.0f - closeE) : openE;
+    float scale = p->closing ? lerpf(1.0f, 0.94f, closeE) : openScale;
+    float alpha = p->closing ? (1.0f - closeE) : openAlpha;
     float scrimT = p->closing ? alpha : fminf(p->bgAlpha, 1.0f);
 
     ColorRGBA bgDim = {0, 0, 0, (u8)(140 * scrimT)};
@@ -889,7 +938,7 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
     /* 1.6.1: FOCO integrado no controle (o aro fino externo era feio). Focado =
      * trilho TINGIDO de accent (sem nenhum contorno solto) -- indica foco de
      * dentro, sem cobrir a pilula selecionada nem repetir o aro que o dono odeia. */
-    if (focused) baseBg = themeMix(baseBg, g_theme.accent, themeIsDark() ? 0.22f : 0.18f);
+    if (focused) baseBg = themeMix(baseBg, UI_AccentAnim(), themeIsDark() ? 0.22f : 0.18f);
 
     UI_Shadow(x, y, w, h, r, 15, 1.0f);
     if (UI_AssetsReady()) {
@@ -906,25 +955,22 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
         tweenStart(morphTween, targetX, targetX, 0.001f, EASE_LINEAR);
         tweenUpdate(morphTween, 1.0f);
     } else if (fabsf(morphTween->to - targetX) > 0.5f) {
-        /* Spring suave (spec v5 7): pedido explicito p/ o lozenge do LED, e
-         * aplicado aqui no componente compartilhado pois Tema/LED usam a
-         * mesma UI_TouchBarSegmented -- settle organico em vez do
-         * easeOutBack seco anterior. */
-        tweenStart(morphTween, tweenValue(morphTween), targetX, 0.28f, EASE_EXPR_SPATIAL);
+        /* 1.8.0 CAELESTIA: a pilula desliza em FastSpatial (0.35s, molinha). */
+        tweenStart(morphTween, tweenValue(morphTween), targetX, DUR_SPATIAL_FAST, EASE_EXPR_FAST);
     }
     tweenUpdate(morphTween, uiFrameDt());
     float curX = tweenValue(morphTween);
 
     /* Pilula do selecionado solida (nao mais um tingimento de baixa opacidade
      * que quase desaparecia contra o trilho) -- feedback de selecao inequivoco. */
-    ColorRGBA selBg = g_theme.accent;
+    ColorRGBA selBg = UI_AccentAnim(); /* 1.8.0 CAELESTIA: cor escorre ao trocar accent */
     UI_Shadow(curX + 2, y + 2, segW - 4, h - 4, r - 2, 20, 1.0f);
     if (UI_AssetsReady()) UI_NinePill(curX + 2, y + 2, segW - 4, h - 4, selBg);
     else UI_RoundRect(curX + 2, y + 2, segW - 4, h - 4, r - 2, selBg);
 
     for (int i = 0; i < count; i++) {
         float cx = x + segW * i + segW * 0.5f;
-        ColorRGBA tc = (i == selected) ? themeContrastText(g_theme.accent) : g_theme.textSecondary;
+        ColorRGBA tc = (i == selected) ? themeContrastText(selBg) : g_theme.textSecondary;
         UI_TextCenter(buf, NULL, labels[i], cx, y + (h - 14) * 0.5f, 0.26f, 0.26f, tc);
     }
 }

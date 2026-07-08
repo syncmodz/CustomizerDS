@@ -4,6 +4,8 @@
 #include <3ds.h>
 #include <stdbool.h>
 #include <math.h>
+#include "theme.h"        /* ColorRGBA + themeMix (p/ ColorTween) */
+#include "motion_tokens.h"
 
 typedef enum {
     EASE_LINEAR = 0,
@@ -30,7 +32,17 @@ typedef enum {
     EASE_EXPR_SPATIAL,   /* cubic-bezier(0.38,1.21,0.22,1.00) overshoot leve */
     EASE_EXPR_FAST,      /* cubic-bezier(0.42,1.67,0.21,0.90) overshoot forte */
     EASE_MENU_DECEL,     /* cubic-bezier(0.10,1.00,0.00,1.00) abrir painel */
+    /* 1.8.0 motor CAELESTIA: familia que faltava (tokens.hpp conferido). */
+    EASE_EXPR_SLOW_SPATIAL, /* (0.39,1.29,0.35,0.98) 650ms */
+    EASE_EFF_FAST,          /* (0.31,0.94,0.34,1.00) 150ms */
+    EASE_EFF_DEFAULT,       /* (0.34,0.80,0.34,1.00) 200ms alpha */
+    EASE_EFF_SLOW,          /* (0.34,0.88,0.34,1.00) 300ms  <- curva de COR */
+    EASE_STANDARD,          /* (0.20,0,0,1.00) */
+    EASE_EMPHASIZED,        /* M3 emphasized, 2 segmentos (piecewise) */
 } EaseType;
+
+/* M3 "emphasized" (2 beziers emendados) -- transicoes grandes de tela. */
+float easeEmphasized(float x);
 
 /* Avaliador de cubic-bezier 4-pontos com P0=(0,0) e P3=(1,1) (igual CSS/
  * Hyprland): recebe t=tempo (eixo x, 0..1), resolve o parametro e devolve y.
@@ -88,5 +100,26 @@ void tweenStart(Tween* tw, float from, float to, float duration, EaseType ease);
 void tweenUpdate(Tween* tw, float dt);
 float tweenValue(Tween* tw);
 bool tweenDone(Tween* tw);
+
+/* ===== 1.8.0 motor CAELESTIA ===== */
+
+/* ColorTween = o "CAnim" do caelestia (StyledRect: Behavior on color { CAnim {} }).
+ * Toda mudanca de cor deve passar por aqui -- cor NUNCA pula, escorre em 300ms
+ * (EASE_EFF_SLOW). Uso tipico: colorTweenTo(&ct, novaCor) e desenhar com
+ * colorTweenValue(&ct). */
+typedef struct { ColorRGBA from, to; float t, duration; EaseType ease; bool active; } ColorTween;
+void colorTweenStart(ColorTween* ct, ColorRGBA from, ColorRGBA to, float duration, EaseType ease);
+void colorTweenUpdate(ColorTween* ct, float dt);
+ColorRGBA colorTweenValue(const ColorTween* ct);
+/* Helper padrao caelestia: parte da cor atual, vai pra `to` em 300ms EASE_EFF_SLOW.
+ * Chamar TODO frame com o alvo atual -- so reinicia quando o alvo muda. */
+void colorTweenTo(ColorTween* ct, ColorRGBA to);
+
+/* RectMorph = foco/painel que interpola x,y,w,h com RETARGET (parte sempre do
+ * valor atual, entao input rapido no D-pad nao trava nem salta). */
+typedef struct { Tween x, y, w, h; bool init; } RectMorph;
+void rectMorphSnap(RectMorph* m, float x, float y, float w, float h);
+void rectMorphTo(RectMorph* m, float x, float y, float w, float h, float dur, EaseType ease);
+void rectMorphUpdate(RectMorph* m, float dt);
 
 #endif

@@ -1,4 +1,5 @@
 #include "anim.h"
+#include "ui.h"  /* uiFrameDt() p/ colorTweenTo auto-update */
 
 float easeFunc(float t, EaseType type) {
     if (t <= 0.0f) return 0.0f;
@@ -36,7 +37,30 @@ float easeFunc(float t, EaseType type) {
         case EASE_EXPR_SPATIAL: return cubicBezier(0.38f, 1.21f, 0.22f, 1.00f, t);
         case EASE_EXPR_FAST:    return cubicBezier(0.42f, 1.67f, 0.21f, 0.90f, t);
         case EASE_MENU_DECEL:   return cubicBezier(0.10f, 1.00f, 0.00f, 1.00f, t);
+        /* 1.8.0 motor CAELESTIA (tokens.hpp). */
+        case EASE_EXPR_SLOW_SPATIAL: return cubicBezier(0.39f, 1.29f, 0.35f, 0.98f, t);
+        case EASE_EFF_FAST:     return cubicBezier(0.31f, 0.94f, 0.34f, 1.00f, t);
+        case EASE_EFF_DEFAULT:  return cubicBezier(0.34f, 0.80f, 0.34f, 1.00f, t);
+        case EASE_EFF_SLOW:     return cubicBezier(0.34f, 0.88f, 0.34f, 1.00f, t);
+        case EASE_STANDARD:     return cubicBezier(0.20f, 0.00f, 0.00f, 1.00f, t);
+        case EASE_EMPHASIZED:   return easeEmphasized(t);
         default: return t;
+    }
+}
+
+/* M3 "emphasized" real do caelestia (tokens.hpp m_emphasized):
+ * seg1: P0(0,0) C1(0.05,0) C2(2/15,0.06) P3(1/6,0.4);
+ * seg2: P0(1/6,0.4) C1(5/24,0.82) C2(0.25,1) P3(1,1). Cada segmento
+ * re-escalado p/ [0,1]x[0,1] e avaliado por cubicBezier. */
+float easeEmphasized(float x) {
+    if (x <= 0.0f) return 0.0f;
+    if (x >= 1.0f) return 1.0f;
+    if (x < 1.0f / 6.0f) {
+        float u = x / (1.0f / 6.0f);
+        return 0.4f * cubicBezier(0.30f, 0.00f, 0.80f, 0.15f, u);
+    } else {
+        float u = (x - 1.0f / 6.0f) / (5.0f / 6.0f);
+        return 0.4f + 0.6f * cubicBezier(0.05f, 0.70f, 0.10f, 1.00f, u);
     }
 }
 
@@ -172,4 +196,51 @@ float tweenValue(Tween* tw) {
 
 bool tweenDone(Tween* tw) {
     return !tw->active;
+}
+
+/* ===== 1.8.0 motor CAELESTIA ===== */
+
+void colorTweenStart(ColorTween* ct, ColorRGBA from, ColorRGBA to, float duration, EaseType ease) {
+    ct->from = from; ct->to = to; ct->t = 0.0f;
+    ct->duration = (duration > 0.0001f) ? duration : 0.0001f;
+    ct->ease = ease; ct->active = true;
+}
+void colorTweenUpdate(ColorTween* ct, float dt) {
+    if (!ct->active) return;
+    ct->t += dt;
+    if (ct->t >= ct->duration) { ct->t = ct->duration; ct->active = false; }
+}
+ColorRGBA colorTweenValue(const ColorTween* ct) {
+    float p = easeFunc(clampf(ct->t / ct->duration, 0.0f, 1.0f), ct->ease);
+    return themeMix(ct->from, ct->to, p);
+}
+static bool colEq(ColorRGBA a, ColorRGBA b) {
+    return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+}
+void colorTweenTo(ColorTween* ct, ColorRGBA to) {
+    /* nao inicializado (duration 0) -> assenta direto na cor. */
+    if (ct->duration <= 0.0001f) { colorTweenStart(ct, to, to, DUR_EFFECTS_SLOW, EASE_EFF_SLOW); ct->active = false; return; }
+    if (!colEq(ct->to, to)) colorTweenStart(ct, colorTweenValue(ct), to, DUR_EFFECTS_SLOW, EASE_EFF_SLOW);
+    else colorTweenUpdate(ct, uiFrameDt());
+}
+
+void rectMorphSnap(RectMorph* m, float x, float y, float w, float h) {
+    tweenStart(&m->x, x, x, 0.0001f, EASE_LINEAR); tweenStart(&m->y, y, y, 0.0001f, EASE_LINEAR);
+    tweenStart(&m->w, w, w, 0.0001f, EASE_LINEAR); tweenStart(&m->h, h, h, 0.0001f, EASE_LINEAR);
+    tweenUpdate(&m->x, 1.0f); tweenUpdate(&m->y, 1.0f); tweenUpdate(&m->w, 1.0f); tweenUpdate(&m->h, 1.0f);
+    m->init = true;
+}
+void rectMorphTo(RectMorph* m, float x, float y, float w, float h, float dur, EaseType ease) {
+    if (!m->init) { rectMorphSnap(m, x, y, w, h); return; }
+    /* retarget: parte sempre do valor ATUAL (input rapido nao trava/salta). */
+    if (fabsf(m->x.to - x) > 0.5f || fabsf(m->y.to - y) > 0.5f ||
+        fabsf(m->w.to - w) > 0.5f || fabsf(m->h.to - h) > 0.5f) {
+        tweenStart(&m->x, tweenValue(&m->x), x, dur, ease);
+        tweenStart(&m->y, tweenValue(&m->y), y, dur, ease);
+        tweenStart(&m->w, tweenValue(&m->w), w, dur, ease);
+        tweenStart(&m->h, tweenValue(&m->h), h, dur, ease);
+    }
+}
+void rectMorphUpdate(RectMorph* m, float dt) {
+    tweenUpdate(&m->x, dt); tweenUpdate(&m->y, dt); tweenUpdate(&m->w, dt); tweenUpdate(&m->h, dt);
 }

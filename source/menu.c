@@ -61,8 +61,10 @@ static void pillFocusInit(void) {
  * era demais pro tamanho do pill na home, por isso 1.08). */
 static void pillFocusChange(int oldSel, int newSel) {
     if (oldSel == newSel) return;
-    tweenStart(&s_pillFocusTween[oldSel], tweenValue(&s_pillFocusTween[oldSel]), 1.0f, 0.16f, EASE_IN_OUT_CUBIC);
-    tweenStart(&s_pillFocusTween[newSel], tweenValue(&s_pillFocusTween[newSel]), 1.08f, 0.16f, EASE_IN_OUT_CUBIC);
+    /* 1.8.0 CAELESTIA: micro-escala do tile no timing FastSpatial (0.35s) com
+     * molinha leve (EXPR_SPATIAL), casando com o anel de foco morphing. */
+    tweenStart(&s_pillFocusTween[oldSel], tweenValue(&s_pillFocusTween[oldSel]), 1.0f, DUR_SPATIAL_FAST, EASE_EXPR_SPATIAL);
+    tweenStart(&s_pillFocusTween[newSel], tweenValue(&s_pillFocusTween[newSel]), 1.06f, DUR_SPATIAL_FAST, EASE_EXPR_SPATIAL);
 }
 
 /* Sol/lua dinamico: o item "Tema" mostra lua no Escuro e sol no Claro. O

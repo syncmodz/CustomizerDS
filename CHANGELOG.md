@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.8.0
+Caelestia motion engine — the shape/feel language from caelestia-dots/shell
+ported from its source (tokens.hpp / Anim / StateLayer / StyledRect), no logic
+touched.
+- **Real M3 curves**: added the full Material-3 expressive family from
+  caelestia's tokens (the 2-segment `emphasized`, plus the Effects family for
+  color/alpha vs the Spatial family for motion).
+- **Focus is now morphing at caelestia speed** (0.35s FastSpatial with the
+  spring), with retarget so fast D-pad input never sticks — across every screen.
+- **Color never jumps anymore**: a global animated accent (300ms, caelestia's
+  "CAnim") drives the focus, the segmented pills, the LED speed/depth sliders,
+  the title underline and the fonts button — change the accent and the whole UI
+  flows into the new color.
+- **Pop-in** on dialogs (0.80→1.0 with the expressive spring, like caelestia's
+  panels) and the tab transition now rides the M3 `emphasized` curve.
+- **Install screen**: the progress bar now flows accent→green at 100% (animated,
+  not a hard switch) and the check pops in on FastSpatial.
+- **Smoother corners** everywhere (fallback vector rounding bumped to 16 segs;
+  surfaces already use the 9-slice AA sheet).
+- **Calm idle**: the LED ring breathes in Pulse mode.
+
 ## 1.7.0
 Selection indicator redesigned + more visible detail across every screen.
 - **New selection indicator** — the thin hollow accent ring is gone. Selection
