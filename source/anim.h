@@ -115,11 +115,4 @@ ColorRGBA colorTweenValue(const ColorTween* ct);
  * Chamar TODO frame com o alvo atual -- so reinicia quando o alvo muda. */
 void colorTweenTo(ColorTween* ct, ColorRGBA to);
 
-/* RectMorph = foco/painel que interpola x,y,w,h com RETARGET (parte sempre do
- * valor atual, entao input rapido no D-pad nao trava nem salta). */
-typedef struct { Tween x, y, w, h; bool init; } RectMorph;
-void rectMorphSnap(RectMorph* m, float x, float y, float w, float h);
-void rectMorphTo(RectMorph* m, float x, float y, float w, float h, float dur, EaseType ease);
-void rectMorphUpdate(RectMorph* m, float dt);
-
 #endif

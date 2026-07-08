@@ -279,7 +279,14 @@ int main() {
 
         if (transActive) {
             transClock += dt;
-            if (transClock >= transDuration(currentTrans)) transActive = false;
+            if (transClock >= transDuration(currentTrans)) {
+                transActive = false;
+                /* 1.9.1: ao FIM da transicao, forca o foco a snapar no item final
+                 * da tela nova. O reset no inicio nao bastava: o layout (scroll da
+                 * lista etc.) ainda assentava durante a transicao, e o foco entao
+                 * "viajava" ate a posicao final no 1o frame de render direto. */
+                UI_FocusRingReset();
+            }
         }
 
         /* §2: relogio do handoff boot->home. */

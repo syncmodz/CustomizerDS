@@ -24,6 +24,7 @@ static C2D_Font s_stockPreview = NULL;
 /* 1.5.0: rolagem FLUIDA -- s_scrollTop e o alvo (inteiro), s_scrollAnim segue
  * suave em "linhas" fracionarias, entao a lista desliza em vez de saltar. */
 static float s_scrollAnim = 0.0f;
+static float s_scrollVel = 0.0f;   /* 1.9.1: escopo de arquivo p/ snapar no init */
 static bool s_sysfontPending = false; /* §5: o popup atual e de FONTE DE SISTEMA */
 
 /* Geometria da lista AGRUPADA de fontes (espec v20; render + toque iguais):
@@ -174,6 +175,11 @@ static void fontsCopyToSD(void) {
 void fontsInit(void) {
     s_selected = clampi(g_fonts.currentIndex, 0, fontsCount() - 1);
     s_popup.active = false;
+    /* 1.9.1: SNAP do scroll ao entrar -- a lista ja nasce assentada, as linhas
+     * nao deslizam depois da transicao (era isso que fazia o foco "viajar"). */
+    fontsClampScroll();
+    s_scrollAnim = (float)s_scrollTop;
+    s_scrollVel = 0.0f;
     fontsCopyToSD(); /* PART 4.1: garante as fontes no SD (1x; pula as ja copiadas) */
 }
 
@@ -415,7 +421,6 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
     /* 1.6.0: rolagem com MOLA (leve overshoot organico) em vez do glide
      * exponencial seco -- da o "peso" de motion design ao descer a lista. */
     {
-        static float s_scrollVel = 0.0f;
         float dt = uiFrameDt();
         float target = (float)s_scrollTop;
         float diff = target - s_scrollAnim;

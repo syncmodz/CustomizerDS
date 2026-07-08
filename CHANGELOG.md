@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.9.1
+- **The selection indicator is born parked** now — really this time. The focus
+  is snapped at the *end* of the tab transition (the list layout was still
+  settling during the transition, which is what made it "travel"), and the fonts
+  list scroll now snaps on entry so the rows don't slide underneath it.
+- **HEX shadow fixed at the source**: regenerated the shadow sprite so it's
+  symmetric (the old one had the blur baked off-center); the downward offset is
+  now done in code, so thin elements no longer smudge.
+- **Reworked the easing** on focus / segmented pill / swatch ring — gentler
+  spring (no more the strong 1.67 overshoot that read as wobbly), and faster
+  (0.24–0.26s) so it feels responsive, not laggy.
+- **Cleanup**: removed dead code left over from earlier redesigns (unused glow
+  helpers, old touch-bar/stat-chip/mini-window widgets, an unused rect-morph
+  helper).
+
 ## 1.9.0
 Surgical polish of the caelestia motion engine.
 - **The selection indicator no longer travels when you enter a tab** — it now

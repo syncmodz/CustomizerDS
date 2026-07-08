@@ -181,11 +181,8 @@ void UI_NineCard(float x, float y, float w, float h, float r, ColorRGBA tint) {
 void UI_NinePill(float x, float y, float w, float h, ColorRGBA tint) {
     UI_NineSliceImg(ui9img(ui9_gen_pill9_3x_idx), x, y, w, h, 22.0f, h * 0.5f, tint);
 }
-void UI_NineFocus(float x, float y, float w, float h, float r, ColorRGBA tint) {
-    UI_NineSliceImg(ui9img(ui9_gen_focus9_3x_idx), x, y, w, h, 40.0f, r, tint);
-}
 void UI_NineShadow(float x, float y, float w, float h, float r, ColorRGBA tint) {
-    UI_NineSliceImg(ui9img(ui9_gen_shadow9_3x_idx), x, y, w, h, 46.0f, r, tint);
+    UI_NineSliceImg(ui9img(ui9_gen_shadow9_3x_idx), x, y, w, h, 40.0f, r, tint); /* 1.9.1: sprite simetrico */
 }
 /* 1.4.0 §SEM-GLOW: anel NÍTIDO (ring9 = contorno AA puro, centro transparente,
  * ZERO halo) tintado -- foco/seleção. Preenche (x,y,w,h) com a borda no
@@ -196,15 +193,6 @@ void UI_Ring(float x, float y, float w, float h, float r, ColorRGBA tint) {
 
 /* Glow radial (substitui os circulos translucidos empilhados -- 1 sprite =
  * menos overdraw). (cx,cy)=centro; diameter = lado do quadrado; tint accent. */
-void UI_Glow(float cx, float cy, float diameter, ColorRGBA tint) {
-    C2D_Image img = ui9img(ui9_gen_glow_radial_3x_idx);
-    if (!img.tex || !img.subtex || diameter <= 0.0f) return;
-    C2D_ImageTint tn;
-    C2D_PlainImageTint(&tn, C2D_Color32(tint.r, tint.g, tint.b, tint.a), 1.0f);
-    float scale = diameter / (float)img.subtex->width;
-    C2D_DrawImageAt(img, cx - diameter * 0.5f, cy - diameter * 0.5f, 0.0f, &tn, scale, scale);
-}
-
 /* Marca de sucesso (fim da instalacao de fonte). (cx,cy)=centro; size = lado. */
 void UI_Check(float cx, float cy, float size, ColorRGBA tint) {
     C2D_Image img = ui9img(ui9_gen_check_3x_idx);
@@ -533,15 +521,15 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
             tw_.active = false;
             s_focusForceSnap = false;
         } else {
-            tweenStart(&tw_, 0.0f, 1.0f, DUR_SPATIAL_FAST, EASE_LINEAR); /* 1.8.0 CAELESTIA: 0.35s */
+            tweenStart(&tw_, 0.0f, 1.0f, 0.24f, EASE_LINEAR); /* 1.9.1: 0.24s (0.35 lia lento) */
         }
     }
     tweenUpdate(&tw_, uiFrameDt());
 
     if (tw_.active) {
         float p = tweenValue(&tw_);
-        float lead  = easeFunc(p, EASE_EXPR_FAST);  /* 1.8.0 CAELESTIA: lider FastSpatial (molinha) */
-        float trail = easeFunc(p, EASE_EMPH_DECEL); /* aresta de tras */
+        float lead  = easeFunc(p, EASE_EXPR_SPATIAL); /* 1.9.1: overshoot GENTIL (1.21), nao o 1.67 wobbly */
+        float trail = easeFunc(p, EASE_EMPH_DECEL);   /* aresta de tras */
         if (tL >= fL) { cL = lerpf(fL, tL, trail); cR = lerpf(fR, tR, lead); }
         else          { cL = lerpf(fL, tL, lead);  cR = lerpf(fR, tR, trail); }
         if (tT >= fT) { cT = lerpf(fT, tT, trail); cB = lerpf(fB, tB, lead); }
@@ -946,24 +934,6 @@ void UI_TouchBarPill(C2D_TextBuf buf, float x, float y, float w, float h,
     UI_TextCenter(buf, NULL, label, cx, cy, 0.26f, 0.26f, textCol);
 }
 
-void UI_TouchBarRow(C2D_TextBuf buf, const char** labels, const char** icons,
-                    int count, int selected, float baseY, float baseAppear) {
-    float gap = 8.0f;
-    float totalW = SCREEN_BOT_WIDTH - 20;
-    float btnW = (totalW - gap * (count - 1)) / count;
-    btnW = fmaxf(70.0f, fminf(btnW, 130.0f));
-    float startX = (SCREEN_BOT_WIDTH - (btnW * count + gap * (count - 1))) * 0.5f;
-
-    for (int i = 0; i < count; i++) {
-        float bx = startX + i * (btnW + gap);
-        float ap = clampf(baseAppear - i * 0.10f, 0.0f, 1.0f);
-        float pulse = (i == selected) ? 0.5f + 0.5f * sinf(s_frame * 4.0f) : 0.0f;
-        UI_TouchBarPill(buf, bx, baseY, btnW, 34,
-                        labels[i], icons ? icons[i] : NULL,
-                        i == selected, ap, pulse);
-    }
-}
-
 /* Segmented control v3 3.3: lozenge elevada que desliza entre as opcoes com
  * easeOutBack (nao 2+ retangulos colados). morphTween e do CHAMADOR (static
  * Tween por tela) -- antes essa funcao tinha estado interno (`static float
@@ -998,8 +968,8 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
         tweenStart(morphTween, targetX, targetX, 0.001f, EASE_LINEAR);
         tweenUpdate(morphTween, 1.0f);
     } else if (fabsf(morphTween->to - targetX) > 0.5f) {
-        /* 1.8.0 CAELESTIA: a pilula desliza em FastSpatial (0.35s, molinha). */
-        tweenStart(morphTween, tweenValue(morphTween), targetX, DUR_SPATIAL_FAST, EASE_EXPR_FAST);
+        /* 1.9.1: pilula desliza em 0.26s com overshoot GENTIL (EXPR_SPATIAL). */
+        tweenStart(morphTween, tweenValue(morphTween), targetX, 0.26f, EASE_EXPR_SPATIAL);
     }
     tweenUpdate(morphTween, uiFrameDt());
     float curX = tweenValue(morphTween);
@@ -1305,43 +1275,6 @@ void UI_NavCardFx(C2D_TextBuf buf, float x, float y, float w, float h,
     valueC.a = (u8)((float)valueC.a * alpha * valueE);
     if (label) UI_Text(buf, NULL, label, textX, y + h * 0.24f + (1.0f - labelE) * 6.0f * s, 0.20f * s, 0.20f * s, labelC);
     if (value) UI_Text(buf, NULL, value, textX, y + h * 0.54f + (1.0f - valueE) * 6.0f * s, 0.24f * s, 0.24f * s, valueC);
-}
-
-void UI_StatChip(C2D_TextBuf buf, float x, float y, float w, float h,
-                 const char* label, const char* value, ColorRGBA dot) {
-    ColorRGBA bg = themeIsDark()
-        ? (ColorRGBA){40, 40, 42, 255}
-        : (ColorRGBA){240, 240, 240, 255};
-    ColorRGBA border = {255, 255, 255, themeIsDark() ? 10 : 0};
-    if (border.a > 0) UI_RoundFrame(x, y, w, h, 10, bg, border);
-    else UI_RoundRect(x, y, w, h, 10, bg);
-
-    /* Bolinha glass Reva (v3 3.5) -- bgBehind e o fundo solido do chip
-     * desenhado acima, nao a cor de border (que pode ter alpha 0). */
-    UI_GlassDot(x + 13.5f, y + 13.5f, 4.5f, dot, bg);
-    if (label) UI_Text(buf, NULL, label, x + 22, y + 7, 0.20f, 0.20f, g_theme.textHint);
-    if (value) UI_Text(buf, NULL, value, x + 10, y + h - 22, 0.26f, 0.26f, g_theme.textPrimary);
-}
-
-void UI_MiniWindow(float x, float y, float w, float h, bool dark) {
-    ColorRGBA winBg = dark ? (ColorRGBA){30, 30, 32, 255} : (ColorRGBA){255, 255, 255, 255};
-    ColorRGBA winBorder = {255, 255, 255, dark ? 14 : 0};
-    ColorRGBA titleBg = dark ? (ColorRGBA){44, 44, 46, 255} : (ColorRGBA){234, 234, 234, 255};
-
-    UI_Shadow(x, y, w, h, 10, 35, 1.5f);
-    if (winBorder.a > 0) UI_RoundFrame(x, y, w, h, 10, winBg, winBorder);
-    else UI_RoundRect(x, y, w, h, 10, winBg);
-
-    float titleH = fminf(16.0f, h * 0.3f);
-    UI_Fill(x + 1, y + 1, w - 2, titleH, titleBg);
-
-    /* Semaforos estilo "glass" Reva (v3 3.1), igual ao UI_TopMenuBar. */
-    float r = 2.6f;
-    float cy = y + titleH * 0.5f;
-    float cx0 = x + 7 + r;
-    UI_GlassDot(cx0, cy, r, (ColorRGBA){255, 95, 87, 255}, titleBg);
-    UI_GlassDot(cx0 + (r * 2 + 3), cy, r, (ColorRGBA){255, 189, 47, 255}, titleBg);
-    UI_GlassDot(cx0 + (r * 2 + 3) * 2, cy, r, (ColorRGBA){40, 200, 65, 255}, titleBg);
 }
 
 /* Coreografia exata da spec v2 (docs/animation-spec.md 3.1):

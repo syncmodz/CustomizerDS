@@ -223,24 +223,3 @@ void colorTweenTo(ColorTween* ct, ColorRGBA to) {
     if (!colEq(ct->to, to)) colorTweenStart(ct, colorTweenValue(ct), to, DUR_EFFECTS_SLOW, EASE_EFF_SLOW);
     else colorTweenUpdate(ct, uiFrameDt());
 }
-
-void rectMorphSnap(RectMorph* m, float x, float y, float w, float h) {
-    tweenStart(&m->x, x, x, 0.0001f, EASE_LINEAR); tweenStart(&m->y, y, y, 0.0001f, EASE_LINEAR);
-    tweenStart(&m->w, w, w, 0.0001f, EASE_LINEAR); tweenStart(&m->h, h, h, 0.0001f, EASE_LINEAR);
-    tweenUpdate(&m->x, 1.0f); tweenUpdate(&m->y, 1.0f); tweenUpdate(&m->w, 1.0f); tweenUpdate(&m->h, 1.0f);
-    m->init = true;
-}
-void rectMorphTo(RectMorph* m, float x, float y, float w, float h, float dur, EaseType ease) {
-    if (!m->init) { rectMorphSnap(m, x, y, w, h); return; }
-    /* retarget: parte sempre do valor ATUAL (input rapido nao trava/salta). */
-    if (fabsf(m->x.to - x) > 0.5f || fabsf(m->y.to - y) > 0.5f ||
-        fabsf(m->w.to - w) > 0.5f || fabsf(m->h.to - h) > 0.5f) {
-        tweenStart(&m->x, tweenValue(&m->x), x, dur, ease);
-        tweenStart(&m->y, tweenValue(&m->y), y, dur, ease);
-        tweenStart(&m->w, tweenValue(&m->w), w, dur, ease);
-        tweenStart(&m->h, tweenValue(&m->h), h, dur, ease);
-    }
-}
-void rectMorphUpdate(RectMorph* m, float dt) {
-    tweenUpdate(&m->x, dt); tweenUpdate(&m->y, dt); tweenUpdate(&m->w, dt); tweenUpdate(&m->h, dt);
-}

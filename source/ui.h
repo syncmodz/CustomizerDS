@@ -84,14 +84,12 @@ void UI_NineSliceImg(C2D_Image img, float x, float y, float w, float h,
                      float srcInset, float dstCorner, ColorRGBA tint);
 void UI_NineCard(float x, float y, float w, float h, float r, ColorRGBA tint);
 void UI_NinePill(float x, float y, float w, float h, ColorRGBA tint);
-void UI_NineFocus(float x, float y, float w, float h, float r, ColorRGBA tint);
 void UI_NineShadow(float x, float y, float w, float h, float r, ColorRGBA tint);
 /* Anel nitido (contorno AA, sem halo) -- foco/seleção. Preenche o rect com a
  * borda; centro transparente. */
 void UI_Ring(float x, float y, float w, float h, float r, ColorRGBA tint);
 /* Glow radial 1-sprite (substitui circulos translucidos empilhados) e marca de
  * sucesso, ambos tintados/centrados. */
-void UI_Glow(float cx, float cy, float diameter, ColorRGBA tint);
 void UI_Check(float cx, float cy, float size, ColorRGBA tint);
 /* 1.4.0 PART3: anel circular cakeOS (contorno, sem glow) e header large-title
  * macOS (mini-emblema + eyebrow "CustomizerDS" + titulo grande à esquerda). */
@@ -172,8 +170,6 @@ typedef struct {
 
 void UI_TouchBarPill(C2D_TextBuf buf, float x, float y, float w, float h,
                      const char* label, const char* icon, bool selected, float appearT, float pulse);
-void UI_TouchBarRow(C2D_TextBuf buf, const char** labels, const char** icons,
-                    int count, int selected, float baseY, float baseAppear);
 /* morphTween: Tween estatico do CHAMADOR (uma instancia por tela que usa o
  * componente -- nao compartilhar a mesma entre Tema e LED). */
 void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
@@ -225,11 +221,8 @@ void UI_Emblem(float cx, float cy, float scale, float idleT, float alpha);
 void UI_NavCardFx(C2D_TextBuf buf, float x, float y, float w, float h,
                IconID icon, const char* label, const char* value,
                ColorRGBA dot, bool selected, float alpha, float contentReveal);
-void UI_StatChip(C2D_TextBuf buf, float x, float y, float w, float h,
-                 const char* label, const char* value, ColorRGBA dot);
 
 /* Mini "janela" reconhecivel (barra de titulo com semaforos + area de
  * conteudo na cor do tema) -- usada como preview do tema claro/escuro. */
-void UI_MiniWindow(float x, float y, float w, float h, bool dark);
 
 #endif

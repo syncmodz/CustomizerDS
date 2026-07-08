@@ -59,7 +59,6 @@ ColorRGBA themeContrastText(ColorRGBA bg);
 
 /* accent_glow do contrato de design: accent @ 35% alpha, para halo/sombra
  * do elemento ativo (docs/design-tokens.md). */
-ColorRGBA themeAccentGlow(void);
 
 /* Tokens v3: accent_soft = accent @ 14% (tint sutil Monet, halos contidos
  * dentro do raio do card) e bg_card_sel = mix(bg_card, accent, 8%) (card

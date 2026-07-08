@@ -113,12 +113,6 @@ void themeSetCustomAccent(ColorRGBA c) {
     applyTheme();
 }
 
-ColorRGBA themeAccentGlow(void) {
-    ColorRGBA c = g_theme.accent;
-    c.a = 89; /* 35% de 255 */
-    return c;
-}
-
 ColorRGBA themeAccentSoft(void) {
     ColorRGBA c = g_theme.accent;
     c.a = 36; /* 14% de 255 */

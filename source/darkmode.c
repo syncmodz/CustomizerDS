@@ -678,7 +678,7 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
         tweenStart(&s_ringTween, ringTargetX, ringTargetX, 0.001f, EASE_LINEAR);
         tweenUpdate(&s_ringTween, 1.0f);
     } else if (fabsf(s_ringTween.to - ringTargetX) > 0.5f) {
-        tweenStart(&s_ringTween, tweenValue(&s_ringTween), ringTargetX, DUR_SPATIAL_FAST, EASE_EXPR_FAST);
+        tweenStart(&s_ringTween, tweenValue(&s_ringTween), ringTargetX, 0.26f, EASE_EXPR_SPATIAL);
     }
     tweenUpdate(&s_ringTween, uiFrameDt());
     UI_RingCircle(tweenValue(&s_ringTween), 102.0f + offset, 38.0f, (ColorRGBA){255, 255, 255, 255});
