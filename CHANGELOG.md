@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.9.4
+- **Focus indicator animated in every form now**: the segmented "bar" (Light/
+  Dark, LED mode, language) is a small accent underline that **slides** under the
+  selected pill, and the accent swatch focus ring **slides** between swatches too
+  — everything is as fluid as the main chip.
+- **Fixed the Fonts list flicker**: the focus ring no longer vanishes for a few
+  frames while a row scrolls into view (it's drawn for the selected row every
+  frame instead of only when the row is >50% visible).
+
 ## 1.9.3
 - **Selection indicator now rides in WITH the tab**: it's snapped onto the
   incoming screen's texture, so it slides in already on the correct item as the

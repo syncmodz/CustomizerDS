@@ -475,9 +475,11 @@ void fontsRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fade
             ColorRGBA selBg = themeCardSelBg(); selBg.a = (u8)((float)selBg.a * a);
             if (UI_AssetsReady()) UI_NineCard(fx, fy, fw, fh, 12.0f, selBg);
             else UI_RoundRect(fx, fy, fw, fh, 12.0f, selBg);
-            /* o anel acompanha a linha deslizando (chamado todo frame com fy
-             * animado); so evita desenhar quando a linha ja esta quase saindo. */
-            if (ra > 0.5f) UI_FocusRing(fx, fy, fw, fh, 12.0f);
+            /* 1.9.4: o anel acompanha a linha deslizando -- desenhado SEMPRE (a
+             * linha selecionada esta sempre na janela quando assenta; antes o
+             * gate ra>0.5 fazia ele SUMIR por uns frames enquanto a linha entrava
+             * no scroll -- o "sumico" que o dono viu). */
+            UI_FocusRing(fx, fy, fw, fh, 12.0f);
         }
 
         ColorRGBA textCol = selected ? g_theme.textPrimary : g_theme.textSecondary;

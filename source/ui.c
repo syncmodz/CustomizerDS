@@ -991,11 +991,14 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
         UI_TextCenter(buf, NULL, labels[i], cx, y + (h - 14) * 0.5f, 0.26f, 0.26f, tc);
     }
 
-    /* 1.9.3: foco = sublinha accent curta e centrada embaixo (nao tinge o fundo). */
+    /* 1.9.4: foco = sublinha accent que DESLIZA sob a pilula selecionada (segue
+     * curX, ja tweened) -- barrinha animada estilo "tab indicator", nao tinge o
+     * fundo. Fluida e dinamica. */
     if (focused) {
         ColorRGBA acc = UI_AccentAnim(); acc.a = 255;
-        float uw = w * 0.26f;
-        UI_RoundRect(x + (w - uw) * 0.5f, y + h + 3.0f, uw, 2.5f, 1.25f, acc);
+        float uw = segW * 0.5f;
+        float ucx = curX + segW * 0.5f;
+        UI_RoundRect(ucx - uw * 0.5f, y + h + 3.0f, uw, 2.5f, 1.25f, acc);
     }
 }
 

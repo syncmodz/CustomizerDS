@@ -21,6 +21,7 @@ static Tween s_langSegTween;
 #define LANG_SEG_H 32.0f
 /* Tween do anel de selecao dos swatches de accent (desliza em X, v3 3.3). */
 static Tween s_ringTween;
+static Tween s_swatchFocusTween; /* 1.9.4: anel de foco do swatch deslizando */
 static bool s_hexEditing = false;
 static float s_hexEnterT = 0.0f;
 /* Origem do toque que abriu o popup do hex (3.3: "nasce na posicao/escala
@@ -645,14 +646,25 @@ void darkmodeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float f
             UI_RoundRect(scx - 12.0f, scy - 6.5f, 24.0f, 13.0f, 6.5f, (ColorRGBA){0, 0, 0, 165});
             UI_TextCenter(buf, NULL, "HEX", scx, scy - 5.0f, 0.16f, 0.16f, (ColorRGBA){255, 255, 255, 255});
         }
-        /* 1.6.1: foco do swatch = anel accent NITIDO por FORA do circulo (nao
-         * cobre a cor, ao contrario do chip preenchido). */
-        if (s_selected - 2 == i) {
-            ColorRGBA fa = UI_AccentAnim(); fa.a = 255;
-            float rr = r + 5.0f;
-            if (UI_AssetsReady()) UI_Ring(scx - rr, scy - rr, rr * 2.0f, rr * 2.0f, rr, fa);
-            else UI_RoundFrame(scx - rr, scy - rr, rr * 2.0f, rr * 2.0f, rr, (ColorRGBA){0, 0, 0, 0}, fa);
+    }
+
+    /* 1.9.4: anel de foco accent do swatch DESLIZA entre os swatches (antes
+     * saltava, estatico) -- mesma fluidez do resto. So o accent por FORA do
+     * circulo (nao cobre a cor). */
+    if (s_selected >= 2 && s_selected < 2 + accentTotal) {
+        float focX = 40.0f + (s_selected - 2) * 44.0f + slideX;
+        if (s_swatchFocusTween.duration <= 0.0001f) {
+            tweenStart(&s_swatchFocusTween, focX, focX, 0.001f, EASE_LINEAR);
+            tweenUpdate(&s_swatchFocusTween, 1.0f);
+        } else if (fabsf(s_swatchFocusTween.to - focX) > 0.5f) {
+            tweenStart(&s_swatchFocusTween, tweenValue(&s_swatchFocusTween), focX, 0.24f, EASE_EXPR_SPATIAL);
         }
+        tweenUpdate(&s_swatchFocusTween, uiFrameDt());
+        ColorRGBA fa = UI_AccentAnim(); fa.a = 255;
+        float rr = 19.0f;
+        float fcx = tweenValue(&s_swatchFocusTween), fcy = 102.0f + offset;
+        if (UI_AssetsReady()) UI_Ring(fcx - rr, fcy - rr, rr * 2.0f, rr * 2.0f, rr, fa);
+        else UI_RoundFrame(fcx - rr, fcy - rr, rr * 2.0f, rr * 2.0f, rr, (ColorRGBA){0, 0, 0, 0}, fa);
     }
 
     /* anel BRANCO nitido no swatch ativo, deslizando (END4) de um pro outro. */
