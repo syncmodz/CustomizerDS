@@ -453,64 +453,47 @@ void darkmodeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fade
     UI_ScreenHeader(buf, T(STR_TAB_THEME));
 
     if (s_hexEditing) {
-        /* editor de HEX: painel largo cobrindo o header enquanto edita. 1.5.0:
-         * SEM UI_Card aqui -- a sombra dura dele (halo retangular, alpha fixo)
-         * ficava "mal colocada" e escurecia a beirada no tema claro. Agora e um
-         * painel arredondado chapado, sem drop-shadow, cobrindo quase a tela. */
-        UI_RoundRect(8 + slideX, 28, 384, 202, RADIUS_CARD, g_theme.surface);
-        /* Popup 3.3 (Travel Agency): scrim 0->55% em 220ms easeOutCubic,
-         * card cresce 0.6->1.0 + opacidade 0.4->1.0 com easeOutBack(1.5),
-         * 360ms. A tela de cima nao tem um "elemento que abriu" equivalente
-         * (e um painel fisico separado da tela de baixo, onde o swatch foi
-         * tocado) -- aqui o crescimento e ancorado no proprio centro do
-         * frame de preview, que e a unica origem que faz sentido aqui. */
-        float scaleG, posE, scrimP;
+        /* 1.9.2: editor de HEX na tela de cima = CARD COMPACTO de preview (igual
+         * ao das outras telas), NO LUGAR do painel cinza gigante que cobria a
+         * tela toda e ficava quase vazio -- o "vao enorme" que o dono viu. O
+         * header fica visivel; sem scrim (o editor de verdade e a tela de baixo). */
+        float scaleG, posE;
         if (s_hexClosing) {
             float closeT = clampf(s_hexCloseT / 0.24f, 0.0f, 1.0f);
             float closeP = 1.0f - easeFunc(closeT, EASE_IN_CUBIC);
-            scaleG = closeP; posE = closeP; scrimP = closeP;
+            scaleG = closeP; posE = closeP;
         } else {
             float growT = clampf(s_hexEnterT / 0.36f, 0.0f, 1.0f);
-            scaleG = easeOutBackAmp(growT, 1.5f);
+            scaleG = easeOutBackAmp(growT, 1.4f);
             posE = easeFunc(growT, EASE_OUT_CUBIC);
-            scrimP = easeFunc(clampf(s_hexEnterT / 0.22f, 0.0f, 1.0f), EASE_OUT_CUBIC);
         }
-        u8 fa = (u8)(255 * clampf(lerpf(0.4f, 1.0f, clampf(scaleG, 0.0f, 1.0f)), 0.0f, 1.0f));
-        float hexSlide = (1.0f - posE) * 16.0f;
+        float hexSlide = (1.0f - posE) * 12.0f;
 
-        /* §4: scrim bem mais suave no CLARO -- 55% preto borrava/sujava a tela
-         * toda no modo claro; no escuro continua forte pra focar o editor. */
-        float scrimMax = themeIsDark() ? 0.55f : 0.10f;
-        ColorRGBA scrim = {0, 0, 0, (u8)(255 * scrimP * scrimMax)};
-        UI_Fill(0, 25, SCREEN_TOP_WIDTH, SCREEN_TOP_HEIGHT - 25, scrim);
+        /* card de preview compacto (24,88,352,128) com elevacao suave. */
+        float cardX = 24.0f + slideX;
+        UI_Elevation(cardX, 88.0f, 352.0f, 128.0f, 16.0f, 2, 1.0f);
+        if (UI_AssetsReady()) UI_NineCard(cardX, 88.0f, 352.0f, 128.0f, 16.0f, g_theme.surface);
+        else UI_Card(cardX, 88.0f, 352.0f, 128.0f, 16.0f, g_theme.surface);
 
-        ColorRGBA textP = g_theme.textPrimary; textP.a = fa;
-        ColorRGBA textH = g_theme.textHint; textH.a = fa;
-        ColorRGBA textS = g_theme.textSecondary; textS.a = fa;
+        ColorRGBA textP = g_theme.textPrimary;
+        ColorRGBA textH = g_theme.textHint;
+        ColorRGBA textS = g_theme.textSecondary;
 
-        UI_Text(buf, NULL, T(STR_HEX_TITLE), 32, 52 + offsetFg + hexSlide, 0.32f, 0.32f, textP);
-        UI_Text(buf, NULL, T(STR_HEX_HINT),
-                32, 76 + offsetFg + hexSlide, 0.22f, 0.22f, textH);
-        /* 1.6.0: usa a cor EXIBIDA (cross-fade) do picker, igual a tela de baixo. */
+        UI_Text(buf, NULL, T(STR_HEX_TITLE), 44.0f + slideX, 106.0f + hexSlide, 0.30f, 0.30f, textP);
+        UI_Text(buf, NULL, T(STR_HEX_HINT), 44.0f + slideX, 132.0f + hexSlide, 0.22f, 0.22f, textH);
+
+        /* preview swatch (direita), cor com cross-fade + escala de entrada. */
         ColorRGBA previewC = {(u8)(s_hexPicker.dispR + 0.5f), (u8)(s_hexPicker.dispG + 0.5f),
-                              (u8)(s_hexPicker.dispB + 0.5f), fa};
-        UI_TextCenter(buf, NULL, T(STR_PREVIEW), 308, 36 + offsetFg + hexSlide, 0.20f, 0.20f, textH);
-
-        ColorRGBA frameC = themeIsDark() ? (ColorRGBA){10, 12, 18, 255} : (ColorRGBA){225, 228, 238, 255};
-        frameC.a = fa;
-        float baseFX = 260, baseFY = 50 + offsetFg, baseFW = 96, baseFH = 96;
-        float fcx = baseFX + baseFW * 0.5f, fcy = baseFY + baseFH * 0.5f;
-        float fw = baseFW * scaleG, fh = baseFH * scaleG;
-        /* §4: sem UI_Card aqui (a sombra dura dele -- alpha 102 fixo -- borrava
-         * no claro). Moldura simples com borda sutil, sem drop shadow. */
-        ColorRGBA frameBorder = {255, 255, 255, themeIsDark() ? 12 : 30};
-        UI_RoundFrame(fcx - fw * 0.5f, fcy - fh * 0.5f, fw, fh, 14 * clampf(scaleG, 0.0f, 1.0f), frameC, frameBorder);
-        float iw = 80 * scaleG, ih = 80 * scaleG;
-        UI_RoundRect(fcx - iw * 0.5f, fcy - ih * 0.5f, iw, ih, 10 * clampf(scaleG, 0.0f, 1.0f), previewC);
+                              (u8)(s_hexPicker.dispB + 0.5f), 255};
+        float scx = 306.0f + slideX, scy = 148.0f;
+        float sw = 84.0f * scaleG, sh = 84.0f * scaleG;
+        UI_Elevation(scx - sw * 0.5f, scy - sh * 0.5f, sw, sh, 14.0f, 1, 1.0f);
+        UI_RoundRect(scx - sw * 0.5f, scy - sh * 0.5f, sw, sh, 14.0f * clampf(scaleG, 0.0f, 1.0f), previewC);
 
         char hexLabel[10];
         snprintf(hexLabel, sizeof(hexLabel), "#%s", s_hexPicker.hex_input);
-        UI_TextCenter(buf, NULL, hexLabel, 308, 156 + offsetFg + hexSlide, 0.28f, 0.28f, textS);
+        UI_TextCenter(buf, NULL, hexLabel, scx, 198.0f, 0.26f, 0.26f, textS);
+
         if (fadeA < 0.999f) {
             ColorRGBA veil = g_theme.backgroundTop;
             veil.a = (u8)(255 * (1.0f - clampf(fadeA, 0.0f, 1.0f)));

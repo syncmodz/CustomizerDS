@@ -507,21 +507,24 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
     }
 
     bool targetMoved = (fabsf(nL - tL) + fabsf(nT - tT) + fabsf(nR - tR) + fabsf(nB - tB)) > 0.5f;
-    /* FIX1: reset pedido mas alvo coincide (nao "moveu") -> snapa e limpa aqui. */
-    if (s_focusForceSnap && !targetMoved) {
-        fL = cL = tL; fT = cT = tT; fR = cR = tR; fB = cB = tB; fr_ = cr_ = tr_;
-        tw_.active = false; s_focusForceSnap = false;
-    }
-    if (targetMoved) {
+    if (s_focusForceSnap) {
+        /* 1.9.2: ENTRAR na tela = POP-IN super rapido no item (0.11s), NAO
+         * teleporte (que o dono achou pior) nem viagem da tela anterior. Nasce
+         * levemente encolhido no proprio alvo e assenta com micro-overshoot. */
+        float ins = 7.0f;
+        tL = nL; tT = nT; tR = nR; tB = nB; tr_ = r;
+        fL = cL = nL + ins; fT = cT = nT + ins; fR = cR = nR - ins; fB = cB = nB - ins; fr_ = cr_ = r;
+        tweenStart(&tw_, 0.0f, 1.0f, 0.11f, EASE_LINEAR);
+        s_focusForceSnap = false;
+    } else if (targetMoved) {
         float jump = fabsf(nL - cL) + fabsf(nT - cT);
         fL = cL; fT = cT; fR = cR; fB = cB; fr_ = cr_;
         tL = nL; tT = nT; tR = nR; tB = nB; tr_ = r;
-        if (s_focusForceSnap || jump > 300.0f || transitionActive(&g_trans)) {
-            fL = nL; fT = nT; fR = nR; fB = nB; fr_ = r; /* snap (nasce parado) */
+        if (jump > 300.0f || transitionActive(&g_trans)) {
+            fL = nL; fT = nT; fR = nR; fB = nB; fr_ = r; /* snap: salto grande/transicao */
             tw_.active = false;
-            s_focusForceSnap = false;
         } else {
-            tweenStart(&tw_, 0.0f, 1.0f, 0.24f, EASE_LINEAR); /* 1.9.1: 0.24s (0.35 lia lento) */
+            tweenStart(&tw_, 0.0f, 1.0f, 0.24f, EASE_LINEAR); /* 1.9.1: 0.24s */
         }
     }
     tweenUpdate(&tw_, uiFrameDt());

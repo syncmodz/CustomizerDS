@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.2
+- **HEX screen top redone**: the big empty gray panel (the "void") is gone —
+  the top now shows a compact preview card like every other screen, with the
+  swatch and hex value, header stays visible.
+- **Selection indicator: no more teleport**. On entering a tab it now does a
+  super-fast pop-in (~0.11s) right on the item instead of snapping instantly or
+  travelling from the previous screen.
+
 ## 1.9.1
 - **The selection indicator is born parked** now — really this time. The focus
   is snapped at the *end* of the tab transition (the list layout was still
