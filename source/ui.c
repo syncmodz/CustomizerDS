@@ -508,13 +508,14 @@ void UI_FocusRing(float x, float y, float w, float h, float r) {
 
     bool targetMoved = (fabsf(nL - tL) + fabsf(nT - tT) + fabsf(nR - tR) + fabsf(nB - tB)) > 0.5f;
     if (s_focusForceSnap) {
-        /* 1.9.2: ENTRAR na tela = POP-IN super rapido no item (0.11s), NAO
-         * teleporte (que o dono achou pior) nem viagem da tela anterior. Nasce
-         * levemente encolhido no proprio alvo e assenta com micro-overshoot. */
-        float ins = 7.0f;
-        tL = nL; tT = nT; tR = nR; tB = nB; tr_ = r;
-        fL = cL = nL + ins; fT = cT = nT + ins; fR = cR = nR - ins; fB = cB = nB - ins; fr_ = cr_ = r;
-        tweenStart(&tw_, 0.0f, 1.0f, 0.11f, EASE_LINEAR);
+        /* 1.9.3: ENTRAR na tela = SNAP no item. Isso e chamado no render da
+         * textura da tela NOVA (snapshot B do compositor), entao o foco ja nasce
+         * assentado NELA e ENTRA JUNTO com a aba (no lugar certo antes de a
+         * animacao de entrada terminar) -- sem teleporte pos-transicao, sem
+         * viagem. O morph bonito (0.24s) fica so no D-pad dentro da tela. */
+        fL = cL = tL = nL; fT = cT = tT = nT; fR = cR = tR = nR; fB = cB = tB = nB;
+        fr_ = cr_ = tr_ = r;
+        tw_.active = false;
         s_focusForceSnap = false;
     } else if (targetMoved) {
         float jump = fabsf(nL - cL) + fabsf(nT - cT);
@@ -951,10 +952,10 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
         : (ColorRGBA){226, 226, 230, 255};
     ColorRGBA baseBorder = {0, 0, 0, themeIsDark() ? 0 : 14};
     float r = h * 0.5f;
-    /* 1.6.1: FOCO integrado no controle (o aro fino externo era feio). Focado =
-     * trilho TINGIDO de accent (sem nenhum contorno solto) -- indica foco de
-     * dentro, sem cobrir a pilula selecionada nem repetir o aro que o dono odeia. */
-    if (focused) baseBg = themeMix(baseBg, UI_AccentAnim(), themeIsDark() ? 0.22f : 0.18f);
+    /* 1.9.3: NAO tinge mais o fundo do trilho de accent no foco -- isso fazia "o
+     * fundo do switch virar a cor selecionada" (o dono viu como bug, ainda mais
+     * porque aparecia/sumia conforme o que era tocado). O foco agora e uma
+     * SUBLINHA accent discreta embaixo (desenhada no fim da funcao). */
 
     UI_Shadow(x, y, w, h, r, 15, 1.0f);
     if (UI_AssetsReady()) {
@@ -988,6 +989,13 @@ void UI_TouchBarSegmented(C2D_TextBuf buf, float x, float y, float w, float h,
         float cx = x + segW * i + segW * 0.5f;
         ColorRGBA tc = (i == selected) ? themeContrastText(selBg) : g_theme.textSecondary;
         UI_TextCenter(buf, NULL, labels[i], cx, y + (h - 14) * 0.5f, 0.26f, 0.26f, tc);
+    }
+
+    /* 1.9.3: foco = sublinha accent curta e centrada embaixo (nao tinge o fundo). */
+    if (focused) {
+        ColorRGBA acc = UI_AccentAnim(); acc.a = 255;
+        float uw = w * 0.26f;
+        UI_RoundRect(x + (w - uw) * 0.5f, y + h + 3.0f, uw, 2.5f, 1.25f, acc);
     }
 }
 

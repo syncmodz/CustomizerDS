@@ -258,9 +258,9 @@ int main() {
                  * NOVA como bloco unico, entao ela deve aparecer ASSENTADA. O
                  * stagger por elemento reintroduziria "borracha" durante a
                  * troca (secao 4) -- ele fica so na entrada inicial (startup).
-                 * 1.9.0 FIX1: MAS resetamos o foco -> o indicador nasce PARADO no
-                 * item da aba nova (nao viaja da posicao da tela anterior). */
-                UI_FocusRingReset();
+                 * 1.9.3: o reset do foco NAO fica aqui (era consumido pelo
+                 * snapshot da tela VELHA) -- vai no render do snapshot B (tela
+                 * nova), abaixo, pra o foco nascer assentado NELA. */
                 inputResetRepeat();
                 switch (currentScreen) {
                     case SCREEN_MAIN_MENU: menuInit(); break;
@@ -279,14 +279,7 @@ int main() {
 
         if (transActive) {
             transClock += dt;
-            if (transClock >= transDuration(currentTrans)) {
-                transActive = false;
-                /* 1.9.1: ao FIM da transicao, forca o foco a snapar no item final
-                 * da tela nova. O reset no inicio nao bastava: o layout (scroll da
-                 * lista etc.) ainda assentava durante a transicao, e o foco entao
-                 * "viajava" ate a posicao final no 1o frame de render direto. */
-                UI_FocusRingReset();
-            }
+            if (transClock >= transDuration(currentTrans)) transActive = false;
         }
 
         /* §2: relogio do handoff boot->home. */
@@ -326,6 +319,11 @@ int main() {
                 drawScreenToTarget(compositorBot(true), false, transOldScreen, buf, bgBot);
                 transSnapPending = false;
             } else if (transBPending) {
+                /* 1.9.3: reset do foco AQUI (render da tela NOVA) -> o indicador
+                 * ja nasce assentado no item dela DENTRO da textura B, entao
+                 * desliza pra dentro JUNTO com a aba, ja no lugar certo (sem
+                 * teleporte pos-transicao, sem viagem da tela anterior). */
+                UI_FocusRingReset();
                 drawScreenToTarget(compositorTop(false), true, currentScreen, buf, bgTop);
                 drawScreenToTarget(compositorBot(false), false, currentScreen, buf, bgBot);
                 transBPending = false;

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.9.3
+- **Selection indicator now rides in WITH the tab**: it's snapped onto the
+  incoming screen's texture, so it slides in already on the correct item as the
+  tab enters (arrives exactly when the enter animation finishes) — no post-
+  transition pop, no teleport, no travel. The morph still plays for D-pad moves
+  inside a screen.
+- **Fixed the theme switch background bug**: focusing the Light/Dark (or mode /
+  language) toggle no longer tints the whole track with the accent color (which
+  looked like the switch background "turning into" the selected color and
+  flickering on/off). Focus is now a small accent underline under the control.
+
 ## 1.9.2
 - **HEX screen top redone**: the big empty gray panel (the "void") is gone —
   the top now shows a compact preview card like every other screen, with the
