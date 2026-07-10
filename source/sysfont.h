@@ -54,6 +54,11 @@ SysfontResult sysfontInstallBegin(SysfontInstall* ctx, const char* ciaRomfsPath)
 int sysfontInstallStep(SysfontInstall* ctx);
 SysfontResult sysfontInstallEnd(SysfontInstall* ctx);
 
+/* diagnostico do install: ultimo Result que falhou + em qual etapa
+ * (1=amInit, 2=StartCiaInstall, 3=Write, 4=FinishCiaInstall; 0=sem erro). */
+Result sysfontLastError(void);
+int sysfontLastStage(void);
+
 /* (Legado / Azahar) Gera cbf_std.bcfnt.lz a partir do .bcfnt e exporta pro SD
  * (sdmc:/3ds/CustomizerDS/sysfont/) p/ testar no emulador via /load/mods.
  * NAO escreve NAND, NAO reinicia. */

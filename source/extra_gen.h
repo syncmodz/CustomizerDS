@@ -4,3 +4,7 @@
 #define extra_gen_swatch_ring_thick_3x_idx 0
 #define extra_gen_swatch_ring_thin_3x_idx 1
 #define extra_gen_icon_256_idx 2
+#define extra_gen_icon_splash_3x_idx 3
+#define extra_gen_icon_wall_3x_idx 4
+#define extra_gen_icon_badge_3x_idx 5
+#define extra_gen_icon_homeui_3x_idx 6

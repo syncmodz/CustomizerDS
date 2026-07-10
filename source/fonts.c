@@ -54,7 +54,6 @@ static PopupModal s_popup;
 /* Tela de instalacao animada (fonte de sistema -> CTRNAND, in-app). O install e
  * feito INCREMENTAL (um pedaco por frame) pra a barra encher suave; ao chegar a
  * 100% segura um instante e o console reinicia sozinho (sysfontReboot). */
-static SysfontInstall s_inst;
 static bool  s_installing = false;
 static float s_instT = 0.0f;
 static float s_instProg = 0.0f;
@@ -63,6 +62,10 @@ static float s_instDoneT = 0.0f;
 static char  s_instName[40] = {0};
 static int   s_instIndex = 0; /* 1.4.0 §B1: fonte em instalacao (p/ marcar "em uso" so no sucesso real) */
 static bool  s_instSim = false; /* 1.4.0 PART4: install SIMULADO (Azahar/sem AM) -- anima sem reboot, aviso honesto */
+/* 1.9.5: install SINCRONO (igual FBI) -- faz o install REAL num disparo so, e
+ * SO DEPOIS anima a barra. Sem escrita fatiada por frame -> sem brick. */
+static const char* s_instCia = NULL;   /* .cia a instalar (romfs) */
+static bool  s_realDone = false;        /* o install real ja retornou? */
 
 /* v9 §10: 8 fontes (nomes proprios -- NAO traduzem no i18n). A fonte de
  * sistema continua existindo como FALLBACK seguro (fontsGetFont cai nela se um
@@ -201,36 +204,35 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
     if (s_installing) {
         float dt = uiFrameDt();
         s_instT += dt;
-        if (!s_instDone) {
-            if (s_instSim) {
-                /* PART4: Azahar/sem AM -- progresso por TEMPO (~2.5s), sem NAND. */
-                s_instProg = fmaxf(s_instProg, clampf(s_instT / 2.5f, 0.0f, 1.0f));
+        if (!s_realDone) {
+            /* FASE 1: mostra "Instalando..." por um instante (pra tela renderizar),
+             * DEPOIS faz o install REAL num disparo so (bloqueia ~1-2s). NADA de
+             * barra animando durante -- a escrita e toda de uma vez, igual FBI. */
+            if (s_instT >= 0.20f) {
+                SysfontResult res = sysfontInstallCia(s_instCia);
+                s_realDone = true;
+                s_instSim = (res != SYSFONT_OK);  /* AM recusou / emulador -> aviso */
+                s_instProg = 0.0f; s_instDone = false; s_instDoneT = 0.0f;
+            }
+        } else if (!s_instDone) {
+            /* FASE 2: install REAL terminou. Sucesso -> barra anima ate 100 (cosmetico).
+             * Falha -> pula direto pro aviso/codigo (nao enche a barra de verde a toa). */
+            if (s_instSim) { s_instDone = true; s_instDoneT = 0.0f; }
+            else {
+                s_instProg = fminf(1.0f, s_instProg + dt * 2.2f);
                 if (s_instProg >= 1.0f) { s_instDone = true; s_instDoneT = 0.0f; s_instProg = 1.0f; }
-            } else {
-                int r = sysfontInstallStep(&s_inst);
-                s_instProg = s_inst.size ? (float)((double)s_inst.off / (double)s_inst.size) : 1.0f;
-                if (r < 0) {
-                    /* PART4: Step falhou (ex.: Azahar) -> vira SIMULADO (anima ate
-                     * 100% por tempo + aviso honesto), em vez de FAIL seco. */
-                    s_instSim = true;
-                } else if (r == 0) {
-                    s_instDone = true; s_instDoneT = 0.0f; s_instProg = 1.0f;
-                }
             }
         } else {
             s_instDoneT += dt;
             if (s_instSim) {
-                /* Simulado: NAO reinicia. Mostra o aviso honesto e fecha quando o
-                 * dono aperta A/B/X (depois de uma pausinha pro check aparecer). */
+                /* AM recusou / emulador: aviso honesto + codigo de erro; fecha no A/B/X. */
                 if (s_instDoneT > 0.5f && (in->confirm || in->back || (in->down & KEY_X))) {
                     s_installing = false;
                 }
             } else {
-                /* 1.4.0 §B2: segura no 100% pro check aparecer, depois fade ->
-                 * reboot. Persiste a fonte como "em uso" SO agora (sucesso real). */
+                /* Sucesso real: segura no 100% pro check aparecer, persiste, reinicia. */
                 if (s_instDoneT >= 1.25f) {
                     applyFont(s_instIndex, true);
-                    sysfontInstallEnd(&s_inst);
                     sysfontReboot();
                 }
             }
@@ -250,17 +252,16 @@ void fontsUpdate(const AppInput* in, int* currentScreen) {
              * restaurar. So funciona no hardware (no Azahar o AM install
              * falha -> popup de erro honesto). NAND backup recomendado. */
             s_sysfontPending = false;
-            const char* cia = (s_selected == 0)
+            /* 1.9.5: guarda o .cia e abre a tela. O install REAL (sincrono, igual
+             * FBI) roda so na FASE 1 do update, depois de renderizar "Instalando".
+             * A animacao da barra vem SO DEPOIS do install de verdade terminar. */
+            s_instCia = (s_selected == 0)
                 ? SYSFONT_STOCK_CIA
                 : FONT_CIA_PATHS[s_selected - 1];
-            /* PART4: abre a tela de instalacao animada SEMPRE. Se o AM iniciar
-             * (hardware) = install REAL -> reboot ao fim. Se falhar (Azahar/sem
-             * AM) = modo SIMULADO -> mesma animacao por tempo + aviso honesto,
-             * sem reboot. Assim o dono ve a tela bonita tambem no emulador. */
             s_installing = true; s_instT = 0.0f; s_instProg = 0.0f;
-            s_instDone = false; s_instDoneT = 0.0f;
+            s_instDone = false; s_instDoneT = 0.0f; s_realDone = false;
             s_instIndex = s_selected;
-            s_instSim = (sysfontInstallBegin(&s_inst, cia) != SYSFONT_OK);
+            s_instSim = false;
             snprintf(s_instName, sizeof(s_instName), "%s", fontsLabel(s_selected));
         } else if (s_popup.result == -1) {
             s_sysfontPending = false;
@@ -366,6 +367,17 @@ static void drawInstallOverlay(C2D_TextBuf buf) {
     char pct[8]; snprintf(pct, sizeof(pct), "%d%%", (int)(p * 100.0f + 0.5f));
     ColorRGBA hint = g_theme.textHint; hint.a = (u8)(hint.a * A);
     UI_TextCenter(buf, NULL, pct, mid, 212.0f, 0.22f, 0.22f, hint);
+
+    /* DIAGNOSTICO (temporario): se caiu no simulado por ERRO de AM real (nao so
+     * "sem AM"), mostra a etapa + codigo pra a gente saber exatamente o que
+     * falhou no console e parar de chutar a permissao. */
+    if (done && s_instSim && sysfontLastStage() != 0) {
+        char err[80];
+        snprintf(err, sizeof(err), "AM etapa %d  cod 0x%08lX",
+                 sysfontLastStage(), (unsigned long)sysfontLastError());
+        ColorRGBA ec = g_theme.warning; ec.a = (u8)(255 * A);
+        UI_TextCenter(buf, NULL, err, mid, 228.0f, 0.24f, 0.24f, ec);
+    }
 }
 
 void fontsRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {

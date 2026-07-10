@@ -134,8 +134,9 @@ static Result setPatternSolid(u8 r, u8 g, u8 b) {
 static Result setPatternRainbow(void) {
     InfoLedPattern pattern;
     memset(&pattern, 0, sizeof(pattern));
-    pattern.delay = (u8)clampi(0x1C - s_speed * 4, 4, 28);
-    pattern.smoothing = 0x00;
+    /* 1.9.5: idem pulse -- estava rapido demais; faixa de delay bem maior. */
+    pattern.delay = (u8)clampi(0x90 - s_speed * 0x1A, 0x10, 0x90);
+    pattern.smoothing = 0x01;
     pattern.loopDelay = 0x00;
     pattern.blinkSpeed = 0x00;
     for (int i = 0; i < 32; i++) {
@@ -151,7 +152,10 @@ static Result setPatternRainbow(void) {
 static Result setPatternPulse(void) {
     InfoLedPattern pattern;
     memset(&pattern, 0, sizeof(pattern));
-    pattern.delay = (u8)clampi(0x1E - s_speed * 4, 4, 30);
+    /* 1.9.5: o LED fisico estava rapido DEMAIS (delay 10..26). O MCU segura cada
+     * um dos 32 frames por 'delay' ticks -> delay maior = pulso mais lento. Faixa
+     * bem mais alta agora: speed 1 = bem lento, speed 5 = rapido. */
+    pattern.delay = (u8)clampi(0xC0 - s_speed * 0x24, 0x18, 0xC0);
     pattern.smoothing = 0x01;
     pattern.loopDelay = 0x00;
     pattern.blinkSpeed = 0x00;

@@ -19,6 +19,13 @@ typedef enum {
     ICON_SWATCH_THICK,
     ICON_SWATCH_THIN,
     ICON_APPICON,
+    /* 2.0.0: icones das abas novas (extra.t3x idx 3..5, ver extra.t3s).
+     * Monocromaticos (glifos Reva SF): desenhar TINTADO (iconsDraw) com a cor
+     * do item -- NAO sao sticker. */
+    ICON_SPLASH,
+    ICON_WALL,
+    ICON_BADGES,
+    ICON_HOMEUI,
     ICON_COUNT
 } IconID;
 

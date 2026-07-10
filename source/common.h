@@ -29,7 +29,11 @@ typedef enum {
     SCREEN_MAIN_MENU = 0,
     SCREEN_FONTS,
     SCREEN_DARKMODE,
-    SCREEN_LED
+    SCREEN_LED,
+    SCREEN_SPLASH,
+    SCREEN_WALLPAPER,
+    SCREEN_BADGE,
+    SCREEN_HOMEUI
 } ScreenType;
 
 static inline float clampf(float v, float min, float max) {

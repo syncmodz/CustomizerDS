@@ -8,6 +8,11 @@
 #include "fonts.h"
 #include "darkmode.h"
 #include "led.h"
+#include "splash.h"
+#include "wallpaper.h"
+#include "badge.h"
+#include "homeui.h"
+#include "fs3ds.h"
 #include "config.h"
 #include "theme.h"
 #include "anim.h"
@@ -51,6 +56,10 @@ static void renderTopScreen(int screen, C2D_TextBuf buf, float transVal,
         case SCREEN_FONTS:     fontsRenderTop(buf, transVal, slideX, fadeA, scaleM); break;
         case SCREEN_DARKMODE:  darkmodeRenderTop(buf, transVal, slideX, fadeA, scaleM); break;
         case SCREEN_LED:       ledRenderTop(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_SPLASH:    splashRenderTop(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_WALLPAPER: wallpaperRenderTop(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_BADGE:     badgeRenderTop(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_HOMEUI:    homeuiRenderTop(buf, transVal, slideX, fadeA, scaleM); break;
     }
 }
 
@@ -61,6 +70,10 @@ static void renderBottomScreen(int screen, C2D_TextBuf buf, float transVal,
         case SCREEN_FONTS:     fontsRenderBottom(buf, transVal, slideX, fadeA, scaleM); break;
         case SCREEN_DARKMODE:  darkmodeRenderBottom(buf, transVal, slideX, fadeA, scaleM); break;
         case SCREEN_LED:       ledRenderBottom(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_SPLASH:    splashRenderBottom(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_WALLPAPER: wallpaperRenderBottom(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_BADGE:     badgeRenderBottom(buf, transVal, slideX, fadeA, scaleM); break;
+        case SCREEN_HOMEUI:    homeuiRenderBottom(buf, transVal, slideX, fadeA, scaleM); break;
     }
 }
 
@@ -111,6 +124,7 @@ int main() {
     fontsInit();
     darkmodeInit();
     ledInit();
+    fs3dsInit();   /* 2.0.0: abre extdata do Home Menu (tema/badges); no-op no emulador */
     uiScreenEnter();
 
     /* 8192 (era 4096): no 1o frame de uma troca o compositor desenha ate 4
@@ -243,6 +257,18 @@ int main() {
                 case SCREEN_LED:
                     ledUpdate(&in, dt, &currentScreen);
                     break;
+                case SCREEN_SPLASH:
+                    splashUpdate(&in, dt, &currentScreen);
+                    break;
+                case SCREEN_WALLPAPER:
+                    wallpaperUpdate(&in, dt, &currentScreen);
+                    break;
+                case SCREEN_BADGE:
+                    badgeUpdate(&in, dt, &currentScreen);
+                    break;
+                case SCREEN_HOMEUI:
+                    homeuiUpdate(&in, dt, &currentScreen);
+                    break;
             }
             if (currentScreen != oldScreen) {
                 /* Direcao: abrir funcao (menu -> tela) = direita; voltar
@@ -267,6 +293,10 @@ int main() {
                     case SCREEN_FONTS: fontsInit(); break;
                     case SCREEN_DARKMODE: darkmodeInit(); break;
                     case SCREEN_LED: ledEnter(); break;
+                    case SCREEN_SPLASH: splashInit(); break;
+                    case SCREEN_WALLPAPER: wallpaperInit(); break;
+                    case SCREEN_BADGE: badgeInit(); break;
+                    case SCREEN_HOMEUI: homeuiInit(); break;
                 }
             }
             } /* fecha o bloco de navegacao normal (so roda fora do modo lab) */
@@ -395,6 +425,7 @@ int main() {
     iconsExit();
     fontsSystemCleanup();
     ledExit();
+    fs3dsExit();
     if (!romfsRc) romfsExit();
     C2D_Fini();
     C3D_Fini();

@@ -62,3 +62,4 @@ test.sh
 
 # Fonte STOCK da Nintendo usada como preview do item "Padrao do Sistema" (nao versionar)
 romfs/fonts/stock.bcfnt
+romfs/homeui/theme_base.bin

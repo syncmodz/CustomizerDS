@@ -91,10 +91,14 @@ $(DATA)/fonts/stock.bcfnt: $(SYSFONT_STOCK_BCFNT)
 $(3DSX): $(ELF) $(SMDH) $(ROMFS_RAW)
 	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_RAW)
 
-$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o $(BUILD)/transitions.o $(BUILD)/compositor.o $(BUILD)/lang.o $(BUILD)/sysfont.o
+$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o $(BUILD)/transitions.o $(BUILD)/compositor.o $(BUILD)/lang.o $(BUILD)/sysfont.o $(BUILD)/splash.o $(BUILD)/fs3ds.o $(BUILD)/wallpaper.o $(BUILD)/lodepng.o $(BUILD)/badge.o $(BUILD)/homeui.o $(BUILD)/homeui_color.o $(BUILD)/miniz.o $(BUILD)/zip3ds.o $(BUILD)/imgload.o
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-$(BUILD)/%.o: $(SOURCES)/%.c
+# Todo .o depende de TODOS os headers: se qualquer .h muda (ex: novos STR_ no
+# lang.h), recompila tudo -- senao objetos velhos ficam com numeracao de enum
+# antiga e as strings saem trocadas (bug de header stale). Barato: os .o
+# compilam rapido; o lento (sysfont/romfs) nao e afetado.
+$(BUILD)/%.o: $(SOURCES)/%.c $(wildcard $(SOURCES)/*.h)
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -104,7 +108,7 @@ $(SMDH): $(APP_ICON)
 $(BANNER): banner_source.png audio.wav
 	$(BANNERTOOL) makebanner -i $< -a audio.wav -o $@
 
-$(APP_RSF):
+$(APP_RSF): Makefile
 	@mkdir -p $(BUILD)
 	@echo 'BasicInfo:' > $@
 	@echo '  Title                   : $(APP_TITLE)' >> $@
@@ -138,13 +142,38 @@ $(APP_RSF):
 	@echo '  CanShareDeviceMemory          : true' >> $@
 	@echo '  SpecialMemoryArrange          : true' >> $@
 	@echo '' >> $@
+	@echo '  FileSystemAccess:' >> $@
+	@echo '   - CategorySystemApplication' >> $@
+	@echo '   - CategoryFileSystemTool' >> $@
+	@echo '   - Debug' >> $@
+	@echo '   - DirectSdmc' >> $@
+	@echo '   - Core' >> $@
+	@echo '   - CtrNandRo' >> $@
+	@echo '   - CtrNandRw' >> $@
+	@echo '   - CtrNandRoWrite' >> $@
+	@echo '   - CategorySystemSettings' >> $@
+	@echo '   - DirectSdmcWrite' >> $@
+	@echo '   - CategoryHomeMenu' >> $@
+	@echo '' >> $@
+	@echo '  IoAccessControl:' >> $@
+	@echo '   - FsMountNand' >> $@
+	@echo '   - FsMountNandRoWrite' >> $@
+	@echo '   - FsMountTwln' >> $@
+	@echo '   - FsMountWnand' >> $@
+	@echo '   - FsMountCardSpi' >> $@
+	@echo '   - UseSdif3' >> $@
+	@echo '   - CreateSeed' >> $@
+	@echo '   - UseCardSpi' >> $@
+	@echo '' >> $@
 	@echo '  ServiceAccessControl:' >> $@
 	@echo '   - fs:USER' >> $@
 	@echo '   - gsp::Gpu' >> $@
 	@echo '   - hid:USER' >> $@
 	@echo '   - apt:u' >> $@
-	@echo '   - am:APP' >> $@
 	@echo '   - am:net' >> $@
+	@echo '   - cfg:u' >> $@
+	@echo '   - ns:s' >> $@
+	@echo '   - act:u' >> $@
 	@echo '   - ac:u' >> $@
 	@echo '   - pxi:dev' >> $@
 	@echo '   - mcu::HWC' >> $@
@@ -208,7 +237,7 @@ $(APP_RSF):
 # .t3x e regenerado a partir do .t3s (atlas). source/extra_gen.h sai junto.
 EXTRA_T3S := $(DATA)/gfx/extra.t3s
 EXTRA_T3X := $(DATA)/gfx/extra.t3x
-$(EXTRA_T3X): $(EXTRA_T3S) $(DATA)/gfx/swatch_ring_thick_3x.png $(DATA)/gfx/swatch_ring_thin_3x.png $(DATA)/gfx/icon_256.png
+$(EXTRA_T3X): $(EXTRA_T3S) $(DATA)/gfx/swatch_ring_thick_3x.png $(DATA)/gfx/swatch_ring_thin_3x.png $(DATA)/gfx/icon_256.png $(DATA)/gfx/icon_splash_3x.png $(DATA)/gfx/icon_wall_3x.png $(DATA)/gfx/icon_badge_3x.png $(DATA)/gfx/icon_homeui_3x.png
 	$(TEX3DS) -i $(EXTRA_T3S) -o $(EXTRA_T3X) -H source/extra_gen.h
 
 # 1.4.0 §A1: pacote 9-slice (card/focus/pill/shadow + glow/check). Sheet propria

@@ -122,13 +122,21 @@ bool sysfontCopyToSDIfAbsent(const char* romfsPath, const char* sdPath) {
  * (declarado no exheader/RSF) e passar os bytes do .cia pelo handle de install.
  *
  * Sequencia (espelha source/fbi/action/installcias.c da FBI p/ um titulo NAND):
- *   amInit -> AM_DeleteTitle(NAND,tid) + AM_DeleteTicket(tid) [ignora erro] ->
- *   AM_StartCiaInstall(MEDIATYPE_NAND,&h) -> FSFILE_Write(h,...) em blocos ->
- *   AM_FinishCiaInstall(h) [commit atomico]. Erro de escrita -> AM_CancelCIAInstall.
+ *   amInit -> AM_StartCiaInstall(MEDIATYPE_NAND,&h) -> FSFILE_Write(h,...) em
+ *   blocos -> AM_FinishCiaInstall(h) [commit atomico, SOBRESCREVE o titulo].
+ *   Erro de escrita -> AM_CancelCIAInstall. NUNCA apagar o titulo/ticket antes:
+ *   o Finish sobrescreve; se algo falhar, a fonte antiga fica intacta (anti-brick).
  * A fonte e um titulo normal de NAND (tid & 0xFFFFFFF != 0x2), entao NAO ha
  * AM_InstallFirm -- so a instalacao do titulo. */
 #define SYSFONT_FONT_TID  0x0004009B00014002ULL
 #define SYSFONT_CHUNK     (256u * 1024u)
+
+/* diagnostico: captura o Result e a etapa que falhou (pra mostrar na tela e
+ * parar de chutar a permissao AM). */
+static Result s_lastErr = 0;
+static int s_lastStage = 0;
+Result sysfontLastError(void) { return s_lastErr; }
+int sysfontLastStage(void) { return s_lastStage; }
 
 SysfontResult sysfontInstallCia(const char* ciaRomfsPath) {
     FILE* f = fopen(ciaRomfsPath, "rb");
@@ -136,13 +144,16 @@ SysfontResult sysfontInstallCia(const char* ciaRomfsPath) {
 
     if (R_FAILED(amInit())) { fclose(f); return SYSFONT_ERR_INSTALL; }
 
-    /* limpa o titulo/ticket antigos da fonte (ignora erro: pode nao existir). */
+    /* FBI-EXATO: delete + install num DISPARO SO (loop tight, sincrono, tudo
+     * nesta funcao -- NUNCA fatiado por frame). O brick antigo era a escrita
+     * espalhada por ~110 frames que falhava no meio; aqui e igual FBI: escreve
+     * tudo de uma vez. So chamado depois do usuario confirmar. */
     AM_DeleteTitle(MEDIATYPE_NAND, SYSFONT_FONT_TID);
     AM_DeleteTicket(SYSFONT_FONT_TID);
-
     Handle ciaH = 0;
-    if (R_FAILED(AM_StartCiaInstall(MEDIATYPE_NAND, &ciaH))) {
-        amExit(); fclose(f);
+    Result r;
+    if (R_FAILED(r = AM_StartCiaInstall(MEDIATYPE_NAND, &ciaH))) {
+        s_lastErr = r; s_lastStage = 2; amExit(); fclose(f);
         return SYSFONT_ERR_INSTALL;
     }
 
@@ -157,7 +168,9 @@ SysfontResult sysfontInstallCia(const char* ciaRomfsPath) {
     size_t n;
     while ((n = fread(buf, 1, SYSFONT_CHUNK, f)) > 0) {
         u32 written = 0;
-        if (R_FAILED(FSFILE_Write(ciaH, &written, offset, buf, (u32)n, 0)) || written != (u32)n) {
+        Result wr = FSFILE_Write(ciaH, &written, offset, buf, (u32)n, 0);
+        if (R_FAILED(wr) || written != (u32)n) {
+            s_lastErr = R_FAILED(wr) ? wr : -2; s_lastStage = 3;
             ok = false;
             break;
         }
@@ -175,6 +188,8 @@ SysfontResult sysfontInstallCia(const char* ciaRomfsPath) {
 
     Result fin = AM_FinishCiaInstall(ciaH);
     amExit();
+    if (R_FAILED(fin)) { s_lastErr = fin; s_lastStage = 4; }
+    else { s_lastErr = 0; s_lastStage = 0; }
     return R_SUCCEEDED(fin) ? SYSFONT_OK : SYSFONT_ERR_INSTALL;
 }
 
@@ -192,13 +207,17 @@ SysfontResult sysfontInstallBegin(SysfontInstall* ctx, const char* ciaRomfsPath)
     if (!f) return SYSFONT_ERR_READ;
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
     if (sz <= 0) { fclose(f); return SYSFONT_ERR_READ; }
-    if (R_FAILED(amInit())) { fclose(f); return SYSFONT_ERR_INSTALL; }
-    AM_DeleteTitle(MEDIATYPE_NAND, SYSFONT_FONT_TID);
-    AM_DeleteTicket(SYSFONT_FONT_TID);
+    Result r;
+    if (R_FAILED(r = amInit())) { s_lastErr = r; s_lastStage = 1; fclose(f); return SYSFONT_ERR_INSTALL; }
+    /* ANTI-BRICK ABSOLUTO (ordem do dono): NUNCA deletar o titulo/ticket. O
+     * install e Start->Write->Finish; se algo falhar, AM_CancelCIAInstall
+     * descarta o pendente e a FONTE ANTIGA FICA INTACTA -> impossivel brickar.
+     * Se o AM recusar sobrescrever (invalid-arg), cai no simulado, sem dano. */
     Handle h = 0;
-    if (R_FAILED(AM_StartCiaInstall(MEDIATYPE_NAND, &h))) {
-        amExit(); fclose(f); return SYSFONT_ERR_INSTALL;
+    if (R_FAILED(r = AM_StartCiaInstall(MEDIATYPE_NAND, &h))) {
+        s_lastErr = r; s_lastStage = 2; amExit(); fclose(f); return SYSFONT_ERR_INSTALL;
     }
+    s_lastErr = 0; s_lastStage = 0;
     ctx->_f = f; ctx->h = h; ctx->off = 0; ctx->size = (u64)sz; ctx->active = true;
     return SYSFONT_OK;
 }
@@ -213,9 +232,11 @@ int sysfontInstallStep(SysfontInstall* ctx) {
     if (chunk > sizeof(buf)) chunk = sizeof(buf);
     u64 remain = ctx->size - ctx->off;
     u32 want = (remain < chunk) ? (u32)remain : chunk;
-    if (fread(buf, 1, want, f) != want) { sysfontInstallAbort(ctx); return -1; }
+    if (fread(buf, 1, want, f) != want) { s_lastErr = -1; s_lastStage = 3; sysfontInstallAbort(ctx); return -1; }
     u32 written = 0;
-    if (R_FAILED(FSFILE_Write(ctx->h, &written, ctx->off, buf, want, 0)) || written != want) {
+    Result wr = FSFILE_Write(ctx->h, &written, ctx->off, buf, want, 0);
+    if (R_FAILED(wr) || written != want) {
+        s_lastErr = R_FAILED(wr) ? wr : -2; s_lastStage = 3;
         sysfontInstallAbort(ctx); return -1;
     }
     ctx->off += want;
@@ -227,5 +248,6 @@ SysfontResult sysfontInstallEnd(SysfontInstall* ctx) {
     amExit();
     if (ctx->_f) fclose((FILE*)ctx->_f);
     ctx->_f = NULL; ctx->h = 0; ctx->active = false;
+    if (R_FAILED(fin)) { s_lastErr = fin; s_lastStage = 4; }
     return R_SUCCEEDED(fin) ? SYSFONT_OK : SYSFONT_ERR_INSTALL;
 }
