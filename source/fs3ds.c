@@ -46,6 +46,18 @@ void fs3dsExit(void) {
 bool fs3dsThemeReady(void) { return s_init && s_haveTheme && s_haveHome; }
 bool fs3dsBadgeReady(void) { return s_init && s_haveBadge; }
 u8   fs3dsRegion(void)     { return s_region; }
+
+/* fonte unica do TID do Home Menu (era duplicado em homeui.c e hudcolor.c). */
+const char* fs3dsHomeMenuTID(u8 region) {
+    switch (region) {
+        case 0:         return "0004003000008202"; /* JPN */
+        case 2: case 3: return "0004003000009802"; /* EUR/AUS */
+        case 4:         return "000400300000A102"; /* CHN */
+        case 5:         return "000400300000A902"; /* KOR */
+        case 6:         return "000400300000B102"; /* TWN */
+        default:        return "0004003000008F02"; /* USA */
+    }
+}
 FS_Archive fs3dsThemeExt(void) { return s_theme; }
 FS_Archive fs3dsHomeExt(void)  { return s_home; }
 FS_Archive fs3dsBadgeExt(void) { return s_badge; }

@@ -34,7 +34,7 @@ static const char* modeNameI(int i) {
 
 static int s_mode = LED_RAINBOW;
 static int s_selected = 0;
-static int s_speed = 2;
+static int s_speed = 50;   /* 1.9.6: slider fino 1..100 */
 static u8 s_r = 255;
 static u8 s_g = 96;
 static u8 s_b = 160;
@@ -86,7 +86,7 @@ static void chanInfo(int chan, int** ip, int* mn, int* mx, ColorRGBA* col, const
         case CH_R: rr = s_r; *ip = &rr; *mn = 0; *mx = 255; *col = (ColorRGBA){255, 86, 120, 255}; *label = "R"; break;
         case CH_G: gg = s_g; *ip = &gg; *mn = 0; *mx = 255; *col = (ColorRGBA){95, 215, 130, 255}; *label = "G"; break;
         case CH_B: bb = s_b; *ip = &bb; *mn = 0; *mx = 255; *col = (ColorRGBA){10, 132, 255, 255}; *label = "B"; break;
-        case CH_SPEED: sp = s_speed; *ip = &sp; *mn = 1; *mx = 5; *col = UI_AccentAnim(); *label = T(STR_SPEED_SHORT); break;
+        case CH_SPEED: sp = s_speed; *ip = &sp; *mn = 1; *mx = 100; *col = UI_AccentAnim(); *label = T(STR_SPEED_SHORT); break;
         default: dp = s_pulseDepth; *ip = &dp; *mn = 1; *mx = 100; *col = UI_AccentAnim(); *label = T(STR_DEPTH_SHORT); break;
     }
 }
@@ -96,7 +96,7 @@ static void chanSet(int chan, int v) {
         case CH_R: s_r = (u8)clampi(v, 0, 255); break;
         case CH_G: s_g = (u8)clampi(v, 0, 255); break;
         case CH_B: s_b = (u8)clampi(v, 0, 255); break;
-        case CH_SPEED: s_speed = clampi(v, 1, 5); break;
+        case CH_SPEED: s_speed = clampi(v, 1, 100); break;
         default: s_pulseDepth = clampi(v, 1, 100); break;
     }
 }
@@ -113,6 +113,14 @@ const char* ledModeName(void) { return modeNameI(s_mode); }
 static u8 scaleU8(u8 value, float mul) {
     int out = (int)((float)value * mul);
     return (u8)clampi(out, 0, 255);
+}
+
+/* 1.9.6: mapeia o slider de velocidade (s_speed 1..100) pro 'delay' do MCU
+ * (cada frame do padrao segura 'delay' ticks). speed 1 = lento (delay=slow),
+ * speed 100 = rapido (delay=fast). Slider fino, continuo. */
+static u8 speedDelay(int slow, int fast) {
+    int d = slow - (s_speed - 1) * (slow - fast) / 99;
+    return (u8)clampi(d, fast, slow);
 }
 
 /* hsvToRgb (antes static aqui) foi extraido pra common.h como hsvToRgbF --
@@ -134,8 +142,7 @@ static Result setPatternSolid(u8 r, u8 g, u8 b) {
 static Result setPatternRainbow(void) {
     InfoLedPattern pattern;
     memset(&pattern, 0, sizeof(pattern));
-    /* 1.9.5: idem pulse -- estava rapido demais; faixa de delay bem maior. */
-    pattern.delay = (u8)clampi(0x90 - s_speed * 0x1A, 0x10, 0x90);
+    pattern.delay = speedDelay(0x90, 0x10);  /* 1.9.6: slider continuo 1..100 */
     pattern.smoothing = 0x01;
     pattern.loopDelay = 0x00;
     pattern.blinkSpeed = 0x00;
@@ -152,10 +159,8 @@ static Result setPatternRainbow(void) {
 static Result setPatternPulse(void) {
     InfoLedPattern pattern;
     memset(&pattern, 0, sizeof(pattern));
-    /* 1.9.5: o LED fisico estava rapido DEMAIS (delay 10..26). O MCU segura cada
-     * um dos 32 frames por 'delay' ticks -> delay maior = pulso mais lento. Faixa
-     * bem mais alta agora: speed 1 = bem lento, speed 5 = rapido. */
-    pattern.delay = (u8)clampi(0xC0 - s_speed * 0x24, 0x18, 0xC0);
+    /* 1.9.6: slider continuo 1..100 -> delay 0xC0(lento)..0x14(rapido). */
+    pattern.delay = speedDelay(0xC0, 0x14);
     pattern.smoothing = 0x01;
     pattern.loopDelay = 0x00;
     pattern.blinkSpeed = 0x00;
@@ -209,7 +214,8 @@ void ledInit(void) {
     ConfigData cfg;
     configLoad(&cfg);
     s_mode = clampi(cfg.ledMode, 0, LED_MODE_COUNT - 1);
-    s_speed = clampi(cfg.ledSpeed, 1, 5);
+    /* 1.9.6: slider agora e 1..100. Config antiga guardava 1..5 -> escala x20. */
+    s_speed = cfg.ledSpeed <= 5 ? clampi(cfg.ledSpeed * 20, 1, 100) : clampi(cfg.ledSpeed, 1, 100);
     s_r = cfg.ledR;
     s_g = cfg.ledG;
     s_b = cfg.ledB;

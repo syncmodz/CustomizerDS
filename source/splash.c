@@ -6,6 +6,7 @@
 #include "lang.h"
 #include "zip3ds.h"
 #include "imgload.h"
+#include "sysfont.h"
 #include <3ds.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +45,8 @@ static char s_toast[96] = "";
 static C2D_Image s_preview = {0};
 static bool s_hasPreview = false;
 static int s_previewFor = -2;      /* indice cujo preview esta carregado */
+static bool s_rebooting = false;   /* aplicou -> reinicia p/ ver no boot */
+static float s_rebootT = 0.0f;
 
 static void freePreview(void);
 static void loadPreview(int i);
@@ -177,6 +180,7 @@ static void doApply(int i) {
         if (se->hasBottom) { snprintf(src, sizeof(src), "%s/splashbottom.bin", se->path); ok |= copyFileRaw(src, LUMA_BOTTOM); }
     }
     showToast(ok ? T(STR_SPLASH_DONE) : "ERRO");
+    if (ok) { s_rebooting = true; s_rebootT = 1.0f; }  /* reinicia p/ ver no boot */
 }
 
 static void doRemove(void) {
@@ -203,6 +207,8 @@ static void rowRect(int i, float slideX, float* rx, float* ry, float* rw, float*
 void splashUpdate(const AppInput* in, float dt, int* currentScreen) {
     popupUpdate(&s_popup);
     if (s_toastT > 0.0f) s_toastT -= dt;
+
+    if (s_rebooting) { s_rebootT -= dt; if (s_rebootT <= 0.0f) sysfontReboot(); return; }
 
     if (popupActive(&s_popup)) {
         if (popupConfirmInput(&s_popup, in) && s_popup.result == 1) {
@@ -299,6 +305,12 @@ void splashRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA,
 void splashRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
     (void)transVal; (void)scaleM;
     UI_BottomBackground();
+
+    if (s_rebooting) {
+        ColorRGBA acc = UI_AccentAnim(); acc.a = 255;
+        UI_TextCenter(buf, NULL, T(STR_WALL_REBOOT), SCREEN_BOT_WIDTH * 0.5f, 108.0f, 0.30f, 0.30f, acc);
+        return;
+    }
 
     spClampScroll();
     {

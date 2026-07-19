@@ -8,3 +8,11 @@
 #define extra_gen_icon_wall_3x_idx 4
 #define extra_gen_icon_badge_3x_idx 5
 #define extra_gen_icon_homeui_3x_idx 6
+#define extra_gen_icon_battery_3x_idx 7
+#define extra_gen_icon_clock_3x_idx 8
+#define extra_gen_icon_coin_3x_idx 9
+#define extra_gen_icon_steps_3x_idx 10
+#define extra_gen_icon_wifi_3x_idx 11
+#define extra_gen_icon_apply_3x_idx 12
+#define extra_gen_icon_reset_3x_idx 13
+#define extra_gen_icon_pack_3x_idx 14

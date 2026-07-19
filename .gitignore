@@ -62,4 +62,6 @@ test.sh
 
 # Fonte STOCK da Nintendo usada como preview do item "Padrao do Sistema" (nao versionar)
 romfs/fonts/stock.bcfnt
-romfs/homeui/theme_base.bin
+
+# Base do editor de cor do HUD (dono autorizou versionar os assets da Home Menu)
+!romfs/homeui/hud_usa.bin

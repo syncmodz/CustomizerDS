@@ -15,6 +15,10 @@ bool fs3dsBadgeReady(void);   /* archive dos badges abriu/criou? */
 bool fs3dsBadgeEnsure(void);  /* abre/cria a extdata 0x14d1 + BadgeData/BadgeMngFile (igual open_badge_extdata do Anemone) */
 u8   fs3dsRegion(void);
 
+/* TID do applet Home Menu da regiao (fonte UNICA de verdade -- LayeredFS em
+ * sdmc:/luma/titles/<tid>/). CFG_Region: 0=JPN 1=USA 2=EUR 3=AUS 4=CHN 5=KOR 6=TWN. */
+const char* fs3dsHomeMenuTID(u8 region);
+
 FS_Archive fs3dsThemeExt(void);   /* BodyCache/BgmCache/ThemeManage */
 FS_Archive fs3dsHomeExt(void);    /* SaveData.dat */
 FS_Archive fs3dsBadgeExt(void);   /* BadgeData/BadgeMngFile */

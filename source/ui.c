@@ -218,9 +218,13 @@ void UI_RingCircle(float cx, float cy, float diameter, ColorRGBA tint) {
  * v20): mini-emblema centro (28,26) r9 + eyebrow "CustomizerDS" (x46) + o
  * large-title da tela (x24, ~26px, a esquerda). Cores via tema. */
 void UI_ScreenHeader(C2D_TextBuf buf, const char* title) {
-    /* 1.6.1: o mini-emblema do header tambem ganha vida (deriva 2D). */
-    UI_Emblem(28.0f, 26.0f, 9.0f / 24.0f, uiFrameTime(), 1.0f);
-    UI_Text(buf, NULL, "CustomizerDS", 46.0f, 16.0f, 0.30f, 0.30f, g_theme.textHint);
+    /* 1.9.6: as 3 bolinhas do macOS voltaram pro canto superior esquerdo (charme
+     * classico do app, estilo "glass" -- borda solida + interior translucido). */
+    ColorRGBA hb = g_theme.backgroundTop;
+    UI_GlassDot(14.0f, 14.0f, 4.0f, (ColorRGBA){255, 95, 87, 255}, hb);
+    UI_GlassDot(27.0f, 14.0f, 4.0f, (ColorRGBA){255, 189, 47, 255}, hb);
+    UI_GlassDot(40.0f, 14.0f, 4.0f, (ColorRGBA){40, 200, 65, 255}, hb);
+    UI_Text(buf, NULL, "CustomizerDS", 54.0f, 16.0f, 0.30f, 0.30f, g_theme.textHint);
     if (title) {
         UI_Text(buf, NULL, title, 24.0f, 40.0f, 0.70f, 0.70f, g_theme.textPrimary);
         /* 1.6.1: DETALHE -- barra accent curta sob o titulo (cresce na entrada da

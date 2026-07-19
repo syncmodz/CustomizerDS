@@ -26,6 +26,16 @@ typedef enum {
     ICON_WALL,
     ICON_BADGES,
     ICON_HOMEUI,
+    /* 1.9.6: glifos SF do Reva p/ enriquecer o editor de HUD (extra.t3x idx
+     * 7..14, ver extra.t3s). Monocromaticos -> desenhar TINTADO (iconsDraw). */
+    ICON_BATTERY,
+    ICON_CLOCK,
+    ICON_COIN,
+    ICON_STEPS,
+    ICON_WIFI,
+    ICON_APPLY,
+    ICON_RESET,
+    ICON_PACK,
     ICON_COUNT
 } IconID;
 

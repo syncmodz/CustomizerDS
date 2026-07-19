@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.9.6
+- **Auto-created SD folders** on first boot: `Splashes/`, `Themes/`, `Badges/`, `homeui/`.
+- **LED speed is a continuous 1–100 slider** (was 5 steps); pulse and rainbow map the
+  full range; old configs migrate automatically.
+- **Home UI tab**: brand-new HUD color editor (presets grid + per-element HSV color
+  wheel + live top-screen preview) and a LayeredFS pack installer (cooolgamer tree
+  supported) — plus environment diagnostics (warns when Luma game patching is off).
+- **HSV color wheel** picker (ring + static triangle, touch-first) and SF icons from
+  the Reva UI set across the editor; macOS traffic-light dots back in the header.
+- **Apply flows reboot automatically** (Anemone-style) for HUD colors, splashes and
+  badges; wallpaper already did.
+- **HUD color hardening (LayeredFS)**: real LZ11 compression (hash-chain, ~10 KB —
+  the old "stored" 53 KB output was silently rejected by the Home Menu); apply now
+  re-reads and roundtrip-validates the written file before claiming success.
+- **Environment diagnostics**: the Home UI tab reads `sdmc:/luma/config.ini` and
+  shows a blocking warning when `enable_game_patching = 0` (or no Luma at all) —
+  the "applied but nothing changed" failure is never silent anymore.
+- **Safety fixes**: Remove no longer deletes `luma/titles/<TID>` wholesale — pack
+  installs write a manifest (`sdmc:/3ds/CustomizerDS/installed_pack.txt`) and only
+  manifested files are removed (fallback: only our `hud_LZ.bin`); pack install now
+  rolls back on partial failure; SD copies stream in 64 KB chunks.
+- **Clean stock template**: `hud_usa.bin` was dumped from an already-modified Home
+  (green battery `00EE00`); rebuilt with stock colors (normal `23AAE6`, low
+  `F57D41`, charging `23AFE6`, charger `FF732E`).
+- **Refactor**: `fs3dsHomeMenuTID()` is the single source of region→TID (was
+  duplicated in homeui.c/hudcolor.c); `-Wextra` sweep on new files (0 warnings).
+- **New skill**: `.claude/skills/3ds-homemenu-layeredfs/` (formats, diagnostics,
+  toolchain, motion rules) + tested `lz11.py`/`hud_inspect.py` scripts.
+
 ## 1.9.4
 - **Focus indicator animated in every form now**: the segmented "bar" (Light/
   Dark, LED mode, language) is a small accent underline that **slides** under the

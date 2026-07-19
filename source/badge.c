@@ -8,6 +8,7 @@
 #include "lodepng.h"
 #include "zip3ds.h"
 #include "imgload.h"
+#include "sysfont.h"
 #include <3ds.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,6 +50,8 @@ static int s_pendingInstall = 0;
 static C2D_Image s_preview = {0};
 static bool s_hasPreview = false;
 static int s_previewFor = -2;
+static bool s_rebooting = false;   /* instalou badges -> reinicia p/ recarregar */
+static float s_rebootT = 0.0f;
 
 static void freePreview(void);
 static void loadPreview(int i);
@@ -539,8 +542,13 @@ static void bClampScroll(void) {
 }
 
 void badgeUpdate(const AppInput* in, float dt, int* currentScreen) {
+    if (s_rebooting) { s_rebootT -= dt; if (s_rebootT <= 0.0f) sysfontReboot(); return; }
     if (s_pendingInstall > 0) {
-        if (--s_pendingInstall == 0) showToast(doInstall());
+        if (--s_pendingInstall == 0) {
+            const char* res = doInstall();
+            showToast(res);
+            if (res == T(STR_BADGE_DONE)) { s_rebooting = true; s_rebootT = 1.2f; }
+        }
         return;
     }
     popupUpdate(&s_popup);
@@ -608,6 +616,12 @@ void badgeRenderTop(C2D_TextBuf buf, float transVal, float slideX, float fadeA, 
 void badgeRenderBottom(C2D_TextBuf buf, float transVal, float slideX, float fadeA, float scaleM) {
     (void)transVal; (void)scaleM;
     UI_BottomBackground();
+
+    if (s_rebooting) {
+        ColorRGBA acc = UI_AccentAnim(); acc.a = 255;
+        UI_TextCenter(buf, NULL, T(STR_WALL_REBOOT), SCREEN_BOT_WIDTH * 0.5f, 108.0f, 0.30f, 0.30f, acc);
+        return;
+    }
 
     bClampScroll();
     {

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "common.h"
 #include "menu.h"
 #include "fonts.h"
@@ -125,6 +126,13 @@ int main() {
     darkmodeInit();
     ledInit();
     fs3dsInit();   /* 2.0.0: abre extdata do Home Menu (tema/badges); no-op no emulador */
+
+    /* 1.9.6: cria automaticamente as pastas que o app le no SD -- o dono nao
+     * precisa criar nada na mao. mkdir e no-op se ja existir. */
+    mkdir("sdmc:/Splashes", 0777);  /* aba Splashes */
+    mkdir("sdmc:/Themes", 0777);    /* aba Wallpapers (temas do Anemone) */
+    mkdir("sdmc:/Badges", 0777);    /* aba Badges */
+    mkdir("sdmc:/homeui", 0777);    /* aba UI da Home (packs LayeredFS) */
     uiScreenEnter();
 
     /* 8192 (era 4096): no 1o frame de uma troca o compositor desenha ate 4

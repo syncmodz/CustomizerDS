@@ -17,7 +17,7 @@ static C2D_Image getImage(IconID id) {
     C2D_Image img = {0};
     if (id >= ICON_FONTS && id <= ICON_BADGE_B) {
         if (s_sheet) return C2D_SpriteSheetGetImage(s_sheet, (size_t)id);
-    } else if (id >= ICON_SWATCH_THICK && id <= ICON_HOMEUI) {
+    } else if (id >= ICON_SWATCH_THICK && id <= ICON_PACK) {
         if (s_extra) return C2D_SpriteSheetGetImage(s_extra, (size_t)(id - ICON_SWATCH_THICK));
     }
     return img;

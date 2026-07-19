@@ -91,7 +91,7 @@ $(DATA)/fonts/stock.bcfnt: $(SYSFONT_STOCK_BCFNT)
 $(3DSX): $(ELF) $(SMDH) $(ROMFS_RAW)
 	$(3DSXTOOL) $< $@ --smdh=$(SMDH) --romfs=$(ROMFS_RAW)
 
-$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o $(BUILD)/transitions.o $(BUILD)/compositor.o $(BUILD)/lang.o $(BUILD)/sysfont.o $(BUILD)/splash.o $(BUILD)/fs3ds.o $(BUILD)/wallpaper.o $(BUILD)/lodepng.o $(BUILD)/badge.o $(BUILD)/homeui.o $(BUILD)/homeui_color.o $(BUILD)/miniz.o $(BUILD)/zip3ds.o $(BUILD)/imgload.o
+$(ELF): $(BUILD)/main.o $(BUILD)/common.o $(BUILD)/menu.o $(BUILD)/fonts.o $(BUILD)/darkmode.o $(BUILD)/led.o $(BUILD)/theme.o $(BUILD)/anim.o $(BUILD)/ui.o $(BUILD)/input.o $(BUILD)/color_picker.o $(BUILD)/config.o $(BUILD)/icons.o $(BUILD)/transitions.o $(BUILD)/compositor.o $(BUILD)/lang.o $(BUILD)/sysfont.o $(BUILD)/splash.o $(BUILD)/fs3ds.o $(BUILD)/wallpaper.o $(BUILD)/lodepng.o $(BUILD)/badge.o $(BUILD)/homeui.o $(BUILD)/homeui_color.o $(BUILD)/hudcolor.o $(BUILD)/colorwheel.o $(BUILD)/miniz.o $(BUILD)/zip3ds.o $(BUILD)/imgload.o
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 # Todo .o depende de TODOS os headers: se qualquer .h muda (ex: novos STR_ no
@@ -237,7 +237,7 @@ $(APP_RSF): Makefile
 # .t3x e regenerado a partir do .t3s (atlas). source/extra_gen.h sai junto.
 EXTRA_T3S := $(DATA)/gfx/extra.t3s
 EXTRA_T3X := $(DATA)/gfx/extra.t3x
-$(EXTRA_T3X): $(EXTRA_T3S) $(DATA)/gfx/swatch_ring_thick_3x.png $(DATA)/gfx/swatch_ring_thin_3x.png $(DATA)/gfx/icon_256.png $(DATA)/gfx/icon_splash_3x.png $(DATA)/gfx/icon_wall_3x.png $(DATA)/gfx/icon_badge_3x.png $(DATA)/gfx/icon_homeui_3x.png
+$(EXTRA_T3X): $(EXTRA_T3S) $(DATA)/gfx/swatch_ring_thick_3x.png $(DATA)/gfx/swatch_ring_thin_3x.png $(DATA)/gfx/icon_256.png $(DATA)/gfx/icon_splash_3x.png $(DATA)/gfx/icon_wall_3x.png $(DATA)/gfx/icon_badge_3x.png $(DATA)/gfx/icon_homeui_3x.png $(DATA)/gfx/icon_battery_3x.png $(DATA)/gfx/icon_clock_3x.png $(DATA)/gfx/icon_coin_3x.png $(DATA)/gfx/icon_steps_3x.png $(DATA)/gfx/icon_wifi_3x.png $(DATA)/gfx/icon_apply_3x.png $(DATA)/gfx/icon_reset_3x.png $(DATA)/gfx/icon_pack_3x.png
 	$(TEX3DS) -i $(EXTRA_T3S) -o $(EXTRA_T3X) -H source/extra_gen.h
 
 # 1.4.0 §A1: pacote 9-slice (card/focus/pill/shadow + glow/check). Sheet propria
